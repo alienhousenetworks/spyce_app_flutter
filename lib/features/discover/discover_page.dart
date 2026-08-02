@@ -33,6 +33,7 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
   bool hasMore = true;
   String? error;
   String? toast;
+  String? locationBanner;
   bool showPaywall = false;
   SubscriptionStatus? paywallStatus;
 
@@ -163,8 +164,11 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
         hasMore = res.nextCursor != null;
         loading = false;
         loadingMore = false;
+        locationBanner = res.locationMessage;
         if (profiles.isEmpty && res.emptyReason != null) {
           error = res.emptyReason;
+        } else if (profiles.isEmpty) {
+          error ??= null;
         }
       });
     } on ApiException catch (e) {
@@ -864,6 +868,39 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                 ),
               ),
             ),
+            if (locationBanner != null &&
+                locationBanner!.isNotEmpty &&
+                profiles.isNotEmpty)
+              Material(
+                color: SpyceColors.pink.withValues(alpha: 0.15),
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.place_outlined,
+                          color: SpyceColors.pinkSoft, size: 18),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          locationBanner!,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        visualDensity: VisualDensity.compact,
+                        onPressed: () => setState(() => locationBanner = null),
+                        icon: const Icon(Icons.close,
+                            size: 16, color: Colors.white54),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             Expanded(
               child: loading
                   ? const Center(
@@ -873,13 +910,48 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                   : profiles.isEmpty
                       ? EmptyState(
                           icon: Icons.explore_outlined,
-                          title: 'Feed is quiet',
-                          subtitle: error ?? 'Try refreshing or widen filters.',
-                          action: TextButton(
-                            onPressed: () => _load(0),
-                            child: const Text('Refresh',
-                                style:
-                                    TextStyle(color: SpyceColors.pinkSoft)),
+                          title: (filters['city']?.toString().isNotEmpty == true)
+                              ? 'No one in ${filters['city']} yet'
+                              : 'Feed is quiet',
+                          subtitle: error ??
+                              locationBanner ??
+                              'Try Anywhere, a nearby city, or widen age filters.',
+                          action: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              TextButton(
+                                onPressed: () => _load(0),
+                                child: const Text('Refresh',
+                                    style: TextStyle(
+                                        color: SpyceColors.pinkSoft)),
+                              ),
+                              TextButton(
+                                onPressed: () {
+                                  setState(() {
+                                    filters = {
+                                      ...filters,
+                                      'distance': 0,
+                                      'location_mode': 'distance',
+                                      'city': '',
+                                      'state': '',
+                                      'country': '',
+                                    };
+                                    filters.remove('city_lat');
+                                    filters.remove('city_lon');
+                                  });
+                                  _load(0);
+                                },
+                                child: const Text('Switch to Anywhere',
+                                    style: TextStyle(
+                                        color: SpyceColors.pinkSoft)),
+                              ),
+                              TextButton(
+                                onPressed: _openFilters,
+                                child: const Text('Adjust filters',
+                                    style: TextStyle(
+                                        color: SpyceColors.pinkSoft)),
+                              ),
+                            ],
                           ),
                         )
                       : PageView.builder(

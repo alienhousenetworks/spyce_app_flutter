@@ -3,7 +3,7 @@ class Env {
   Env._();
 
   static const String appName = 'SPYCE';
-  static const String appVersion = '1.0.0';
+  static const String appVersion = '1.0.1';
 
   /// Production test API (same host as web client).
   static const String apiBaseUrl = String.fromEnvironment(
@@ -16,6 +16,12 @@ class Env {
   static const String wsBase = String.fromEnvironment(
     'WS_BASE_URL',
     defaultValue: 'wss://testapi.spycenow.com/ws',
+  );
+
+  /// Leave empty / YOUR_* until credentials are ready (next 2 weeks).
+  static const String sentryDsn = String.fromEnvironment(
+    'SENTRY_DSN',
+    defaultValue: '',
   );
 
   static String chatWs(String conversationId, String ticket) =>

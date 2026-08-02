@@ -634,12 +634,18 @@ class FeedResponse {
     this.nextCursor,
     this.emptyReason,
     this.profileIncomplete = false,
+    this.locationContext,
   });
 
   final List<FeedProfile> results;
   final int? nextCursor;
   final String? emptyReason;
   final bool profileIncomplete;
+  /// City search polish: exact | nearby | empty
+  final Map<String, dynamic>? locationContext;
+
+  String? get locationMessage =>
+      locationContext?['message']?.toString();
 
   factory FeedResponse.fromJson(Map<String, dynamic> json) {
     final resultsRaw = json['results'] ?? json['data'] ?? [];
@@ -651,11 +657,17 @@ class FeedResponse {
       }
     }
     final next = json['next_cursor'];
+    Map<String, dynamic>? locCtx;
+    final rawLoc = json['location_context'];
+    if (rawLoc is Map) {
+      locCtx = Map<String, dynamic>.from(rawLoc);
+    }
     return FeedResponse(
       results: results,
       nextCursor: next == null ? null : int.tryParse(next.toString()),
       emptyReason: json['empty_reason']?.toString(),
       profileIncomplete: json['profile_incomplete'] == true,
+      locationContext: locCtx,
     );
   }
 }

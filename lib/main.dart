@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'core/network/connectivity_banner.dart';
+import 'core/observability/sentry_bootstrap.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/spyce_colors.dart';
 import 'core/theme/spyce_theme.dart';
@@ -24,6 +27,8 @@ void main() async {
     DeviceOrientation.portraitDown,
   ]);
 
+  await initSentryFlutter();
+
   runApp(const ProviderScope(child: SpyceApp()));
 }
 
@@ -39,8 +44,20 @@ class SpyceApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       theme: SpyceTheme.dark,
       routerConfig: router,
+      // Production i18n baseline (English first; add arb locales next)
+      locale: const Locale('en'),
+      supportedLocales: const [
+        Locale('en'),
+      ],
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
       builder: (context, child) {
-        return CallOverlayHost(child: child ?? const SizedBox.shrink());
+        return ConnectivityBannerHost(
+          child: CallOverlayHost(child: child ?? const SizedBox.shrink()),
+        );
       },
     );
   }

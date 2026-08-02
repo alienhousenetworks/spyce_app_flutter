@@ -583,6 +583,26 @@ class SubscriptionRepository {
     );
     return _asMap(data);
   }
+
+  /// Restore purchases (Play Billing / StoreKit receipt validation).
+  /// Production: send store token + platform; placeholders OK until store setup.
+  Future<Map<String, dynamic>> restorePurchases({
+    required String platform,
+    String? purchaseToken,
+    String? receiptData,
+    String? productId,
+  }) async {
+    final data = await _api.post<dynamic>(
+      '/subscription/restore/',
+      data: {
+        'platform': platform,
+        if (purchaseToken != null) 'purchase_token': purchaseToken,
+        if (receiptData != null) 'receipt_data': receiptData,
+        if (productId != null) 'product_id': productId,
+      },
+    );
+    return _asMap(data);
+  }
 }
 
 // ── Social / Confessions ─────────────────────────────────────
