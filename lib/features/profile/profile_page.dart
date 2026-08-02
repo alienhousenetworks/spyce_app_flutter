@@ -1131,8 +1131,17 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
       if (readyImmediately) {
         // Sync upload (201): photo is already on the profile
+        // Bust any previously failed CachedNetworkImage entries
+        await CachedNetworkImage.evictFromCache(
+          (uploadRes['image_url'] ?? '').toString(),
+        );
         await _load();
         if (!mounted) return;
+        // Evict resolved URLs for every image after reload
+        for (final img in profile?.images ?? const <ProfileImage>[]) {
+          final u = resolveMediaUrl(img.imageUrl);
+          if (u != null) await CachedNetworkImage.evictFromCache(u);
+        }
         setState(() => pendingLocalPhotoPath = null);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Photo ready ✓')),

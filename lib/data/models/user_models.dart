@@ -1736,6 +1736,7 @@ class UserProfile {
 
   /// Profile / list display: first photo (main) else admin pool avatar.
   String? get displayImageUrl {
+    // resolveMediaUrl applied at widget layer; return first non-empty URL
     if (hasUserPhotos) {
       final u = images.first.imageUrl.trim();
       if (u.isNotEmpty) return u;
