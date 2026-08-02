@@ -213,11 +213,3 @@ class _MatchTile extends StatelessWidget {
     );
   }
 }
-
-extension on MatchItem {
-  String get shortOrName {
-    if (username != null && username!.isNotEmpty) return username!;
-    if (firstName != null && firstName!.isNotEmpty) return firstName!;
-    return 'M';
-  }
-}

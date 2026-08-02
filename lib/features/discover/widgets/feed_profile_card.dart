@@ -562,13 +562,11 @@ class _RoundAction extends StatelessWidget {
     required this.icon,
     required this.onTap,
     this.filled = false,
-    this.rotate = false,
   });
 
   final IconData icon;
   final VoidCallback onTap;
   final bool filled;
-  final bool rotate;
 
   @override
   Widget build(BuildContext context) {
@@ -593,13 +591,10 @@ class _RoundAction extends StatelessWidget {
             ),
           ],
         ),
-        child: Transform.rotate(
-          angle: rotate ? -0.6 : 0,
-          child: Icon(
-            icon,
-            color: const Color(0xFFF5E6C8),
-            size: 30,
-          ),
+        child: Icon(
+          icon,
+          color: const Color(0xFFF5E6C8),
+          size: 30,
         ),
       ),
     );

@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
-import '../../core/config/env.dart';
 import '../../core/theme/spyce_colors.dart';
 import '../auth/auth_controller.dart';
 
