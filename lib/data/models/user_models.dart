@@ -162,11 +162,21 @@ class ProfileImage {
   final int order;
 
   factory ProfileImage.fromJson(Map<String, dynamic> json) {
+    // Prefer client-facing image_url; never use storage_path as network URL
+    // (storage_path is an S3/R2 key and breaks CachedNetworkImage).
+    final raw = (json['image_url'] ?? json['url'] ?? json['image'] ?? '')
+        .toString()
+        .trim();
+    // Ignore raw object keys mistaken for URLs
+    final looksLikeKey = raw.isNotEmpty &&
+        !raw.startsWith('http') &&
+        !raw.startsWith('/') &&
+        (raw.startsWith('users/') ||
+            raw.startsWith('temp/') ||
+            raw.contains('/images/'));
     return ProfileImage(
       id: (json['id'] ?? '').toString(),
-      imageUrl: (json['image_url'] ?? json['url'] ?? json['image'] ?? '')
-          .toString()
-          .trim(),
+      imageUrl: looksLikeKey ? '' : raw,
       order: (json['order'] as num?)?.toInt() ?? 0,
     );
   }

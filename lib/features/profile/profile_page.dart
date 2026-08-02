@@ -14,6 +14,7 @@ import '../../core/network/api_exception.dart';
 import '../../core/theme/feed_backgrounds.dart';
 import '../../core/theme/spyce_colors.dart';
 import '../../core/utils/language_labels.dart';
+import '../../core/utils/media_url.dart';
 import '../../data/models/user_models.dart';
 import '../../data/repositories/api_repositories.dart';
 import '../../shared/widgets/spyce_widgets.dart';
@@ -1472,6 +1473,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     if (action == null || !mounted) return;
 
     if (action == 'view') {
+      final viewUrl = resolveMediaUrl(image.imageUrl);
       await showDialog<void>(
         context: context,
         builder: (ctx) => Dialog(
@@ -1480,15 +1482,30 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           child: ClipRRect(
             borderRadius: BorderRadius.circular(16),
             child: InteractiveViewer(
-              child: Image.network(
-                image.imageUrl,
-                fit: BoxFit.contain,
-                errorBuilder: (_, _, _) => Container(
-                  color: SpyceColors.dark800,
-                  padding: const EdgeInsets.all(40),
-                  child: const Icon(Icons.broken_image, color: Colors.white38, size: 48),
-                ),
-              ),
+              child: viewUrl == null || viewUrl.isEmpty
+                  ? Container(
+                      color: SpyceColors.dark800,
+                      padding: const EdgeInsets.all(40),
+                      child: const Icon(Icons.broken_image,
+                          color: Colors.white38, size: 48),
+                    )
+                  : CachedNetworkImage(
+                      imageUrl: viewUrl,
+                      fit: BoxFit.contain,
+                      placeholder: (_, _) => Container(
+                        color: SpyceColors.dark800,
+                        alignment: Alignment.center,
+                        child: const CircularProgressIndicator(
+                          color: SpyceColors.pinkSoft,
+                        ),
+                      ),
+                      errorWidget: (_, _, _) => Container(
+                        color: SpyceColors.dark800,
+                        padding: const EdgeInsets.all(40),
+                        child: const Icon(Icons.broken_image,
+                            color: Colors.white38, size: 48),
+                      ),
+                    ),
             ),
           ),
         ),
@@ -2167,7 +2184,7 @@ class _ProfilePhotoSlot extends StatelessWidget {
             fit: StackFit.expand,
             children: [
               CachedNetworkImage(
-                imageUrl: img.imageUrl,
+                imageUrl: resolveMediaUrl(img.imageUrl) ?? img.imageUrl,
                 fit: BoxFit.cover,
                 placeholder: (_, _) => Container(
                   color: SpyceColors.dark800,

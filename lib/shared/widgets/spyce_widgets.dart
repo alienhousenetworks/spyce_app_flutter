@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
 
 import '../../core/theme/spyce_colors.dart';
+import '../../core/utils/media_url.dart';
 
 class SpyceLogo extends StatelessWidget {
   const SpyceLogo({super.key, this.size = 40, this.showTagline = false});
@@ -160,16 +161,17 @@ class NetworkAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final letter = (name?.isNotEmpty == true ? name![0] : '?').toUpperCase();
+    final resolved = resolveMediaUrl(url);
     return ClipRRect(
       borderRadius: BorderRadius.circular(size / 2),
-      child: url != null && url!.isNotEmpty
+      child: resolved != null && resolved.isNotEmpty
           ? CachedNetworkImage(
-              imageUrl: url!,
+              imageUrl: resolved,
               width: size,
               height: size,
               fit: BoxFit.cover,
-              placeholder: (_, __) => _placeholder(letter),
-              errorWidget: (_, __, ___) => _placeholder(letter),
+              placeholder: (_, _) => _placeholder(letter),
+              errorWidget: (_, _, _) => _placeholder(letter),
             )
           : _placeholder(letter),
     );
