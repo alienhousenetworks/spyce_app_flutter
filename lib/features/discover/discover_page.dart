@@ -316,6 +316,8 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
         var selectedCity = filters['city']?.toString() ?? '';
         var selectedState = filters['state']?.toString() ?? '';
         var selectedCountry = filters['country']?.toString() ?? '';
+        double? selectedCityLat = (filters['city_lat'] as num?)?.toDouble();
+        double? selectedCityLon = (filters['city_lon'] as num?)?.toDouble();
         var selectedIntent = filters['intent']?.toString() ?? '';
         var citySuggestions = <CitySuggestion>[];
         var cityLoading = false;
@@ -374,11 +376,11 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
               trimmed.contains(',') ? trimmed.split(',').first.trim() : trimmed;
           setModal(() {
             selectedCity = freeCity;
-            // Clear structured region until a suggestion is picked
-            if (selectedState.isNotEmpty || selectedCountry.isNotEmpty) {
-              selectedState = '';
-              selectedCountry = '';
-            }
+            // Clear structured region / coords until a suggestion is picked
+            selectedState = '';
+            selectedCountry = '';
+            selectedCityLat = null;
+            selectedCityLon = null;
           });
           cityDebounce?.cancel();
           if (freeCity.length < 2) {
@@ -401,6 +403,8 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
             selectedCity = s.city;
             selectedState = s.state ?? '';
             selectedCountry = s.country ?? '';
+            selectedCityLat = s.lat;
+            selectedCityLon = s.lon;
             citySuggestions = [];
             showCitySuggest = false;
             cityLoading = false;
@@ -492,6 +496,8 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                             selectedCity = '';
                             selectedState = '';
                             selectedCountry = '';
+                            selectedCityLat = null;
+                            selectedCityLon = null;
                             cityCtrl.clear();
                             citySuggestions = [];
                             showCitySuggest = false;
@@ -580,6 +586,8 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                                         selectedCity = '';
                                         selectedState = '';
                                         selectedCountry = '';
+                                        selectedCityLat = null;
+                                        selectedCityLon = null;
                                         citySuggestions = [];
                                         showCitySuggest = false;
                                         cityLoading = false;
@@ -703,6 +711,8 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                               selectedCity = '';
                               selectedState = '';
                               selectedCountry = '';
+                              selectedCityLat = null;
+                              selectedCityLon = null;
                             });
                           },
                         ),
@@ -770,6 +780,15 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                             'currently_online': online,
                             'location_mode': hasRegion ? 'region' : 'distance',
                           };
+                          if (hasRegion &&
+                              selectedCityLat != null &&
+                              selectedCityLon != null) {
+                            filters['city_lat'] = selectedCityLat;
+                            filters['city_lon'] = selectedCityLon;
+                          } else {
+                            filters.remove('city_lat');
+                            filters.remove('city_lon');
+                          }
                         });
                         _load(0);
                       },

@@ -108,7 +108,8 @@ class AuthSession {
   }
 }
 
-/// City typeahead row from GET /geo/autocomplete/ (profile cities + seed list).
+/// City typeahead row from GET /geo/autocomplete/
+/// (profile cities + GeoNames world catalog).
 class CitySuggestion {
   const CitySuggestion({
     required this.city,
@@ -117,6 +118,8 @@ class CitySuggestion {
     this.displayName,
     this.profileCount = 0,
     this.source,
+    this.lat,
+    this.lon,
   });
 
   final String city;
@@ -125,6 +128,9 @@ class CitySuggestion {
   final String? displayName;
   final int profileCount;
   final String? source;
+  /// GeoNames / resolved center for nearby feed fallback.
+  final double? lat;
+  final double? lon;
 
   /// "Mumbai, Maharashtra, IN"
   String get label {
@@ -139,6 +145,11 @@ class CitySuggestion {
   }
 
   factory CitySuggestion.fromJson(Map<String, dynamic> json) {
+    double? asD(dynamic v) {
+      if (v is num) return v.toDouble();
+      return double.tryParse(v?.toString() ?? '');
+    }
+
     return CitySuggestion(
       city: (json['city'] ?? '').toString().trim(),
       state: json['state']?.toString().trim(),
@@ -146,6 +157,8 @@ class CitySuggestion {
       displayName: json['display_name']?.toString().trim(),
       profileCount: (json['profile_count'] as num?)?.toInt() ?? 0,
       source: json['source']?.toString(),
+      lat: asD(json['lat'] ?? json['latitude']),
+      lon: asD(json['lon'] ?? json['lng'] ?? json['longitude']),
     );
   }
 }

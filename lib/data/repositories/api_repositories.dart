@@ -206,6 +206,15 @@ class FeedRepository {
       if (city.isNotEmpty) query['city'] = city;
       if (state.isNotEmpty) query['state'] = state;
       if (country.isNotEmpty) query['country'] = country;
+      // GeoNames center from autocomplete — enables nearby users when city empty
+      final clat = f['city_lat'] ?? f['lat'];
+      final clon = f['city_lon'] ?? f['lon'] ?? f['lng'];
+      if (clat != null && clat.toString().isNotEmpty) {
+        query['city_lat'] = clat;
+      }
+      if (clon != null && clon.toString().isNotEmpty) {
+        query['city_lon'] = clon;
+      }
     } else {
       query['location_mode'] = 'distance';
       if (f['distance'] != null && f['distance'] != '') {
