@@ -422,7 +422,16 @@ class FeedProfile {
       json['languages_detail'] ?? json['languages'],
     );
 
-    final moods = _stringList(json['current_moods'] ?? json['moods']);
+    // Prefer detail list (name objects); fall back to ids/names list.
+    // Hide when backend marks mood TTL inactive (has_active_mood=false).
+    var moods = _stringList(
+      json['current_moods_detail'] ??
+          json['current_moods'] ??
+          json['moods'],
+    );
+    if (json['has_active_mood'] == false) {
+      moods = const [];
+    }
     final hotTakes = _parseHotTakes(json['hottakes'] ?? json['hot_takes']);
 
     final gender = _label(json['gender'] ?? json['gender_detail']);

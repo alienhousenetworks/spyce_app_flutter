@@ -121,6 +121,59 @@ class _FeedProfileCardState extends ConsumerState<FeedProfileCard> {
 
 enum _FeedPage { hero, photos, details, turnOns }
 
+/// Current mood pills for the feed hero (first page).
+class _MoodChips extends StatelessWidget {
+  const _MoodChips({required this.moods});
+
+  final List<String> moods;
+
+  @override
+  Widget build(BuildContext context) {
+    final shown = moods.where((m) => m.trim().isNotEmpty).take(3).toList();
+    if (shown.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Wrap(
+          alignment: WrapAlignment.center,
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            for (final mood in shown)
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: SpyceColors.pink.withValues(alpha: 0.28),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: SpyceColors.pinkSoft.withValues(alpha: 0.55),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('✨', style: TextStyle(fontSize: 12)),
+                    const SizedBox(width: 4),
+                    Text(
+                      mood,
+                      style: GoogleFonts.dmSans(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
 class _PageDots extends StatelessWidget {
   const _PageDots({required this.count, required this.index});
   final int count;
@@ -259,6 +312,11 @@ class _HeroPage extends StatelessWidget {
                           lastSeen: p.lastSeen,
                           lastActiveAt: p.lastActiveAt,
                         ),
+                        // Active moods on first page (same as web feed mood badge)
+                        if (p.moods.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          _MoodChips(moods: p.moods),
+                        ],
                         // Hero: city + privacy-bucketed distance (e.g. "Mumbai · ~15 km")
                         if ((p.city != null && p.city!.trim().isNotEmpty) ||
                             p.distanceKm != null) ...[
