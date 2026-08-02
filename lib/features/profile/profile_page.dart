@@ -473,27 +473,60 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   Future<void> _editAgePrefs() async {
     var minA = (profile?.agePreferenceMin ?? 18).toDouble();
     var maxA = (profile?.agePreferenceMax ?? 45).toDouble();
-    var dist = (profile?.distancePreferenceKm ?? 50).toDouble();
+    // Default Anywhere (worldwide / no radius). 1–1000 km when limited.
+    var anywhere = profile?.isDiscoveryAnywhere ?? true;
+    var dist = (profile?.effectiveDistanceKm ?? 50).toDouble().clamp(1.0, 1000.0);
+
     final ok = await showModalBottomSheet<bool>(
       context: context,
       backgroundColor: SpyceColors.dark800,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) {
         return StatefulBuilder(
           builder: (ctx, setLocal) {
+            final distLabel = anywhere
+                ? 'Anywhere · Worldwide'
+                : (dist >= 1000
+                    ? 'Up to 1000 km'
+                    : 'Up to ${dist.round()} km');
             return Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+              padding: EdgeInsets.fromLTRB(
+                20,
+                16,
+                20,
+                28 + MediaQuery.of(ctx).viewInsets.bottom,
+              ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text('Discovery preferences',
-                      style: GoogleFonts.syne(
-                          fontSize: 18, fontWeight: FontWeight.w700)),
-                  const SizedBox(height: 12),
-                  Text('Age ${minA.round()} – ${maxA.round()}'),
+                  Text(
+                    'Discovery preferences',
+                    style: GoogleFonts.syne(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Who shows up in your feed by age and how far away',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.5),
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Age ${minA.round()} – ${maxA.round()} yrs',
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   RangeSlider(
                     values: RangeValues(minA, maxA),
                     min: 18,
@@ -504,14 +537,90 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                       maxA = v.end;
                     }),
                   ),
-                  Text('Distance: ${dist.round()} km'),
-                  Slider(
-                    value: dist,
-                    min: 5,
-                    max: 200,
-                    activeColor: SpyceColors.pink,
-                    onChanged: (v) => setLocal(() => dist = v),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Distance: $distLabel',
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      ChoiceChip(
+                        label: const Text('Anywhere'),
+                        avatar: Icon(
+                          Icons.public,
+                          size: 16,
+                          color: anywhere ? Colors.white : Colors.white70,
+                        ),
+                        selected: anywhere,
+                        selectedColor: SpyceColors.pink,
+                        labelStyle: TextStyle(
+                          color: anywhere ? Colors.white : Colors.white70,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        onSelected: (_) => setLocal(() => anywhere = true),
+                      ),
+                      ChoiceChip(
+                        label: const Text('Near me'),
+                        avatar: Icon(
+                          Icons.near_me_outlined,
+                          size: 16,
+                          color: !anywhere ? Colors.white : Colors.white70,
+                        ),
+                        selected: !anywhere,
+                        selectedColor: SpyceColors.pink,
+                        labelStyle: TextStyle(
+                          color: !anywhere ? Colors.white : Colors.white70,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        onSelected: (_) => setLocal(() {
+                          anywhere = false;
+                          if (dist < 1) dist = 50;
+                        }),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    anywhere
+                        ? 'No distance limit — discover worldwide (default).'
+                        : 'Only people within your radius (1–1000 km).',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.45),
+                      fontSize: 12,
+                    ),
+                  ),
+                  if (!anywhere) ...[
+                    const SizedBox(height: 8),
+                    Slider(
+                      value: dist.clamp(1.0, 1000.0),
+                      min: 1,
+                      max: 1000,
+                      divisions: 999,
+                      activeColor: SpyceColors.pink,
+                      label: '${dist.round()} km',
+                      onChanged: (v) => setLocal(() => dist = v),
+                    ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('1 km',
+                            style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.4),
+                                fontSize: 11)),
+                        Text('1000 km',
+                            style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.4),
+                                fontSize: 11)),
+                      ],
+                    ),
+                  ],
+                  const SizedBox(height: 18),
                   SpycePrimaryButton(
                     label: 'Save',
                     onPressed: () => Navigator.pop(ctx, true),
@@ -524,11 +633,21 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       },
     );
     if (ok == true) {
-      await _patch({
-        'age_preference_min': minA.round(),
-        'age_preference_max': maxA.round(),
-        'distance_preference_km': dist.round(),
-      });
+      if (anywhere) {
+        await _patch({
+          'age_preference_min': minA.round(),
+          'age_preference_max': maxA.round(),
+          'discovery_radius_type': 'GLOBAL',
+          'distance_preference_km': 0,
+        });
+      } else {
+        await _patch({
+          'age_preference_min': minA.round(),
+          'age_preference_max': maxA.round(),
+          'discovery_radius_type': 'DISTANCE',
+          'distance_preference_km': dist.round().clamp(1, 1000),
+        });
+      }
     }
   }
 
@@ -1874,7 +1993,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     children: [
                       _EditTile(
                         label: 'Age & Distance Preference',
-                        value: '${p?.agePreferenceMin ?? 18}–${p?.agePreferenceMax ?? 45} yrs · ${p?.distancePreferenceKm ?? 50} km',
+                        value:
+                            '${p?.agePreferenceMin ?? 18}–${p?.agePreferenceMax ?? 45} yrs · ${p?.discoveryDistanceLabel ?? 'Anywhere · Worldwide'}',
                         onTap: _editAgePrefs,
                       ),
                       _ToggleTile(

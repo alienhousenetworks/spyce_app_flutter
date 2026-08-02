@@ -1574,6 +1574,7 @@ class UserProfile {
     this.agePreferenceMin,
     this.agePreferenceMax,
     this.distancePreferenceKm,
+    this.discoveryRadiusType,
     this.isPaused = false,
     this.isHidden = false,
     this.hideAge = false,
@@ -1616,7 +1617,10 @@ class UserProfile {
   final dynamic hottakes;
   final int? agePreferenceMin;
   final int? agePreferenceMax;
+  /// null / 0 = Anywhere (worldwide). 1–1000 = max radius in km.
   final int? distancePreferenceKm;
+  /// GLOBAL | DISTANCE | CITY | STATE | COUNTRY — default GLOBAL (Anywhere).
+  final String? discoveryRadiusType;
   final bool isPaused;
   final bool isHidden;
   final bool hideAge;
@@ -1651,6 +1655,31 @@ class UserProfile {
   /// True when user has uploaded photos. First ordered image is the main/profile pic.
   bool get hasUserPhotos {
     return images.any((i) => i.imageUrl.isNotEmpty);
+  }
+
+  /// Profile discovery: no radius cap (worldwide). Default when unset.
+  bool get isDiscoveryAnywhere {
+    final rad = (discoveryRadiusType ?? 'GLOBAL').toUpperCase();
+    if (rad == 'GLOBAL') return true;
+    final d = distancePreferenceKm;
+    return d == null || d <= 0;
+  }
+
+  /// Effective max km for feed (null = unlimited Anywhere).
+  int? get effectiveDistanceKm {
+    if (isDiscoveryAnywhere) return null;
+    final d = distancePreferenceKm;
+    if (d == null || d <= 0) return null;
+    return d.clamp(1, 1000);
+  }
+
+  /// UI label for profile / filters.
+  String get discoveryDistanceLabel {
+    if (isDiscoveryAnywhere) return 'Anywhere · Worldwide';
+    final d = effectiveDistanceKm;
+    if (d == null) return 'Anywhere · Worldwide';
+    if (d >= 1000) return 'Up to 1000 km';
+    return 'Up to $d km';
   }
 
   /// Profile / list display: first photo (main) else admin pool avatar.
@@ -1772,6 +1801,7 @@ class UserProfile {
       agePreferenceMin: (json['age_preference_min'] as num?)?.toInt(),
       agePreferenceMax: (json['age_preference_max'] as num?)?.toInt(),
       distancePreferenceKm: (json['distance_preference_km'] as num?)?.toInt(),
+      discoveryRadiusType: json['discovery_radius_type']?.toString(),
       isPaused: json['is_paused'] == true,
       isHidden: json['is_hidden'] == true,
       hideAge: json['hide_age'] == true,
@@ -1843,6 +1873,7 @@ class UserProfile {
       agePreferenceMin: agePreferenceMin,
       agePreferenceMax: agePreferenceMax,
       distancePreferenceKm: distancePreferenceKm,
+      discoveryRadiusType: discoveryRadiusType,
       isPaused: isPaused,
       isHidden: isHidden,
       hideAge: hideAge,

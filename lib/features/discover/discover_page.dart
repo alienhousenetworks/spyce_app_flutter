@@ -35,6 +35,7 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
   bool showPaywall = false;
   SubscriptionStatus? paywallStatus;
 
+  /// distance 0 = Anywhere (worldwide). 1–1000 = radius km. Default Anywhere.
   Map<String, dynamic> filters = {
     'min_age': 18,
     'max_age': 100,
@@ -53,8 +54,35 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
       if (name == null || name.isEmpty) {
         ref.read(authControllerProvider.notifier).refreshViewerIdentity();
       }
+      _seedFiltersFromProfile();
     });
     _load(0);
+  }
+
+  /// Align discover defaults with profile discovery prefs (Anywhere by default).
+  Future<void> _seedFiltersFromProfile() async {
+    try {
+      final p = await ref.read(profileRepositoryProvider).getMyProfile();
+      if (!mounted) return;
+      final minAge = p.agePreferenceMin ?? 18;
+      final maxAge = p.agePreferenceMax ?? 100;
+      final dist = p.isDiscoveryAnywhere ? 0 : (p.effectiveDistanceKm ?? 0);
+      setState(() {
+        filters = {
+          ...filters,
+          'min_age': minAge,
+          'max_age': maxAge,
+          'distance': dist,
+          'location_mode': 'distance',
+        };
+      });
+      // Reload only if prefs differ from initial Anywhere defaults
+      if (dist != 0 || minAge != 18 || maxAge != 100) {
+        await _load(0);
+      }
+    } catch (_) {
+      // Keep default Anywhere
+    }
   }
 
   @override
@@ -278,7 +306,11 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
       builder: (ctx) {
         var minAge = (filters['min_age'] as num?)?.toDouble() ?? 18;
         var maxAge = (filters['max_age'] as num?)?.toDouble() ?? 100;
+        // 0 = Anywhere; 1–1000 = radius. Default Anywhere.
         var distance = (filters['distance'] as num?)?.toDouble() ?? 0;
+        var anywhere = distance <= 0;
+        if (!anywhere && distance < 1) distance = 50;
+        if (!anywhere) distance = distance.clamp(1.0, 1000.0);
         var online = filters['currently_online'] == true;
         var selectedCity = filters['city']?.toString() ?? '';
         var selectedIntent = filters['intent']?.toString() ?? '';
@@ -288,9 +320,11 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
         return StatefulBuilder(
           builder: (context, setModal) {
             final double screenMaxDist = 1000.0;
-            final String distLabel = distance == 0
-                ? 'Distance: Anywhere'
-                : (distance >= screenMaxDist ? 'Distance: 1000+ km' : 'Distance: ${distance.round()} km');
+            final String distLabel = anywhere
+                ? 'Distance: Anywhere · Worldwide'
+                : (distance >= screenMaxDist
+                    ? 'Distance: Up to 1000 km'
+                    : 'Distance: Up to ${distance.round()} km');
 
             return Padding(
               padding: EdgeInsets.fromLTRB(
@@ -322,14 +356,87 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                     ),
                     const SizedBox(height: 10),
                     Text(distLabel, style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
-                    Slider(
-                      value: distance.clamp(0.0, screenMaxDist),
-                      min: 0,
-                      max: screenMaxDist,
-                      divisions: 20,
-                      activeColor: SpyceColors.pink,
-                      onChanged: (v) => setModal(() => distance = v),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        ChoiceChip(
+                          label: const Text('Anywhere'),
+                          avatar: Icon(
+                            Icons.public,
+                            size: 16,
+                            color: anywhere ? Colors.white : Colors.white70,
+                          ),
+                          selected: anywhere,
+                          selectedColor: SpyceColors.pink,
+                          labelStyle: TextStyle(
+                            color: anywhere ? Colors.white : Colors.white70,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          onSelected: (_) => setModal(() {
+                            anywhere = true;
+                            distance = 0;
+                          }),
+                        ),
+                        ChoiceChip(
+                          label: const Text('Near me'),
+                          avatar: Icon(
+                            Icons.near_me_outlined,
+                            size: 16,
+                            color: !anywhere ? Colors.white : Colors.white70,
+                          ),
+                          selected: !anywhere,
+                          selectedColor: SpyceColors.pink,
+                          labelStyle: TextStyle(
+                            color: !anywhere ? Colors.white : Colors.white70,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          onSelected: (_) => setModal(() {
+                            anywhere = false;
+                            if (distance < 1) distance = 50;
+                          }),
+                        ),
+                      ],
                     ),
+                    const SizedBox(height: 6),
+                    Text(
+                      anywhere
+                          ? 'No distance limit — show people worldwide (default).'
+                          : 'Only people within 1–1000 km of you.',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.45),
+                        fontSize: 12,
+                      ),
+                    ),
+                    if (!anywhere) ...[
+                      const SizedBox(height: 8),
+                      Slider(
+                        value: distance.clamp(1.0, screenMaxDist),
+                        min: 1,
+                        max: screenMaxDist,
+                        divisions: 999,
+                        activeColor: SpyceColors.pink,
+                        label: '${distance.round()} km',
+                        onChanged: (v) => setModal(() {
+                          anywhere = false;
+                          distance = v;
+                        }),
+                      ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('1 km',
+                              style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.4),
+                                  fontSize: 11)),
+                          Text('1000 km',
+                              style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.4),
+                                  fontSize: 11)),
+                        ],
+                      ),
+                    ],
                     const SizedBox(height: 10),
                     Text('Filter by City (Single City)',
                         style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
@@ -405,10 +512,12 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                             ...filters,
                             'min_age': minAge.round(),
                             'max_age': maxAge.round(),
-                            'distance': distance.round(),
+                            // 0 = Anywhere (unlimited); never send "infinite" as a huge number
+                            'distance': anywhere ? 0 : distance.round().clamp(1, 1000),
                             'city': selectedCity,
                             'intent': selectedIntent,
                             'currently_online': online,
+                            'location_mode': selectedCity.trim().isNotEmpty ? 'region' : 'distance',
                           };
                         });
                         _load(0);
