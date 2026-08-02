@@ -1662,6 +1662,9 @@ class UserProfile {
     this.canSeeIncomingLikes = false,
     this.avatarUrl,
     this.photoStatus,
+    this.moods = const [],
+    this.isOnline = false,
+    this.lastSeen,
     this.raw = const {},
   });
 
@@ -1708,10 +1711,50 @@ class UserProfile {
   final bool canSeeIncomingLikes;
   final String? avatarUrl;
   final String? photoStatus;
+  /// Active mood labels (empty when TTL expired).
+  final List<String> moods;
+  final bool isOnline;
+  final String? lastSeen;
   final Map<String, dynamic> raw;
 
   String get displayName =>
       username ?? name ?? firstName ?? 'you';
+
+  /// Hot takes for peer/feed-style display (max 3).
+  List<HotTake> get hotTakeList {
+    return FeedProfile._parseHotTakes(hottakes).take(3).toList();
+  }
+
+  /// Map to FeedProfile so peer UI can reuse feed layout pieces.
+  FeedProfile toFeedProfile() {
+    return FeedProfile(
+      id: id,
+      userId: id,
+      username: username,
+      firstName: firstName ?? name,
+      age: hideAge ? null : age,
+      bio: bio,
+      city: city,
+      state: state,
+      country: country,
+      gender: genderLabel,
+      sexuality: sexualityLabel,
+      intent: intentLabel,
+      images: images,
+      avatarUrl: avatarUrl,
+      photoStatus: photoStatus,
+      layoutId: layoutId,
+      bgId: bgId,
+      bgVariantId: bgVariantId,
+      isOnline: isOnline && !hideOnlineStatus,
+      lastSeen: hideOnlineStatus ? null : lastSeen,
+      turnOns: turnOnLabels.isNotEmpty ? turnOnLabels : turnOnIds,
+      languages: languageLabels.isNotEmpty ? languageLabels : languageIds,
+      hotTakes: hotTakeList,
+      moods: moods,
+      canSeeIncomingLikes: canSeeIncomingLikes,
+    );
+  }
 
   String get locationSummary {
     final parts = <String>[
@@ -1898,6 +1941,16 @@ class UserProfile {
         return json['avatar_url']?.toString();
       }(),
       photoStatus: json['photo_status']?.toString(),
+      moods: () {
+        if (json['has_active_mood'] == false) return const <String>[];
+        return stringListForProfile(
+          json['current_moods_detail'] ??
+              json['current_moods'] ??
+              json['moods'],
+        );
+      }(),
+      isOnline: json['is_online'] == true,
+      lastSeen: json['last_seen']?.toString(),
       raw: Map<String, dynamic>.from(json),
     );
   }
@@ -1916,6 +1969,9 @@ class UserProfile {
     String? country,
     double? latitude,
     double? longitude,
+    List<String>? moods,
+    bool? isOnline,
+    String? lastSeen,
     bool clearLayoutId = false,
     bool clearBgId = false,
     bool clearBgVariantId = false,
@@ -1963,6 +2019,9 @@ class UserProfile {
       canSeeIncomingLikes: canSeeIncomingLikes,
       avatarUrl: avatarUrl ?? this.avatarUrl,
       photoStatus: photoStatus ?? this.photoStatus,
+      moods: moods ?? this.moods,
+      isOnline: isOnline ?? this.isOnline,
+      lastSeen: lastSeen ?? this.lastSeen,
       raw: raw,
     );
   }

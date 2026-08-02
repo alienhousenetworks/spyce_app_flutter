@@ -6,13 +6,16 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/network/api_exception.dart';
 import '../../core/theme/spyce_colors.dart';
+import '../../core/utils/language_labels.dart';
+import '../../core/utils/media_url.dart';
+import '../../core/utils/presence_labels.dart';
 import '../../data/models/user_models.dart';
 import '../../data/repositories/api_repositories.dart';
 import '../../shared/widgets/media_user_id_watermark.dart';
-import '../../shared/widgets/spyce_widgets.dart';
 import '../auth/auth_controller.dart';
+import '../discover/widgets/feed_profile_card.dart';
 
-/// Read-only public profile opened from chat avatar / username.
+/// Full public profile from chat avatar — same details as Discover feed card.
 class PeerProfilePage extends ConsumerStatefulWidget {
   const PeerProfilePage({
     super.key,
@@ -46,12 +49,24 @@ class _PeerProfilePageState extends ConsumerState<PeerProfilePage> {
       error = null;
     });
     try {
+      // Language catalog so UUID language ids resolve to names
+      try {
+        final langs = await ref.read(optionsRepositoryProvider).languages();
+        if (langs.isNotEmpty) LanguageLabels.setCatalog(langs);
+      } catch (_) {}
+
       final p = await ref
           .read(profileRepositoryProvider)
           .getProfile(widget.userId);
       if (!mounted) return;
+      // Resolve language labels if still raw
+      final resolved = p.copyWith(
+        languageLabels: LanguageLabels.resolveAll(
+          p.languageLabels.isNotEmpty ? p.languageLabels : p.languageIds,
+        ),
+      );
       setState(() {
-        profile = p;
+        profile = resolved;
         loading = false;
       });
     } on ApiException catch (e) {
@@ -71,6 +86,7 @@ class _PeerProfilePageState extends ConsumerState<PeerProfilePage> {
 
   void _openImage(String url) {
     final stamp = ref.read(viewerUsernameProvider);
+    final resolved = resolveMediaUrl(url) ?? url;
     showDialog<void>(
       context: context,
       builder: (ctx) => Dialog(
@@ -82,15 +98,15 @@ class _PeerProfilePageState extends ConsumerState<PeerProfilePage> {
               child: MediaUserIdWatermark(
                 username: stamp,
                 child: CachedNetworkImage(
-                  imageUrl: url,
+                  imageUrl: resolved,
                   fit: BoxFit.contain,
-                  placeholder: (_, __) => const SizedBox(
+                  placeholder: (_, _) => const SizedBox(
                     height: 240,
                     child: Center(
                       child: CircularProgressIndicator(color: SpyceColors.pink),
                     ),
                   ),
-                  errorWidget: (_, __, ___) => const Padding(
+                  errorWidget: (_, _, _) => const Padding(
                     padding: EdgeInsets.all(24),
                     child: Icon(Icons.broken_image,
                         color: Colors.white54, size: 48),
@@ -115,15 +131,13 @@ class _PeerProfilePageState extends ConsumerState<PeerProfilePage> {
   @override
   Widget build(BuildContext context) {
     final p = profile;
-    final title = p?.displayName ??
-        widget.initialName ??
-        'Profile';
-    final hero = p?.displayImageUrl ?? widget.initialImage;
+    final title = p?.displayName ?? widget.initialName ?? 'Profile';
+    final feed = p?.toFeedProfile();
 
     return Scaffold(
-      backgroundColor: SpyceColors.dark900,
+      backgroundColor: SpyceColors.dark950,
       appBar: AppBar(
-        backgroundColor: SpyceColors.dark900,
+        backgroundColor: SpyceColors.dark950,
         title: Text(
           title.startsWith('@') ? title : '@$title',
           style: GoogleFonts.syne(fontWeight: FontWeight.w700),
@@ -166,212 +180,352 @@ class _PeerProfilePageState extends ConsumerState<PeerProfilePage> {
                         const SizedBox(height: 16),
                         TextButton(
                           onPressed: _load,
-                          child: const Text('Retry',
-                              style: TextStyle(color: SpyceColors.pinkSoft)),
+                          child: const Text(
+                            'Retry',
+                            style: TextStyle(color: SpyceColors.pinkSoft),
+                          ),
                         ),
                       ],
                     ),
                   ),
                 )
-              : RefreshIndicator(
-                  color: SpyceColors.pink,
-                  onRefresh: _load,
-                  child: ListView(
-                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
-                    children: [
-                      Center(
-                        child: GestureDetector(
-                          onTap: hero != null && hero.isNotEmpty
-                              ? () => _openImage(hero)
-                              : null,
-                          child: NetworkAvatar(
-                            url: hero,
-                            name: title,
-                            size: 112,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        p?.age != null
-                            ? '${p!.displayName}, ${p.age}'
-                            : (p?.displayName ?? title),
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.playfairDisplay(
-                          fontSize: 28,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                        ),
-                      ),
-                      if (p?.locationSummary != null &&
-                          p!.locationSummary != '—') ...[
-                        const SizedBox(height: 8),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.location_on,
-                                size: 16,
-                                color: Colors.white.withValues(alpha: 0.75)),
-                            const SizedBox(width: 4),
-                            Flexible(
-                              child: Text(
-                                p.locationSummary,
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  color: Colors.white.withValues(alpha: 0.8),
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                      if (p?.bio != null && p!.bio!.trim().isNotEmpty) ...[
-                        const SizedBox(height: 20),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.06),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: Colors.white12),
-                          ),
-                          child: Text(
-                            p.bio!,
-                            style: GoogleFonts.dmSans(
-                              color: Colors.white.withValues(alpha: 0.9),
-                              height: 1.4,
-                              fontSize: 15,
-                            ),
-                          ),
-                        ),
-                      ],
-                      if (p != null) ...[
-                        const SizedBox(height: 16),
-                        _InfoRow(
-                          label: 'Gender',
-                          value: p.genderLabel ?? '—',
-                        ),
-                        _InfoRow(
-                          label: 'Sexuality',
-                          value: p.sexualityLabel ?? '—',
-                        ),
-                        if (p.languageLabels.isNotEmpty)
-                          _InfoRow(
-                            label: 'Languages',
-                            value: p.languageLabels.join(', '),
-                          ),
-                        if (p.turnOnLabels.isNotEmpty)
-                          _InfoRow(
-                            label: 'Turn-ons',
-                            value: p.turnOnLabels.join(', '),
-                          ),
-                      ],
-                      if (p != null && p.images.isNotEmpty) ...[
-                        const SizedBox(height: 24),
-                        Text(
-                          'Photos',
-                          style: GoogleFonts.syne(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        GridView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: p.images.length,
-                          gridDelegate:
-                              const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
-                            mainAxisSpacing: 10,
-                            crossAxisSpacing: 10,
-                            childAspectRatio: 0.78,
-                          ),
-                          itemBuilder: (context, i) {
-                            final img = p.images[i];
-                            if (img.imageUrl.isEmpty) {
-                              return Container(
-                                decoration: BoxDecoration(
-                                  color: SpyceColors.dark700,
-                                  borderRadius: BorderRadius.circular(14),
-                                ),
-                              );
-                            }
-                            return GestureDetector(
-                              onTap: () => _openImage(img.imageUrl),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(14),
-                                child: MediaUserIdWatermark(
-                                  username:
-                                      ref.read(viewerUsernameProvider),
-                                  dense: true,
-                                  child: CachedNetworkImage(
-                                    imageUrl: img.imageUrl,
-                                    fit: BoxFit.cover,
-                                    placeholder: (_, __) => const ColoredBox(
-                                      color: SpyceColors.dark700,
-                                    ),
-                                    errorWidget: (_, __, ___) =>
-                                        const ColoredBox(
-                                      color: SpyceColors.dark600,
-                                      child: Icon(Icons.broken_image,
-                                          color: Colors.white38),
-                                    ),
+              : feed == null
+                  ? const SizedBox.shrink()
+                  : RefreshIndicator(
+                      color: SpyceColors.pink,
+                      onRefresh: _load,
+                      // Same multi-page card as Discover feed (hero → photos → details → turn-ons)
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          return ListView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            children: [
+                              SizedBox(
+                                height: (constraints.maxHeight - 8)
+                                    .clamp(480.0, 900.0),
+                                child: Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                      12, 4, 12, 12),
+                                  child: FeedProfileCard(
+                                    profile: feed,
+                                    liked: false,
+                                    // Read-only from chat — no like action
+                                    onLike: () {
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            'Open Discover to like profiles',
+                                          ),
+                                          duration: Duration(seconds: 2),
+                                        ),
+                                      );
+                                    },
                                   ),
                                 ),
                               ),
-                            );
-                          },
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
+                              // Extra scroll sections for dense lists (same data as feed pages)
+                              Padding(
+                                padding:
+                                    const EdgeInsets.fromLTRB(20, 0, 20, 40),
+                                child: _PeerDetailExtras(
+                                  profile: p!,
+                                  feed: feed,
+                                  onOpenImage: _openImage,
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                    ),
     );
   }
 }
 
-class _InfoRow extends StatelessWidget {
-  const _InfoRow({required this.label, required this.value});
-  final String label;
-  final String value;
+/// Flat list under the card so nothing is “hidden” behind swipes only.
+class _PeerDetailExtras extends StatelessWidget {
+  const _PeerDetailExtras({
+    required this.profile,
+    required this.feed,
+    required this.onOpenImage,
+  });
+
+  final UserProfile profile;
+  final FeedProfile feed;
+  final void Function(String url) onOpenImage;
 
   @override
   Widget build(BuildContext context) {
+    final p = profile;
+    final moods = p.moods;
+    final langs = p.languageLabels.isNotEmpty
+        ? p.languageLabels
+        : feed.languages;
+    final turnOns =
+        p.turnOnLabels.isNotEmpty ? p.turnOnLabels : feed.turnOns;
+    final hotTakes = p.hotTakeList;
+    final photos = p.images
+        .where((i) => i.imageUrl.isNotEmpty)
+        .map((i) => resolveMediaUrl(i.imageUrl) ?? i.imageUrl)
+        .where((u) => u.isNotEmpty)
+        .toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'Full profile',
+          style: GoogleFonts.syne(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: Colors.white,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Same details as Discover — swipe the card above or scroll here.',
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.45),
+            fontSize: 12,
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Presence
+        _section(
+          title: 'Status',
+          child: Text(
+            PresenceLabels.display(
+              isOnline: feed.isOnline,
+              lastSeenLabel: feed.lastSeen,
+              lastActiveAt: feed.lastActiveAt,
+            ),
+            style: const TextStyle(color: Colors.white, fontSize: 15),
+          ),
+        ),
+
+        if (moods.isNotEmpty)
+          _section(
+            title: 'Mood',
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: moods
+                  .map(
+                    (m) => Chip(
+                      label: Text('✨ $m',
+                          style: const TextStyle(color: Colors.white)),
+                      backgroundColor:
+                          SpyceColors.pink.withValues(alpha: 0.3),
+                      side: BorderSide.none,
+                    ),
+                  )
+                  .toList(),
+            ),
+          ),
+
+        if (p.bio != null && p.bio!.trim().isNotEmpty)
+          _section(
+            title: 'Bio',
+            child: Text(
+              p.bio!.trim(),
+              style: GoogleFonts.dmSans(
+                color: Colors.white.withValues(alpha: 0.92),
+                height: 1.4,
+                fontSize: 15,
+              ),
+            ),
+          ),
+
+        _section(
+          title: 'Basics',
+          child: Column(
+            children: [
+              _kv('Name', p.displayName),
+              if (p.age != null && !p.hideAge) _kv('Age', '${p.age}'),
+              _kv('Gender', p.genderLabel ?? '—'),
+              _kv('Sexuality', p.sexualityLabel ?? '—'),
+              if (p.intentLabel != null && p.intentLabel!.isNotEmpty)
+                _kv('Intent', p.intentLabel!),
+              if (p.locationSummary != '—')
+                _kv('Location', p.locationSummary),
+            ],
+          ),
+        ),
+
+        if (langs.isNotEmpty)
+          _section(
+            title: 'Languages',
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: langs
+                  .map(
+                    (l) => Chip(
+                      label: Text(l,
+                          style: const TextStyle(color: Color(0xFF3D4A1C))),
+                      backgroundColor: const Color(0xFFE8F0C8),
+                      side: BorderSide.none,
+                    ),
+                  )
+                  .toList(),
+            ),
+          ),
+
+        if (hotTakes.isNotEmpty)
+          _section(
+            title: hotTakes.length == 1 ? 'Hot take' : 'Hot takes',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (var i = 0; i < hotTakes.length; i++) ...[
+                  if (i > 0) const SizedBox(height: 10),
+                  Text(
+                    hotTakes[i].label,
+                    style: TextStyle(
+                      color: SpyceColors.pinkSoft,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    hotTakes[i].text,
+                    style: GoogleFonts.dmSans(
+                      color: Colors.white,
+                      fontSize: 14,
+                      height: 1.35,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+
+        if (turnOns.isNotEmpty)
+          _section(
+            title: 'Turn-ons',
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: turnOns
+                  .map(
+                    (t) => Chip(
+                      label: Text(t,
+                          style: const TextStyle(color: Colors.white)),
+                      backgroundColor: Colors.white.withValues(alpha: 0.1),
+                      side: BorderSide(
+                          color: Colors.white.withValues(alpha: 0.15)),
+                    ),
+                  )
+                  .toList(),
+            ),
+          ),
+
+        if (photos.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Text(
+            'Photos (${photos.length})',
+            style: GoogleFonts.syne(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 12),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: photos.length,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              mainAxisSpacing: 10,
+              crossAxisSpacing: 10,
+              childAspectRatio: 0.78,
+            ),
+            itemBuilder: (context, i) {
+              final url = photos[i];
+              return GestureDetector(
+                onTap: () => onOpenImage(url),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(14),
+                  child: CachedNetworkImage(
+                    imageUrl: url,
+                    fit: BoxFit.cover,
+                    placeholder: (_, _) =>
+                        const ColoredBox(color: SpyceColors.dark700),
+                    errorWidget: (_, _, _) => const ColoredBox(
+                      color: SpyceColors.dark600,
+                      child: Icon(Icons.broken_image, color: Colors.white38),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _section({required String title, required Widget child}) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.only(bottom: 14),
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: SpyceColors.dark800,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
         ),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              label,
-              style: const TextStyle(
-                color: SpyceColors.dark200,
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
+              title,
+              style: GoogleFonts.syne(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: SpyceColors.pinkSoft,
               ),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                value,
-                textAlign: TextAlign.right,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
+            const SizedBox(height: 10),
+            child,
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _kv(String k, String v) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 96,
+            child: Text(
+              k,
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.45),
+                fontSize: 13,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              v,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
