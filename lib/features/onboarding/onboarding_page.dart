@@ -220,10 +220,9 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
       });
     } catch (_) {
       if (!mounted) return;
-      // Offline demo: mark verified locally so onboarding can finish
       setState(() {
-        faceVerified = true;
         verifying = false;
+        error = 'Verification failed. Check your connection and try again.';
       });
     }
   }
@@ -257,13 +256,10 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
         submitting = false;
       });
     } catch (_) {
-      // Offline / demo still enter after mandatory local steps
-      final uname = usernameCtrl.text.trim().toLowerCase();
-      ref
-          .read(authControllerProvider.notifier)
-          .markOnboardingComplete(username: uname.isNotEmpty ? uname : null);
-      if (!mounted) return;
-      context.go('/app/discover');
+      setState(() {
+        error = 'Could not save profile. Check your connection and try again.';
+        submitting = false;
+      });
     }
   }
 

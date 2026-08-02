@@ -42,29 +42,12 @@ class _MatchesPageState extends ConsumerState<MatchesPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        matches = _demo();
+        matches = [];
         loading = false;
+        error = 'Could not load matches. Pull to refresh.';
       });
     }
   }
-
-  List<MatchItem> _demo() => [
-        MatchItem(
-          id: 'm1',
-          username: 'aria',
-          firstName: 'Aria',
-          matchedAt: DateTime.now().subtract(const Duration(hours: 2)),
-          isOnline: true,
-          conversationId: 'c1',
-        ),
-        MatchItem(
-          id: 'm2',
-          username: 'kai',
-          firstName: 'Kai',
-          matchedAt: DateTime.now().subtract(const Duration(days: 1)),
-          conversationId: 'c2',
-        ),
-      ];
 
   @override
   Widget build(BuildContext context) {
@@ -84,8 +67,8 @@ class _MatchesPageState extends ConsumerState<MatchesPage> {
               : matches.isEmpty
                   ? EmptyState(
                       icon: Icons.favorite_border,
-                      title: 'No matches yet',
-                      subtitle:
+                      title: error != null ? 'Could not load matches' : 'No matches yet',
+                      subtitle: error ??
                           'Like people in Discover — when they like you back, they land here.',
                     )
                   : RefreshIndicator(

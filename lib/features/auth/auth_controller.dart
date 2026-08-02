@@ -271,13 +271,11 @@ class AuthController extends StateNotifier<AuthState> {
       state = state.copyWith(loading: false, error: e.message);
       return false;
     } catch (_) {
-      // Soft demo fallback when API unreachable during local UI work
       state = state.copyWith(
         loading: false,
-        step: AuthStep.otp,
-        message: 'OTP sent (demo fallback if offline)',
+        error: 'Could not send OTP. Check your connection and try again.',
       );
-      return true;
+      return false;
     }
   }
 
@@ -341,15 +339,9 @@ class AuthController extends StateNotifier<AuthState> {
     } catch (_) {
       state = state.copyWith(
         loading: false,
-        user: AuthUser(
-          id: 'demo-user',
-          email: state.email,
-          username: 'demo',
-          isNew: state.mode == AuthMode.signUp,
-        ),
-        onboardingComplete: state.mode == AuthMode.signIn,
+        error: 'Could not verify OTP. Check your connection and try again.',
       );
-      return true;
+      return false;
     }
   }
 

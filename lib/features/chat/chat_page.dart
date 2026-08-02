@@ -154,52 +154,6 @@ class _ConversationsPageState extends ConsumerState<ConversationsPage> {
     }).toList();
   }
 
-  List<MatchItem> _demoMatches() => [
-        MatchItem(
-          id: 'm1',
-          username: 'aria',
-          matchedAt: DateTime.now(),
-          conversationId: 'c1',
-          isOnline: true,
-        ),
-        MatchItem(
-          id: 'm2',
-          username: 'kai',
-          matchedAt: DateTime.now().subtract(const Duration(hours: 5)),
-          conversationId: 'c2',
-        ),
-        MatchItem(
-          id: 'm3',
-          username: 'nova',
-          matchedAt: DateTime.now().subtract(const Duration(days: 1)),
-          conversationId: 'c3',
-        ),
-      ];
-
-  List<ConversationItem> _demoConvos() => [
-        ConversationItem(
-          id: 'c1',
-          peerUsername: 'aria',
-          peerName: 'aria',
-          peerUserId: 'aria-uid-001',
-          peerImage:
-              'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=200',
-          lastMessage: 'That hot take was wild 🔥',
-          updatedAt: DateTime.now().subtract(const Duration(minutes: 12)),
-          unreadCount: 2,
-        ),
-        ConversationItem(
-          id: 'c2',
-          peerUsername: 'kai',
-          peerName: 'kai',
-          peerUserId: 'kai-uid-002',
-          peerImage:
-              'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200',
-          lastMessage: 'Free for a call tonight?',
-          updatedAt: DateTime.now().subtract(const Duration(hours: 5)),
-        ),
-      ];
-
   void _openMatch(MatchItem m) {
     showModalBottomSheet(
       context: context,

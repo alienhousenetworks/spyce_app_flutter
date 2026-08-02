@@ -1002,36 +1002,47 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       }
       final uploadRes = await repo.uploadImage(file.path);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Upload accepted (${uploadRes['status'] ?? 'ok'}) — processing…',
-          ),
-        ),
-      );
-      // Server processes on a background queue; poll until new image appears.
-      final ready = await _refreshImagesAfterUpload(
-        beforeIds: beforeIds,
-        beforeCount: beforeCount,
-      );
-      if (!mounted) return;
-      if (ready) {
+
+      final status = (uploadRes['status'] ?? '').toString().toLowerCase();
+      final newId = (uploadRes['id'] ?? '').toString();
+      final readyImmediately = status == 'ok' ||
+          status == 'success' ||
+          (newId.isNotEmpty && uploadRes['image_url'] != null);
+
+      if (readyImmediately) {
+        // Sync upload (201): photo is already on the profile
+        await _load();
+        if (!mounted) return;
         setState(() => pendingLocalPhotoPath = null);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Photo ready ✓')),
         );
       } else {
+        // Legacy async path (202 processing) — poll until visible
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Photo not visible yet after processing.\n'
-              'Upload response: $uploadRes\n'
-              'Likely cause: Celery "slow" worker or storage offline. '
-              'Pull to refresh; if it never appears, check server logs.',
-            ),
-            duration: const Duration(seconds: 10),
-          ),
+          const SnackBar(content: Text('Uploading photo…')),
         );
+        final ready = await _refreshImagesAfterUpload(
+          beforeIds: beforeIds,
+          beforeCount: beforeCount,
+        );
+        if (!mounted) return;
+        if (ready) {
+          setState(() => pendingLocalPhotoPath = null);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Photo ready ✓')),
+          );
+        } else {
+          setState(() => pendingLocalPhotoPath = null);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Photo is still processing. Pull down to refresh in a moment.',
+              ),
+              duration: Duration(seconds: 6),
+            ),
+          );
+        }
       }
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -1105,7 +1116,172 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     return false;
   }
 
+  List<ProfileImage> get _sortedPhotos {
+    final list = List<ProfileImage>.from(profile?.images ?? const []);
+    list.sort((a, b) => a.order.compareTo(b.order));
+    return list;
+  }
+
+  /// Persist new order: slot 1 (index 0) is always the main/profile picture.
+  Future<void> _applyPhotoOrder(List<ProfileImage> ordered) async {
+    final payload = <Map<String, dynamic>>[
+      for (var i = 0; i < ordered.length; i++)
+        {'id': ordered[i].id, 'order': i + 1},
+    ];
+    // Optimistic UI — first image is the main/profile avatar
+    final p = profile;
+    if (p != null) {
+      setState(() {
+        profile = p.copyWith(
+          images: [
+            for (var i = 0; i < ordered.length; i++)
+              ordered[i].copyWith(order: i + 1),
+          ],
+          photoStatus: 'CUSTOM',
+        );
+      });
+    }
+    setState(() => saving = true);
+    try {
+      await ref.read(profileRepositoryProvider).reorderImages(payload);
+      await _load();
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      await _load();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message)),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      await _load();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not rearrange photos')),
+      );
+    } finally {
+      if (mounted) setState(() => saving = false);
+    }
+  }
+
+  Future<void> _setAsMainPhoto(ProfileImage image) async {
+    final photos = _sortedPhotos;
+    final idx = photos.indexWhere((p) => p.id == image.id);
+    if (idx <= 0) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Already your main profile photo')),
+      );
+      return;
+    }
+    final next = List<ProfileImage>.from(photos);
+    final item = next.removeAt(idx);
+    next.insert(0, item);
+    await _applyPhotoOrder(next);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Main profile photo updated')),
+    );
+  }
+
+  Future<void> _movePhoto(ProfileImage image, {required int delta}) async {
+    final photos = _sortedPhotos;
+    final idx = photos.indexWhere((p) => p.id == image.id);
+    if (idx < 0) return;
+    final target = idx + delta;
+    if (target < 0 || target >= photos.length) return;
+    final next = List<ProfileImage>.from(photos);
+    final item = next.removeAt(idx);
+    next.insert(target, item);
+    await _applyPhotoOrder(next);
+  }
+
+  Future<void> _swapPhotos(ProfileImage a, ProfileImage b) async {
+    final photos = _sortedPhotos;
+    final i = photos.indexWhere((p) => p.id == a.id);
+    final j = photos.indexWhere((p) => p.id == b.id);
+    if (i < 0 || j < 0 || i == j) return;
+    final next = List<ProfileImage>.from(photos);
+    final tmp = next[i];
+    next[i] = next[j];
+    next[j] = tmp;
+    await _applyPhotoOrder(next);
+  }
+
+  Future<void> _pickSwapTarget(ProfileImage image) async {
+    final photos = _sortedPhotos.where((p) => p.id != image.id).toList();
+    if (photos.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Add another photo to swap positions')),
+      );
+      return;
+    }
+    final target = await showModalBottomSheet<ProfileImage>(
+      context: context,
+      backgroundColor: SpyceColors.dark800,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(8, 12, 8, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Swap with…',
+                style: GoogleFonts.syne(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Choose which photo to swap positions with',
+                style: TextStyle(color: Colors.white54, fontSize: 12),
+              ),
+              const SizedBox(height: 8),
+              for (final p in photos)
+                ListTile(
+                  leading: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: CachedNetworkImage(
+                      imageUrl: p.imageUrl,
+                      width: 40,
+                      height: 40,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                  title: Text(
+                    p.order <= 1 ? 'Slot 1 · Main photo' : 'Slot ${p.order}',
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                  onTap: () => Navigator.pop(ctx, p),
+                ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (target == null || !mounted) return;
+    await _swapPhotos(image, target);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Photos swapped')),
+    );
+  }
+
   Future<void> _onPhotoTap(ProfileImage image) async {
+    final photos = _sortedPhotos;
+    final idx = photos.indexWhere((p) => p.id == image.id);
+    final isMain = idx == 0;
+    final canMoveLeft = idx > 0;
+    final canMoveRight = idx >= 0 && idx < photos.length - 1;
+
     final action = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: SpyceColors.dark800,
@@ -1123,8 +1299,39 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                 title: const Text('View photo', style: TextStyle(color: Colors.white)),
                 onTap: () => Navigator.pop(ctx, 'view'),
               ),
+              if (!isMain)
+                ListTile(
+                  leading: const Icon(Icons.star_rounded, color: SpyceColors.pink),
+                  title: const Text(
+                    'Set as main profile photo',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                  subtitle: const Text(
+                    'Moves this photo to slot 1',
+                    style: TextStyle(color: Colors.white54, fontSize: 12),
+                  ),
+                  onTap: () => Navigator.pop(ctx, 'main'),
+                ),
+              if (canMoveLeft)
+                ListTile(
+                  leading: const Icon(Icons.arrow_back, color: SpyceColors.pinkSoft),
+                  title: const Text('Move left', style: TextStyle(color: Colors.white)),
+                  onTap: () => Navigator.pop(ctx, 'left'),
+                ),
+              if (canMoveRight)
+                ListTile(
+                  leading: const Icon(Icons.arrow_forward, color: SpyceColors.pinkSoft),
+                  title: const Text('Move right', style: TextStyle(color: Colors.white)),
+                  onTap: () => Navigator.pop(ctx, 'right'),
+                ),
+              if (photos.length > 1)
+                ListTile(
+                  leading: const Icon(Icons.swap_horiz, color: SpyceColors.teal),
+                  title: const Text('Swap with another photo', style: TextStyle(color: Colors.white)),
+                  onTap: () => Navigator.pop(ctx, 'swap'),
+                ),
               ListTile(
-                leading: const Icon(Icons.swap_horiz, color: SpyceColors.pinkSoft),
+                leading: const Icon(Icons.photo_camera_outlined, color: SpyceColors.pinkSoft),
                 title: const Text('Replace photo', style: TextStyle(color: Colors.white)),
                 onTap: () => Navigator.pop(ctx, 'replace'),
               ),
@@ -1170,6 +1377,23 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       return;
     }
 
+    if (action == 'main') {
+      await _setAsMainPhoto(image);
+      return;
+    }
+    if (action == 'left') {
+      await _movePhoto(image, delta: -1);
+      return;
+    }
+    if (action == 'right') {
+      await _movePhoto(image, delta: 1);
+      return;
+    }
+    if (action == 'swap') {
+      await _pickSwapTarget(image);
+      return;
+    }
+
     if (action == 'replace') {
       await _addOrChangeImage(replaceImageId: image.id);
       return;
@@ -1182,7 +1406,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           backgroundColor: SpyceColors.dark800,
           title: const Text('Delete this photo?', style: TextStyle(color: Colors.white)),
           content: const Text(
-            'This removes it from your profile.',
+            'This removes it from your profile. Remaining photos stay in order — the first becomes your main photo.',
             style: TextStyle(color: Colors.white70),
           ),
           actions: [
@@ -1296,7 +1520,16 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                               bottom: 0,
                               right: 0,
                               child: GestureDetector(
-                                onTap: _addOrChangeImage,
+                                // Adds a photo to slots; slot 1 is always the main profile image
+                                onTap: () {
+                                  final photos = _sortedPhotos;
+                                  if (photos.isNotEmpty) {
+                                    // Open main photo options so user can replace/rearrange
+                                    _onPhotoTap(photos.first);
+                                  } else {
+                                    _addOrChangeImage();
+                                  }
+                                },
                                 child: Container(
                                   width: 28,
                                   height: 28,
@@ -1403,7 +1636,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Uploaded photos show in slots 1–5. Empty slots are vacant.',
+                    'Slot 1 is your main profile photo. Tap a photo to set as main, move, or swap.',
                     style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.45),
                       fontSize: 12,

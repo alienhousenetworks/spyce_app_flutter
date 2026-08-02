@@ -152,13 +152,16 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
           error = e.message;
           loading = false;
           loadingMore = false;
-          if (!append) profiles = _demoProfiles();
+          if (!append) profiles = [];
         });
       }
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        if (!append) profiles = _demoProfiles();
+        if (!append) {
+          profiles = [];
+          error = 'Could not load profiles. Pull to refresh.';
+        }
         loading = false;
         loadingMore = false;
         hasMore = false;
@@ -232,7 +235,11 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
         }
       }
     } catch (_) {
-      _showToast('Liked ${p.shortName}');
+      setState(() {
+        _liked.remove(id);
+        _liked.remove(uid);
+      });
+      _showToast('Could not like. Try again.');
     }
   }
 
@@ -526,62 +533,4 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
     );
   }
 
-  List<FeedProfile> _demoProfiles() {
-    // Demo: one with "uploaded" look via network image, one with pool avatar only
-    return [
-      const FeedProfile(
-        id: 'demo-1',
-        username: 'Oopsis',
-        age: 24,
-        bio:
-            'A soft - romantic girl who likes to move through life with love for all gentle beings',
-        city: 'Pune',
-        gender: 'Female',
-        sexuality: 'Straight',
-        pronouns: 'she/her',
-        height: "5'8\"",
-        photoStatus: 'CUSTOM',
-        images: [
-          ProfileImage(
-            id: '1',
-            imageUrl:
-                'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=600',
-          ),
-        ],
-        bgId: 'B01',
-        bgVariantId: 'B01-coral',
-        turnOns: ['Kissing', 'Cosplay', 'Cuddles', 'Music'],
-        interests: ['film photography', 'lo-fi', 'slow mornings', 'poetry'],
-        hotTakes: [
-          HotTake(
-              label: 'Currently obsessed with',
-              text: 'late night train rides & old songs'),
-          HotTake(
-              label: 'Fact about me', text: 'replies fast when excited'),
-        ],
-        favouriteTrack: null,
-        isOnline: true,
-      ),
-      const FeedProfile(
-        id: 'demo-2',
-        username: 'kai',
-        age: 27,
-        bio: 'Looking for intentional connections, not infinite swipes.',
-        city: 'Bangalore',
-        gender: 'Male',
-        height: "5'11\"",
-        // No uploads → admin pool avatar (gender+sexuality)
-        photoStatus: 'AVATAR',
-        avatarUrl:
-            'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=600',
-        bgId: 'B02',
-        bgVariantId: 'B02-teal',
-        turnOns: ['Deep chats', 'Gym', 'Films', 'Travel'],
-        interests: ['climbing', 'espresso', 'sci-fi'],
-        hotTakes: [
-          HotTake(label: 'Hot take', text: 'Good coffee > good pickup lines'),
-        ],
-      ),
-    ];
-  }
 }

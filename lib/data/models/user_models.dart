@@ -128,6 +128,14 @@ class ProfileImage {
       order: (json['order'] as num?)?.toInt() ?? 0,
     );
   }
+
+  ProfileImage copyWith({String? id, String? imageUrl, int? order}) {
+    return ProfileImage(
+      id: id ?? this.id,
+      imageUrl: imageUrl ?? this.imageUrl,
+      order: order ?? this.order,
+    );
+  }
 }
 
 class HotTake {
@@ -261,14 +269,10 @@ class FeedProfile {
     );
   }
 
-  /// True when user has uploaded profile photos (photo_status=CUSTOM).
-  /// Feed cards often omit photo_status — then non-empty `images` means custom.
+  /// True when user has uploaded profile photos.
+  /// Slot 1 (lowest order) is the main/profile picture — not a separate field.
+  /// Prefer non-empty `images` over photo_status so stale AVATAR never hides uploads.
   bool get hasUserPhotos {
-    if (photoStatus?.toUpperCase() == 'AVATAR') return false;
-    if (photoStatus?.toUpperCase() == 'CUSTOM') {
-      return images.any((i) => i.imageUrl.isNotEmpty);
-    }
-    // No status: treat real image list as uploads when present
     return images.any((i) => i.imageUrl.isNotEmpty);
   }
 
@@ -333,6 +337,8 @@ class FeedProfile {
           if (img.imageUrl.isNotEmpty) images.add(img);
         }
       }
+      // Slot 1 (lowest order) = main profile photo
+      images.sort((a, b) => a.order.compareTo(b.order));
     }
 
     // Admin avatar pool (gender + sexuality) — avatar_detail.image
@@ -1642,17 +1648,21 @@ class UserProfile {
     return '—';
   }
 
+  /// True when user has uploaded photos. First ordered image is the main/profile pic.
   bool get hasUserPhotos {
-    if (photoStatus?.toUpperCase() == 'AVATAR') return false;
     return images.any((i) => i.imageUrl.isNotEmpty);
   }
 
-  /// Profile / list display: uploaded photo else admin pool avatar.
+  /// Profile / list display: first photo (main) else admin pool avatar.
   String? get displayImageUrl {
-    if (hasUserPhotos) return images.first.imageUrl;
+    if (hasUserPhotos) {
+      final u = images.first.imageUrl.trim();
+      if (u.isNotEmpty) return u;
+    }
     if (avatarUrl != null && avatarUrl!.isNotEmpty) return avatarUrl;
-    if (images.isNotEmpty && images.first.imageUrl.isNotEmpty) {
-      return images.first.imageUrl;
+    for (final img in images) {
+      final u = img.imageUrl.trim();
+      if (u.isNotEmpty) return u;
     }
     return null;
   }
@@ -1793,6 +1803,9 @@ class UserProfile {
     String? bgVariantId,
     List<String>? languageIds,
     List<String>? languageLabels,
+    List<ProfileImage>? images,
+    String? photoStatus,
+    String? avatarUrl,
     String? city,
     String? state,
     String? country,
@@ -1836,20 +1849,21 @@ class UserProfile {
       hideOnlineStatus: hideOnlineStatus,
       hideDistance: hideDistance,
       isDiscoverable: isDiscoverable,
-      images: images,
+      images: images ?? this.images,
       layoutId: clearLayoutId ? null : (layoutId ?? this.layoutId),
       bgId: clearBgId ? null : (bgId ?? this.bgId),
       bgVariantId:
           clearBgVariantId ? null : (bgVariantId ?? this.bgVariantId),
       canSeeIncomingLikes: canSeeIncomingLikes,
-      avatarUrl: avatarUrl,
-      photoStatus: photoStatus,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
+      photoStatus: photoStatus ?? this.photoStatus,
       raw: raw,
     );
   }
 }
 
 /// Shared display image resolver for any profile-like map from the API.
+/// First ordered uploaded image wins (main profile photo); else admin avatar.
 String? resolveDisplayImageUrl({
   List<dynamic>? images,
   Map<String, dynamic>? avatarDetail,
@@ -1857,8 +1871,8 @@ String? resolveDisplayImageUrl({
   String? photoStatus,
   String? imageUrl,
 }) {
-  final isAvatarMode = photoStatus?.toUpperCase() == 'AVATAR';
-  if (!isAvatarMode && images != null) {
+  // Prefer real uploads even if photo_status is stale AVATAR
+  if (images != null) {
     for (final item in images) {
       if (item is Map) {
         final u = (item['image_url'] ?? item['url'] ?? item['image'])?.toString();
@@ -1875,15 +1889,6 @@ String? resolveDisplayImageUrl({
   }
   if (avatarUrl != null && avatarUrl.isNotEmpty) return avatarUrl;
   if (imageUrl != null && imageUrl.isNotEmpty) return imageUrl;
-  // Last resort: first image even if status unknown
-  if (images != null) {
-    for (final item in images) {
-      if (item is Map) {
-        final u = (item['image_url'] ?? item['url'] ?? item['image'])?.toString();
-        if (u != null && u.isNotEmpty) return u;
-      }
-    }
-  }
   return null;
 }
 

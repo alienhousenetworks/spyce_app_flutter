@@ -59,25 +59,20 @@ class _ConfessionsPageState extends ConsumerState<ConfessionsPage> {
           .read(socialRepositoryProvider)
           .getFeed(lat: lat, lon: lon);
       if (!mounted) return;
-      final all = list.isNotEmpty ? list : _demoFeed();
+      final all = list;
       // One slot per root original (backend dedupes; client belt-and-suspenders)
       final unique = _dedupeByRoot(all);
       setState(() {
         mine = unique.where((p) => p.isAuthor).toList();
         // Never show own posts in the interactive public feed
         feed = unique.where((p) => !p.isAuthor).toList();
-        // Keep local "mine" if API didn't flag any author posts
-        if (mine.isEmpty) {
-          // retain previously composed local posts
-          mine = mine;
-        }
         loading = false;
       });
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        feed = _demoFeed();
-        mine = _demoMine();
+        feed = [];
+        mine = [];
         loading = false;
       });
     }
@@ -122,69 +117,6 @@ class _ConfessionsPageState extends ConsumerState<ConfessionsPage> {
       ..sort((a, b) => firstIndex[a]!.compareTo(firstIndex[b]!));
     return [for (final k in keys) byRoot[k]!];
   }
-
-  List<ConfessionPost> _demoFeed() => [
-        ConfessionPost(
-          id: '1',
-          text:
-              'Oh, must you\nchange shapes, again\nso soon?\nthought you\'d stay\nin town, a night or two.',
-          gender: 'Female',
-          sexuality: 'Bi',
-          age: 23,
-          relateCount: 42,
-          repostCount: 7,
-          createdAt: DateTime.now().subtract(const Duration(hours: 3)),
-        ),
-        ConfessionPost(
-          id: '2',
-          text:
-              'Whispers\nTrickling through the leaves\nSecrets\nHeld within the trees',
-          gender: 'Male',
-          sexuality: 'Straight',
-          age: 26,
-          relateCount: 18,
-          hasRelated: true,
-          createdAt: DateTime.now().subtract(const Duration(hours: 8)),
-        ),
-        // Tumblr-style plain repost demo (root not also listed separately —
-        // feed keeps only one slot per original)
-        ConfessionPost(
-          id: '3',
-          text:
-              'I still think about that night on the rooftop and the silence after.',
-          gender: 'Female',
-          sexuality: 'Straight',
-          age: 24,
-          relateCount: 4,
-          repostCount: 11,
-          isRepost: true,
-          parentId: 'orig-demo-only',
-          hasReposted: false,
-          original: OriginalConfessionMeta(
-            id: 'orig-demo-only',
-            text:
-                'I still think about that night on the rooftop and the silence after.',
-            gender: 'Male',
-            sexuality: 'Bi',
-            age: 27,
-            createdAt: DateTime.now().subtract(const Duration(hours: 5)),
-          ),
-          createdAt: DateTime.now().subtract(const Duration(hours: 1)),
-        ),
-      ];
-
-  List<ConfessionPost> _demoMine() => [
-        ConfessionPost(
-          id: 'mine-1',
-          text: 'Posted this at 2am and now I\'m overthinking every line.',
-          gender: 'You',
-          age: null,
-          relateCount: 12,
-          repostCount: 3,
-          isAuthor: true,
-          createdAt: DateTime.now().subtract(const Duration(hours: 5)),
-        ),
-      ];
 
   Future<void> _relate(ConfessionPost p) async {
     if (p.isAuthor) return;
@@ -416,7 +348,7 @@ class _ConfessionsPageState extends ConsumerState<ConfessionsPage> {
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Report submitted (offline demo)')),
+        const SnackBar(content: Text('Could not submit report. Try again.')),
       );
     }
   }
@@ -507,7 +439,7 @@ class _ConfessionsPageState extends ConsumerState<ConfessionsPage> {
       } catch (_) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Note sent (demo)')),
+            const SnackBar(content: Text('Could not send note. Try again.')),
           );
         }
       }
