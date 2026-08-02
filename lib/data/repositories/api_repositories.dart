@@ -374,6 +374,28 @@ class ProfileRepository {
     );
     return _asMap(data);
   }
+
+  /// GET `/geo/autocomplete/?q=` — city/state/country suggestions for Discover.
+  /// Same package as web: profile cities + India seed list on the backend.
+  Future<List<CitySuggestion>> autocompleteCity(
+    String query, {
+    int limit = 12,
+  }) async {
+    final q = query.trim();
+    if (q.length < 2) return const [];
+    final data = await _api.get<dynamic>(
+      '/geo/autocomplete/',
+      query: {
+        'q': q,
+        'limit': limit.clamp(1, 25),
+      },
+    );
+    return _extractList(data)
+        .whereType<Map>()
+        .map((e) => CitySuggestion.fromJson(Map<String, dynamic>.from(e)))
+        .where((c) => c.city.isNotEmpty)
+        .toList();
+  }
 }
 
 // ── Matches ──────────────────────────────────────────────────

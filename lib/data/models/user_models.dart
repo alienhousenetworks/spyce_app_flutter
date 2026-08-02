@@ -108,6 +108,48 @@ class AuthSession {
   }
 }
 
+/// City typeahead row from GET /geo/autocomplete/ (profile cities + seed list).
+class CitySuggestion {
+  const CitySuggestion({
+    required this.city,
+    this.state,
+    this.country,
+    this.displayName,
+    this.profileCount = 0,
+    this.source,
+  });
+
+  final String city;
+  final String? state;
+  final String? country;
+  final String? displayName;
+  final int profileCount;
+  final String? source;
+
+  /// "Mumbai, Maharashtra, IN"
+  String get label {
+    final d = displayName?.trim();
+    if (d != null && d.isNotEmpty) return d;
+    final parts = <String>[
+      city,
+      if (state != null && state!.isNotEmpty) state!,
+      if (country != null && country!.isNotEmpty) country!,
+    ];
+    return parts.join(', ');
+  }
+
+  factory CitySuggestion.fromJson(Map<String, dynamic> json) {
+    return CitySuggestion(
+      city: (json['city'] ?? '').toString().trim(),
+      state: json['state']?.toString().trim(),
+      country: json['country']?.toString().trim(),
+      displayName: json['display_name']?.toString().trim(),
+      profileCount: (json['profile_count'] as num?)?.toInt() ?? 0,
+      source: json['source']?.toString(),
+    );
+  }
+}
+
 class ProfileImage {
   const ProfileImage({
     required this.id,

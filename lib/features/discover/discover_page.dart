@@ -1,6 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:uuid/uuid.dart';
 
@@ -313,9 +314,101 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
         if (!anywhere) distance = distance.clamp(1.0, 1000.0);
         var online = filters['currently_online'] == true;
         var selectedCity = filters['city']?.toString() ?? '';
+        var selectedState = filters['state']?.toString() ?? '';
+        var selectedCountry = filters['country']?.toString() ?? '';
         var selectedIntent = filters['intent']?.toString() ?? '';
+        var citySuggestions = <CitySuggestion>[];
+        var cityLoading = false;
+        var showCitySuggest = false;
+        Timer? cityDebounce;
+        var cityRequestId = 0;
 
-        final cityCtrl = TextEditingController(text: selectedCity);
+        final cityCtrl = TextEditingController(
+          text: selectedCity.isEmpty
+              ? ''
+              : [
+                  selectedCity,
+                  if (selectedState.isNotEmpty) selectedState,
+                  if (selectedCountry.isNotEmpty) selectedCountry,
+                ].join(', '),
+        );
+
+        Future<void> runCitySearch(String raw, void Function(void Function()) setModal) async {
+          final q = raw.trim();
+          // If user is editing free text, strip display "City, State, Country" to first segment for API
+          final queryForApi = q.contains(',') ? q.split(',').first.trim() : q;
+          if (queryForApi.length < 2) {
+            setModal(() {
+              citySuggestions = [];
+              cityLoading = false;
+              showCitySuggest = false;
+            });
+            return;
+          }
+          final req = ++cityRequestId;
+          setModal(() => cityLoading = true);
+          try {
+            final list = await ref
+                .read(profileRepositoryProvider)
+                .autocompleteCity(queryForApi);
+            if (req != cityRequestId) return;
+            setModal(() {
+              citySuggestions = list;
+              cityLoading = false;
+              showCitySuggest = list.isNotEmpty;
+            });
+          } catch (_) {
+            if (req != cityRequestId) return;
+            setModal(() {
+              citySuggestions = [];
+              cityLoading = false;
+              showCitySuggest = false;
+            });
+          }
+        }
+
+        void onCityTyped(String v, void Function(void Function()) setModal) {
+          // Free-type: store first token as city until user picks a suggestion
+          final trimmed = v.trim();
+          final freeCity =
+              trimmed.contains(',') ? trimmed.split(',').first.trim() : trimmed;
+          setModal(() {
+            selectedCity = freeCity;
+            // Clear structured region until a suggestion is picked
+            if (selectedState.isNotEmpty || selectedCountry.isNotEmpty) {
+              selectedState = '';
+              selectedCountry = '';
+            }
+          });
+          cityDebounce?.cancel();
+          if (freeCity.length < 2) {
+            setModal(() {
+              citySuggestions = [];
+              showCitySuggest = false;
+              cityLoading = false;
+            });
+            return;
+          }
+          cityDebounce = Timer(const Duration(milliseconds: 280), () {
+            runCitySearch(v, setModal);
+          });
+        }
+
+        void pickCity(CitySuggestion s, void Function(void Function()) setModal) {
+          cityDebounce?.cancel();
+          cityCtrl.text = s.label;
+          setModal(() {
+            selectedCity = s.city;
+            selectedState = s.state ?? '';
+            selectedCountry = s.country ?? '';
+            citySuggestions = [];
+            showCitySuggest = false;
+            cityLoading = false;
+            // Region search is mutually exclusive with distance radius
+            anywhere = true;
+            distance = 0;
+          });
+        }
 
         return StatefulBuilder(
           builder: (context, setModal) {
@@ -395,6 +488,13 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                           onSelected: (_) => setModal(() {
                             anywhere = false;
                             if (distance < 1) distance = 50;
+                            // Distance mode clears city region filter
+                            selectedCity = '';
+                            selectedState = '';
+                            selectedCountry = '';
+                            cityCtrl.clear();
+                            citySuggestions = [];
+                            showCitySuggest = false;
                           }),
                         ),
                       ],
@@ -438,31 +538,176 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                       ),
                     ],
                     const SizedBox(height: 10),
-                    Text('Filter by City (Single City)',
+                    Text('Filter by City',
                         style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Type a city — pick from suggestions (city, state, country)',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.4),
+                        fontSize: 12,
+                      ),
+                    ),
                     const SizedBox(height: 6),
                     TextField(
                       controller: cityCtrl,
                       style: const TextStyle(color: Colors.white),
                       decoration: InputDecoration(
-                        hintText: 'Enter city name (e.g. Mumbai, Delhi)',
+                        hintText: 'Search city…',
                         hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
                         filled: true,
                         fillColor: Colors.black26,
                         prefixIcon: const Icon(Icons.location_city, color: SpyceColors.pinkSoft),
-                        suffixIcon: cityCtrl.text.isNotEmpty
-                            ? IconButton(
-                                icon: const Icon(Icons.clear, color: Colors.white54),
-                                onPressed: () {
-                                  cityCtrl.clear();
-                                  setModal(() => selectedCity = '');
-                                },
+                        suffixIcon: cityLoading
+                            ? const Padding(
+                                padding: EdgeInsets.all(12),
+                                child: SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: SpyceColors.pinkSoft,
+                                  ),
+                                ),
                               )
-                            : null,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                            : (cityCtrl.text.isNotEmpty
+                                ? IconButton(
+                                    icon: const Icon(Icons.clear, color: Colors.white54),
+                                    onPressed: () {
+                                      cityDebounce?.cancel();
+                                      cityCtrl.clear();
+                                      setModal(() {
+                                        selectedCity = '';
+                                        selectedState = '';
+                                        selectedCountry = '';
+                                        citySuggestions = [];
+                                        showCitySuggest = false;
+                                        cityLoading = false;
+                                      });
+                                    },
+                                  )
+                                : null),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
                       ),
-                      onChanged: (v) => setModal(() => selectedCity = v.trim()),
+                      onChanged: (v) => onCityTyped(v, setModal),
+                      onTap: () {
+                        if (citySuggestions.isNotEmpty) {
+                          setModal(() => showCitySuggest = true);
+                        } else if (cityCtrl.text.trim().length >= 2) {
+                          runCitySearch(cityCtrl.text, setModal);
+                        }
+                      },
                     ),
+                    if (showCitySuggest && citySuggestions.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Container(
+                        constraints: const BoxConstraints(maxHeight: 220),
+                        decoration: BoxDecoration(
+                          color: SpyceColors.dark900,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.08),
+                          ),
+                        ),
+                        child: ListView.separated(
+                          shrinkWrap: true,
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          itemCount: citySuggestions.length,
+                          separatorBuilder: (_, __) => Divider(
+                            height: 1,
+                            color: Colors.white.withValues(alpha: 0.06),
+                          ),
+                          itemBuilder: (_, i) {
+                            final s = citySuggestions[i];
+                            return ListTile(
+                              dense: true,
+                              leading: const Icon(
+                                Icons.place_outlined,
+                                color: SpyceColors.pinkSoft,
+                                size: 20,
+                              ),
+                              title: Text(
+                                s.city,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              subtitle: Text(
+                                [
+                                  if (s.state != null && s.state!.isNotEmpty) s.state!,
+                                  if (s.country != null && s.country!.isNotEmpty)
+                                    s.country!,
+                                ].join(', '),
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.5),
+                                  fontSize: 12,
+                                ),
+                              ),
+                              trailing: s.profileCount > 0
+                                  ? Text(
+                                      '${s.profileCount}',
+                                      style: TextStyle(
+                                        color: Colors.white.withValues(alpha: 0.35),
+                                        fontSize: 11,
+                                      ),
+                                    )
+                                  : null,
+                              onTap: () => pickCity(s, setModal),
+                            );
+                          },
+                        ),
+                      ),
+                    ] else if (cityLoading) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        'Searching cities…',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.4),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ] else if (cityCtrl.text.trim().length >= 2 &&
+                        !cityLoading &&
+                        citySuggestions.isEmpty &&
+                        showCitySuggest == false &&
+                        selectedCity.isNotEmpty &&
+                        selectedState.isEmpty) ...[
+                      // After a failed search we leave showCitySuggest false; optional quiet hint
+                    ],
+                    if (selectedCity.isNotEmpty &&
+                        (selectedState.isNotEmpty || selectedCountry.isNotEmpty)) ...[
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Chip(
+                          avatar: const Icon(Icons.check_circle, size: 16, color: Colors.white),
+                          label: Text(
+                            [
+                              selectedCity,
+                              if (selectedState.isNotEmpty) selectedState,
+                              if (selectedCountry.isNotEmpty) selectedCountry,
+                            ].join(', '),
+                            style: const TextStyle(color: Colors.white, fontSize: 12),
+                          ),
+                          backgroundColor: SpyceColors.pink.withValues(alpha: 0.35),
+                          side: BorderSide.none,
+                          deleteIcon: const Icon(Icons.close, size: 16, color: Colors.white70),
+                          onDeleted: () {
+                            cityCtrl.clear();
+                            setModal(() {
+                              selectedCity = '';
+                              selectedState = '';
+                              selectedCountry = '';
+                            });
+                          },
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 16),
                     if (intentOptions.isNotEmpty) ...[
                       Text('Filter by Intent',
@@ -506,18 +751,24 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                     SpycePrimaryButton(
                       label: 'Apply Filters',
                       onPressed: () {
+                        cityDebounce?.cancel();
+                        final hasRegion = selectedCity.trim().isNotEmpty;
                         Navigator.pop(context);
                         setState(() {
                           filters = {
                             ...filters,
                             'min_age': minAge.round(),
                             'max_age': maxAge.round(),
-                            // 0 = Anywhere (unlimited); never send "infinite" as a huge number
-                            'distance': anywhere ? 0 : distance.round().clamp(1, 1000),
-                            'city': selectedCity,
+                            // Region filter wins over distance (backend normalize)
+                            'distance': hasRegion
+                                ? 0
+                                : (anywhere ? 0 : distance.round().clamp(1, 1000)),
+                            'city': selectedCity.trim(),
+                            'state': selectedState.trim(),
+                            'country': selectedCountry.trim(),
                             'intent': selectedIntent,
                             'currently_online': online,
-                            'location_mode': selectedCity.trim().isNotEmpty ? 'region' : 'distance',
+                            'location_mode': hasRegion ? 'region' : 'distance',
                           };
                         });
                         _load(0);
@@ -530,7 +781,9 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
           },
         );
       },
-    );
+    ).whenComplete(() {
+      // sheet closed
+    });
   }
 
 
