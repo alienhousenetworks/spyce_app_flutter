@@ -60,25 +60,32 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
     _load(0);
   }
 
-  /// Align discover defaults with profile discovery prefs (Anywhere by default).
+  /// Seed age prefs from profile only.
+  /// Distance always stays **Anywhere** (0) by default on feed — user can
+  /// switch to Near me / city in filters; we do not apply profile radius here.
   Future<void> _seedFiltersFromProfile() async {
     try {
       final p = await ref.read(profileRepositoryProvider).getMyProfile();
       if (!mounted) return;
       final minAge = p.agePreferenceMin ?? 18;
       final maxAge = p.agePreferenceMax ?? 100;
-      final dist = p.isDiscoveryAnywhere ? 0 : (p.effectiveDistanceKm ?? 0);
       setState(() {
         filters = {
           ...filters,
           'min_age': minAge,
           'max_age': maxAge,
-          'distance': dist,
+          // Always Anywhere on first open / reset
+          'distance': 0,
           'location_mode': 'distance',
         };
+        // Clear any city region so distance mode is Anywhere worldwide
+        filters.remove('city');
+        filters.remove('state');
+        filters.remove('country');
+        filters.remove('city_lat');
+        filters.remove('city_lon');
       });
-      // Reload only if prefs differ from initial Anywhere defaults
-      if (dist != 0 || minAge != 18 || maxAge != 100) {
+      if (minAge != 18 || maxAge != 100) {
         await _load(0);
       }
     } catch (_) {
