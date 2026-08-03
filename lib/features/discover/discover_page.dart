@@ -127,6 +127,7 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
   }
 
   /// Widen discovery so the feed does not stop — only informs the user.
+  /// Keep the user's age slider bounds (do not force 18–100).
   void _applyRelaxedFilters() {
     filters = {
       ...filters,
@@ -134,9 +135,7 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
       'location_mode': 'distance',
       'currently_online': false,
       'include_liked': true,
-      // Full age band while in variety mode (user can re-tighten in filters)
-      'min_age': 18,
-      'max_age': 100,
+      // Age range stays whatever the user set in filters
     };
     filters.remove('city');
     filters.remove('state');

@@ -10,6 +10,9 @@ import '../../data/repositories/api_repositories.dart';
 ///
 /// Backend online window is ~5 minutes (presence TTL + last_active check).
 /// We heartbeat ~every 90s so "Online" stays accurate while SPYCE is open.
+///
+/// GPS is refreshed periodically (not frozen at first fix) so when the user
+/// travels to another city, profile location + discovery geo update.
 class PresenceService with WidgetsBindingObserver {
   PresenceService(this._ref);
 
@@ -19,8 +22,13 @@ class PresenceService with WidgetsBindingObserver {
   bool _pingInFlight = false;
   double? _lat;
   double? _lon;
+  DateTime? _lastGpsRefresh;
 
   static const _interval = Duration(seconds: 90);
+  /// Re-read device GPS at least this often (covers city changes while app open).
+  static const _gpsRefreshEvery = Duration(minutes: 3);
+  /// ~2 km — treat as meaningful move even between GPS refreshes.
+  static const _moveThresholdMeters = 2000.0;
 
   void start() {
     if (_started) return;
@@ -42,6 +50,8 @@ class PresenceService with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     switch (state) {
       case AppLifecycleState.resumed:
+        // Force a fresh GPS read after background (user may have changed city)
+        _lastGpsRefresh = null;
         _ping();
         _timer?.cancel();
         _timer = Timer.periodic(_interval, (_) => _ping());
@@ -59,7 +69,7 @@ class PresenceService with WidgetsBindingObserver {
     if (_pingInFlight) return;
     _pingInFlight = true;
     try {
-      await _ensureCoords();
+      await _ensureCoords(forceRefresh: _shouldRefreshGps());
       await _ref.read(authRepositoryProvider).heartbeat(
             lat: _lat,
             lon: _lon,
@@ -71,37 +81,72 @@ class PresenceService with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _ensureCoords() async {
-    if (_lat != null && _lon != null) return;
+  bool _shouldRefreshGps() {
+    if (_lat == null || _lon == null) return true;
+    if (_lastGpsRefresh == null) return true;
+    return DateTime.now().difference(_lastGpsRefresh!) >= _gpsRefreshEvery;
+  }
 
-    // 1) Profile-stored coords (no extra permission prompt)
+  Future<void> _ensureCoords({bool forceRefresh = false}) async {
+    // 1) Prefer live device GPS when permitted (updates when user changes city)
+    final gps = await _readDeviceGps();
+    if (gps != null) {
+      final newLat = gps.$1;
+      final newLon = gps.$2;
+      if (_lat == null ||
+          _lon == null ||
+          forceRefresh ||
+          _movedEnough(_lat!, _lon!, newLat, newLon)) {
+        _lat = newLat;
+        _lon = newLon;
+      }
+      _lastGpsRefresh = DateTime.now();
+      return;
+    }
+
+    // 2) Fall back to cached / profile coords if GPS unavailable
+    if (_lat != null && _lon != null && !forceRefresh) return;
+
     try {
       final p = await _ref.read(profileRepositoryProvider).getMyProfile();
       if (p.latitude != null && p.longitude != null) {
         _lat = p.latitude;
         _lon = p.longitude;
-        return;
       }
     } catch (_) {}
+  }
 
-    // 2) Device GPS if already permitted (don't force prompt on every heartbeat)
+  bool _movedEnough(double aLat, double aLon, double bLat, double bLon) {
+    try {
+      final m = Geolocator.distanceBetween(aLat, aLon, bLat, bLon);
+      return m >= _moveThresholdMeters;
+    } catch (_) {
+      return (aLat - bLat).abs() > 0.02 || (aLon - bLon).abs() > 0.02;
+    }
+  }
+
+  Future<(double, double)?> _readDeviceGps() async {
     try {
       final enabled = await Geolocator.isLocationServiceEnabled();
-      if (!enabled) return;
+      if (!enabled) return null;
       final perm = await Geolocator.checkPermission();
       if (perm == LocationPermission.denied ||
           perm == LocationPermission.deniedForever) {
-        return;
+        return null;
       }
       final pos = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.low,
-          timeLimit: Duration(seconds: 8),
+          accuracy: LocationAccuracy.medium,
+          timeLimit: Duration(seconds: 10),
         ),
       );
-      _lat = double.parse(pos.latitude.toStringAsFixed(6));
-      _lon = double.parse(pos.longitude.toStringAsFixed(6));
-    } catch (_) {}
+      return (
+        double.parse(pos.latitude.toStringAsFixed(6)),
+        double.parse(pos.longitude.toStringAsFixed(6)),
+      );
+    } catch (_) {
+      return null;
+    }
   }
 }
 
