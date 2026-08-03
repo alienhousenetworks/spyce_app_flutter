@@ -10,6 +10,7 @@ import '../../../core/utils/presence_labels.dart';
 import '../../../data/models/user_models.dart';
 import '../../../shared/widgets/media_user_id_watermark.dart';
 import '../../../shared/widgets/spyce_widgets.dart';
+import '../../../shared/widgets/turn_on_stickers.dart';
 import '../../auth/auth_controller.dart';
 
 /// Horizontal multi-page feed card matching SPYCE design screenshots:
@@ -885,7 +886,12 @@ class _TurnOnsPage extends StatelessWidget {
     final p = profile;
     // Cap at 3 (backend max); empty list = no hot-take section
     final hotTakes = p.hotTakes.take(3).toList();
-    final turnOns = p.turnOns;
+    // Prefer structured stickers (id + name + image_url from R2)
+    final stickerItems = p.turnOnItems.isNotEmpty
+        ? p.turnOnItems
+        : p.turnOns
+            .map((n) => TurnOnItem(id: n, name: n))
+            .toList();
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 28, 20, 16),
@@ -951,7 +957,7 @@ class _TurnOnsPage extends StatelessWidget {
           const SizedBox(height: 16),
         ],
 
-        // ── Turn-ons ──────────────────────────────────────────
+        // ── Turn-ons (R2 stickers + name from backend) ────────
         _CreamCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -964,7 +970,7 @@ class _TurnOnsPage extends StatelessWidget {
                   color: SpyceColors.dark900,
                 ),
               ),
-              if (turnOns.isEmpty) ...[
+              if (stickerItems.isEmpty) ...[
                 const SizedBox(height: 8),
                 Text(
                   'No turn-ons listed yet.',
@@ -977,7 +983,7 @@ class _TurnOnsPage extends StatelessWidget {
               ] else ...[
                 const SizedBox(height: 8),
                 Text(
-                  turnOns.take(3).join(' · '),
+                  stickerItems.take(3).map((t) => t.name).join(' · '),
                   style: GoogleFonts.dmSans(
                     fontSize: 14,
                     fontStyle: FontStyle.italic,
@@ -992,90 +998,12 @@ class _TurnOnsPage extends StatelessWidget {
           ),
         ),
 
-        if (turnOns.isNotEmpty) ...[
+        if (stickerItems.isNotEmpty) ...[
           const SizedBox(height: 16),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: turnOns.length.clamp(0, 6),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              mainAxisSpacing: 12,
-              crossAxisSpacing: 12,
-              childAspectRatio: 1.05,
-            ),
-            itemBuilder: (context, i) {
-              final label = turnOns[i];
-              return Container(
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF8F1E3),
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.2),
-                      blurRadius: 10,
-                    ),
-                  ],
-                ),
-                child: Stack(
-                  children: [
-                    Center(
-                      child: Icon(
-                        _iconForTurnOn(label),
-                        size: 48,
-                        color: SpyceColors.dark700,
-                      ),
-                    ),
-                    Positioned(
-                      left: 10,
-                      right: 10,
-                      bottom: 10,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.black87,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          label,
-                          textAlign: TextAlign.center,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
+          TurnOnStickerGrid(items: stickerItems, maxItems: 8),
         ],
       ],
     );
-  }
-
-  IconData _iconForTurnOn(String label) {
-    final l = label.toLowerCase();
-    if (l.contains('kiss')) return Icons.favorite;
-    if (l.contains('cuddle')) return Icons.hotel;
-    if (l.contains('music')) return Icons.music_note;
-    if (l.contains('food') || l.contains('cook')) return Icons.restaurant;
-    if (l.contains('travel')) return Icons.flight;
-    if (l.contains('read') || l.contains('book')) return Icons.menu_book;
-    if (l.contains('gym') || l.contains('fit')) return Icons.fitness_center;
-    if (l.contains('humor') || l.contains('wit')) return Icons.emoji_emotions;
-    if (l.contains('intel')) return Icons.psychology;
-    if (l.contains('confiden')) return Icons.star;
-    if (l.contains('empath')) return Icons.favorite_border;
-    return Icons.auto_awesome;
   }
 }
 

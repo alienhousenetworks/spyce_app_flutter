@@ -18,6 +18,7 @@ import '../../core/utils/media_url.dart';
 import '../../data/models/user_models.dart';
 import '../../data/repositories/api_repositories.dart';
 import '../../shared/widgets/spyce_widgets.dart';
+import '../../shared/widgets/turn_on_stickers.dart';
 import '../auth/auth_controller.dart';
 
 /// Max photo slots on profile (matches product: 1–5).
@@ -407,6 +408,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       return;
     }
     final selected = {...currentIds};
+    final useStickers = field == 'turn_ons' &&
+        options.any((o) => o.imageUrl != null && o.imageUrl!.isNotEmpty);
     final ok = await showModalBottomSheet<bool>(
       context: context,
       backgroundColor: SpyceColors.dark800,
@@ -427,32 +430,52 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     Text(title,
                         style: GoogleFonts.syne(
                             fontSize: 18, fontWeight: FontWeight.w700)),
+                    if (field == 'turn_ons') ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        'Pick as many as you like · stickers from catalog',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.5),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 12),
                     ConstrainedBox(
                       constraints: BoxConstraints(
-                        maxHeight: MediaQuery.of(ctx).size.height * 0.5,
+                        maxHeight: MediaQuery.of(ctx).size.height * 0.55,
                       ),
                       child: SingleChildScrollView(
-                        child: Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: options.map((o) {
-                            final on = selected.contains(o.id);
-                            return FilterChip(
-                              label: Text(o.name),
-                              selected: on,
-                              onSelected: (v) => setLocal(() {
-                                if (v) {
-                                  selected.add(o.id);
-                                } else {
-                                  selected.remove(o.id);
-                                }
-                              }),
-                              selectedColor: SpyceColors.pinkDim,
-                              checkmarkColor: SpyceColors.pink,
-                            );
-                          }).toList(),
-                        ),
+                        child: useStickers || field == 'turn_ons'
+                            ? TurnOnStickerPicker(
+                                options: options,
+                                selectedIds: selected,
+                                onChanged: (next) => setLocal(() {
+                                  selected
+                                    ..clear()
+                                    ..addAll(next);
+                                }),
+                              )
+                            : Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: options.map((o) {
+                                  final on = selected.contains(o.id);
+                                  return FilterChip(
+                                    label: Text(o.name),
+                                    selected: on,
+                                    onSelected: (v) => setLocal(() {
+                                      if (v) {
+                                        selected.add(o.id);
+                                      } else {
+                                        selected.remove(o.id);
+                                      }
+                                    }),
+                                    selectedColor: SpyceColors.pinkDim,
+                                    checkmarkColor: SpyceColors.pink,
+                                  );
+                                }).toList(),
+                              ),
                       ),
                     ),
                     const SizedBox(height: 16),

@@ -25,6 +25,7 @@ String? resolveMediaUrl(String? raw) {
   if (url.startsWith('users/') ||
       url.startsWith('temp/') ||
       url.startsWith('avatars/') ||
+      url.startsWith('turn_ons/') ||
       url.startsWith('media/')) {
     // Prefer watermark proxy only when it looks like a media path under /media/
     if (url.startsWith('media/')) {

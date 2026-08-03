@@ -239,6 +239,7 @@ class FeedProfile {
     this.canDirectMessage = false,
     this.canSeeIncomingLikes = false,
     this.turnOns = const [],
+    this.turnOnItems = const [],
     this.interests = const [],
     this.languages = const [],
     this.hotTakes = const [],
@@ -279,7 +280,10 @@ class FeedProfile {
   final bool isBoosted;
   final bool canDirectMessage;
   final bool canSeeIncomingLikes;
+  /// Display names (legacy / chips). Prefer [turnOnItems] for stickers.
   final List<String> turnOns;
+  /// Full turn-on stickers from API (`id`, `name`, `image_url`).
+  final List<TurnOnItem> turnOnItems;
   final List<String> interests;
   final List<String> languages;
   final List<HotTake> hotTakes;
@@ -324,6 +328,7 @@ class FeedProfile {
       canDirectMessage: canDirectMessage,
       canSeeIncomingLikes: canSeeIncomingLikes,
       turnOns: turnOns,
+      turnOnItems: turnOnItems,
       interests: interests,
       languages: languages ?? this.languages,
       hotTakes: hotTakes,
@@ -424,8 +429,14 @@ class FeedProfile {
     final photoStatus =
         (json['photo_status'] ?? json['photoStatus'])?.toString();
 
-    final turnOns =
-        _stringList(json['turn_ons'] ?? json['turn_ons_detail'] ?? json['turnOns']);
+    final turnOnItems = TurnOnItem.listFrom(
+      json['turn_ons_detail'] ?? json['turn_ons'] ?? json['turnOns'],
+    );
+    final turnOns = turnOnItems.isNotEmpty
+        ? turnOnItems.map((t) => t.name).toList()
+        : _stringList(
+            json['turn_ons'] ?? json['turn_ons_detail'] ?? json['turnOns'],
+          );
     final interests = _stringList(
       json['interests'] ?? json['into'] ?? json['hobbies'],
     );
@@ -496,6 +507,7 @@ class FeedProfile {
       canSeeIncomingLikes: json['can_see_incoming_likes'] == true ||
           json['can_view_likes'] == true,
       turnOns: turnOns,
+      turnOnItems: turnOnItems,
       interests: interests,
       languages: languages,
       hotTakes: hotTakes,
@@ -672,18 +684,78 @@ class FeedResponse {
   }
 }
 
+/// Catalog option (genders, turn-ons, …). Turn-ons may include R2 sticker URL.
 class CatalogOption {
-  const CatalogOption({required this.id, required this.name, this.emoji});
+  const CatalogOption({
+    required this.id,
+    required this.name,
+    this.emoji,
+    this.imageUrl,
+  });
   final String id;
   final String name;
   final String? emoji;
+  /// CDN/R2 sticker for turn-ons (`image_url` from GET /turn_ons/).
+  final String? imageUrl;
 
   factory CatalogOption.fromJson(Map<String, dynamic> json) {
+    final imageUrl = (json['image_url'] ?? json['image'] ?? json['sticker_url'])
+        ?.toString();
     return CatalogOption(
       id: (json['id'] ?? '').toString(),
       name: (json['name'] ?? json['label'] ?? json['title'] ?? '').toString(),
       emoji: json['emoji']?.toString(),
+      imageUrl: (imageUrl != null && imageUrl.isNotEmpty) ? imageUrl : null,
     );
+  }
+
+  TurnOnItem toTurnOnItem() => TurnOnItem(
+        id: id,
+        name: name,
+        imageUrl: imageUrl,
+      );
+}
+
+/// Single turn-on sticker: id + display name + optional R2 image.
+class TurnOnItem {
+  const TurnOnItem({
+    required this.id,
+    required this.name,
+    this.imageUrl,
+  });
+
+  final String id;
+  final String name;
+  final String? imageUrl;
+
+  factory TurnOnItem.fromJson(dynamic raw) {
+    if (raw is Map) {
+      final m = Map<String, dynamic>.from(raw);
+      final name = (m['name'] ?? m['label'] ?? m['title'] ?? '').toString();
+      final id = (m['id'] ?? name).toString();
+      final imageUrl =
+          (m['image_url'] ?? m['image'] ?? m['sticker_url'])?.toString();
+      return TurnOnItem(
+        id: id,
+        name: name.isNotEmpty ? name : id,
+        imageUrl: (imageUrl != null && imageUrl.isNotEmpty) ? imageUrl : null,
+      );
+    }
+    final s = raw.toString();
+    return TurnOnItem(id: s, name: s);
+  }
+
+  static List<TurnOnItem> listFrom(dynamic raw) {
+    if (raw is! List) return const [];
+    final out = <TurnOnItem>[];
+    final seen = <String>{};
+    for (final t in raw) {
+      final item = TurnOnItem.fromJson(t);
+      if (item.name.isEmpty && item.id.isEmpty) continue;
+      final key = item.id.isNotEmpty ? item.id : item.name;
+      if (seen.add(key)) out.add(item);
+    }
+    return out;
   }
 }
 
@@ -1654,6 +1726,7 @@ class UserProfile {
     this.preferredGenderIds = const [],
     this.turnOnIds = const [],
     this.turnOnLabels = const [],
+    this.turnOnItems = const [],
     this.languageIds = const [],
     this.languageLabels = const [],
     this.hottakes,
@@ -1701,6 +1774,8 @@ class UserProfile {
   final List<String> preferredGenderIds;
   final List<String> turnOnIds;
   final List<String> turnOnLabels;
+  /// Stickers with optional R2 `image_url` from turn_ons_detail.
+  final List<TurnOnItem> turnOnItems;
   final List<String> languageIds;
   final List<String> languageLabels;
   final dynamic hottakes;
@@ -1761,6 +1836,19 @@ class UserProfile {
       isOnline: isOnline && !hideOnlineStatus,
       lastSeen: hideOnlineStatus ? null : lastSeen,
       turnOns: turnOnLabels.isNotEmpty ? turnOnLabels : turnOnIds,
+      turnOnItems: turnOnItems.isNotEmpty
+          ? turnOnItems
+          : (turnOnLabels.isNotEmpty
+              ? [
+                  for (var i = 0; i < turnOnLabels.length; i++)
+                    TurnOnItem(
+                      id: i < turnOnIds.length ? turnOnIds[i] : turnOnLabels[i],
+                      name: turnOnLabels[i],
+                    ),
+                ]
+              : [
+                  for (final id in turnOnIds) TurnOnItem(id: id, name: id),
+                ]),
       languages: languageLabels.isNotEmpty ? languageLabels : languageIds,
       hotTakes: hotTakeList,
       moods: moods,
@@ -1918,6 +2006,9 @@ class UserProfile {
       ),
       turnOnIds: idList(json['turn_ons'] ?? json['turn_ons_detail']),
       turnOnLabels: labelList(json['turn_ons_detail'] ?? json['turn_ons']),
+      turnOnItems: TurnOnItem.listFrom(
+        json['turn_ons_detail'] ?? json['turn_ons'],
+      ),
       languageIds: idList(json['languages'] ?? json['languages_detail']),
       // Prefer display names when available; UUIDs resolved after catalog load
       languageLabels: () {
@@ -2010,6 +2101,7 @@ class UserProfile {
       preferredGenderIds: preferredGenderIds,
       turnOnIds: turnOnIds,
       turnOnLabels: turnOnLabels,
+      turnOnItems: turnOnItems,
       languageIds: languageIds ?? this.languageIds,
       languageLabels: languageLabels ?? this.languageLabels,
       hottakes: hottakes,

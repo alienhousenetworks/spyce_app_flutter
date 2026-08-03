@@ -12,6 +12,7 @@ import '../../core/utils/presence_labels.dart';
 import '../../data/models/user_models.dart';
 import '../../data/repositories/api_repositories.dart';
 import '../../shared/widgets/media_user_id_watermark.dart';
+import '../../shared/widgets/turn_on_stickers.dart';
 import '../auth/auth_controller.dart';
 import '../discover/widgets/feed_profile_card.dart';
 
@@ -262,8 +263,16 @@ class _PeerDetailExtras extends StatelessWidget {
     final langs = p.languageLabels.isNotEmpty
         ? p.languageLabels
         : feed.languages;
-    final turnOns =
-        p.turnOnLabels.isNotEmpty ? p.turnOnLabels : feed.turnOns;
+    final turnOnItems = p.turnOnItems.isNotEmpty
+        ? p.turnOnItems
+        : (feed.turnOnItems.isNotEmpty
+            ? feed.turnOnItems
+            : [
+                for (final n in (p.turnOnLabels.isNotEmpty
+                    ? p.turnOnLabels
+                    : feed.turnOns))
+                  TurnOnItem(id: n, name: n),
+              ]);
     final hotTakes = p.hotTakeList;
     final photos = p.images
         .where((i) => i.imageUrl.isNotEmpty)
@@ -403,24 +412,10 @@ class _PeerDetailExtras extends StatelessWidget {
             ),
           ),
 
-        if (turnOns.isNotEmpty)
+        if (turnOnItems.isNotEmpty)
           _section(
             title: 'Turn-ons',
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: turnOns
-                  .map(
-                    (t) => Chip(
-                      label: Text(t,
-                          style: const TextStyle(color: Colors.white)),
-                      backgroundColor: Colors.white.withValues(alpha: 0.1),
-                      side: BorderSide(
-                          color: Colors.white.withValues(alpha: 0.15)),
-                    ),
-                  )
-                  .toList(),
-            ),
+            child: TurnOnStickerGrid(items: turnOnItems, maxItems: 8),
           ),
 
         if (photos.isNotEmpty) ...[
