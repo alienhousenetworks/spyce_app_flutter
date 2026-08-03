@@ -2,32 +2,31 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-/// Anti-leak media watermark: stamps the **viewer's user id** (and optional
-/// username) diagonally on photos/videos opened in chat.
-/// Always pass the logged-in viewer's identity, never the media owner.
+/// Anti-leak media watermark: stamps the **viewer's username only**
+/// (never user id) diagonally on photos/videos.
+/// Always pass the logged-in viewer's username, never the media owner.
 class MediaUserIdWatermark extends StatelessWidget {
   const MediaUserIdWatermark({
     super.key,
     required this.child,
     this.username,
-    this.userId,
+    @Deprecated('User id is never stamped — username only') this.userId,
     this.dense = false,
   });
 
-  /// Optional display name; combined with [userId] when both present.
+  /// Viewer username (without requiring @). This is the only stamp text.
   final String? username;
 
-  /// Viewer user id — primary stamp for one-time media.
+  /// Ignored — kept for call-site compatibility. Never drawn on media.
+  @Deprecated('User id is never stamped — username only')
   final String? userId;
 
   final Widget child;
   final bool dense;
 
   String get _stamp {
-    final id = (userId ?? '').trim();
+    // Username only — never watermark raw user ids.
     final u = (username ?? '').trim().replaceFirst(RegExp(r'^@+'), '');
-    if (id.isNotEmpty && u.isNotEmpty) return '$u · $id';
-    if (id.isNotEmpty) return id;
     return u;
   }
 

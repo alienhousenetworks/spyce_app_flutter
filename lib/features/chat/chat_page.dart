@@ -1170,7 +1170,7 @@ class _ChatThreadPageState extends ConsumerState<ChatThreadPage> {
     return url.startsWith('/') || RegExp(r'^[A-Za-z]:[\\/]').hasMatch(url);
   }
 
-  /// One-time media: open with viewer-id watermark; after close, receiver
+  /// One-time media: open with viewer-username watermark; after close, receiver
   /// marks seen (server deletes file + soft-deletes message) and bubble vanishes.
   Future<void> _openMedia(ChatMessage m) async {
     if (m.isDeleted && !m.isMe) return;
@@ -1189,7 +1189,6 @@ class _ChatThreadPageState extends ConsumerState<ChatThreadPage> {
     }
 
     final stampName = ref.read(viewerUsernameProvider);
-    final viewerId = ref.read(authControllerProvider).user?.id;
 
     if (!mounted) return;
     await showDialog<void>(
@@ -1200,7 +1199,6 @@ class _ChatThreadPageState extends ConsumerState<ChatThreadPage> {
         url: url,
         isVideo: m.isVideo,
         isLocal: _isLocalMedia(url),
-        viewerId: viewerId,
         viewerUsername: stampName,
       ),
     );
@@ -1808,20 +1806,18 @@ class _MessageBubble extends StatelessWidget {
   }
 }
 
-/// Fullscreen one-time media viewer with viewer-id watermark.
+/// Fullscreen one-time media viewer with viewer-username watermark only.
 class _OneTimeMediaDialog extends StatelessWidget {
   const _OneTimeMediaDialog({
     required this.url,
     required this.isVideo,
     required this.isLocal,
-    this.viewerId,
     this.viewerUsername,
   });
 
   final String url;
   final bool isVideo;
   final bool isLocal;
-  final String? viewerId;
   final String? viewerUsername;
 
   @override
@@ -1833,7 +1829,6 @@ class _OneTimeMediaDialog extends StatelessWidget {
         children: [
           Positioned.fill(
             child: MediaUserIdWatermark(
-              userId: viewerId,
               username: viewerUsername,
               child: Center(
                 child: isVideo
@@ -1914,7 +1909,7 @@ class _VideoOneTimeBody extends StatelessWidget {
           const Icon(Icons.videocam_rounded, color: Colors.white, size: 64),
           const SizedBox(height: 16),
           Text(
-            'Video is watermarked with your viewer id.\nIt will vanish after you close this screen.',
+            'Video is watermarked with your username.\nIt will vanish after you close this screen.',
             textAlign: TextAlign.center,
             style: GoogleFonts.dmSans(color: Colors.white70, height: 1.4),
           ),
