@@ -34,7 +34,10 @@ class _ConversationsPageState extends ConsumerState<ConversationsPage> {
   List<ConversationItem> items = [];
   List<MatchItem> matches = [];
   List<IncomingLike> likes = [];
+  int likesCount = 0;
+  bool likesPremium = false;
   bool loading = true;
+  /// True only for gender+sexuality combos allowed to see incoming likes.
   bool canSeeLikes = false;
 
   @override
@@ -85,10 +88,34 @@ class _ConversationsPageState extends ConsumerState<ConversationsPage> {
       // Enrich missing avatars from public profile (uploaded OR admin pool)
       convos = await _enrichConversationAvatars(convos, profile);
 
+      // Permission: profile gender+sexuality flag AND /received/ API flag.
+      // Button is hidden for combos that cannot see incoming likes.
+      var seeLikes = me.canSeeIncomingLikes;
       List<IncomingLike> incoming = [];
-      if (me.canSeeIncomingLikes) {
+      var count = 0;
+      var premium = false;
+      if (seeLikes) {
         try {
-          incoming = await feed.getIncomingLikesList();
+          final likesRes = await feed.getIncomingLikes();
+          seeLikes = likesRes.canSee;
+          if (seeLikes) {
+            incoming = likesRes.users;
+            count = likesRes.count;
+            premium = likesRes.isPremium;
+          }
+        } catch (_) {
+          // Keep profile flag if list fetch fails (still show button)
+        }
+      } else {
+        // Profile may be stale; trust received endpoint as source of truth
+        try {
+          final likesRes = await feed.getIncomingLikes();
+          seeLikes = likesRes.canSee;
+          if (seeLikes) {
+            incoming = likesRes.users;
+            count = likesRes.count;
+            premium = likesRes.isPremium;
+          }
         } catch (_) {}
       }
 
@@ -97,7 +124,9 @@ class _ConversationsPageState extends ConsumerState<ConversationsPage> {
         items = convos;
         matches = m;
         likes = incoming;
-        canSeeLikes = me.canSeeIncomingLikes;
+        likesCount = count > 0 ? count : incoming.length;
+        likesPremium = premium;
+        canSeeLikes = seeLikes;
         loading = false;
       });
     } catch (_) {
@@ -105,6 +134,8 @@ class _ConversationsPageState extends ConsumerState<ConversationsPage> {
       setState(() {
         items = [];
         matches = [];
+        likes = [];
+        likesCount = 0;
         canSeeLikes = false;
         loading = false;
       });
@@ -228,14 +259,8 @@ class _ConversationsPageState extends ConsumerState<ConversationsPage> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (ctx) {
-        final list = likes.isNotEmpty
-            ? likes
-            : [
-                const IncomingLike(
-                    id: '1', username: 'mystery1', blurred: true),
-                const IncomingLike(
-                    id: '2', username: 'mystery2', blurred: true),
-              ];
+        final list = likes;
+        final n = likesCount > 0 ? likesCount : list.length;
         return DraggableScrollableSheet(
           expand: false,
           initialChildSize: 0.55,
@@ -251,80 +276,112 @@ class _ConversationsPageState extends ConsumerState<ConversationsPage> {
                       fontSize: 20, fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 4),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 24),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
                   child: Text(
-                    'Visible for gender + sexuality combos with permission.',
+                    n == 0
+                        ? 'No new likes yet — keep swiping.'
+                        : likesPremium
+                            ? '$n people liked you'
+                            : '$n likes · Upgrade to see who',
                     textAlign: TextAlign.center,
-                    style:
-                        TextStyle(color: SpyceColors.dark100, fontSize: 12),
+                    style: const TextStyle(
+                        color: SpyceColors.dark100, fontSize: 12),
                   ),
                 ),
                 const SizedBox(height: 12),
                 Expanded(
-                  child: GridView.builder(
-                    controller: scrollCtrl,
-                    padding: const EdgeInsets.all(16),
-                    gridDelegate:
-                        const
-                        SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      mainAxisSpacing: 12,
-                      crossAxisSpacing: 12,
-                      childAspectRatio: 0.85,
-                    ),
-                    itemCount: list.length,
-                    itemBuilder: (_, i) {
-                      final l = list[i];
-                      return Container(
-                        decoration: BoxDecoration(
-                          color: SpyceColors.dark700,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        clipBehavior: Clip.antiAlias,
-                        child: Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            if (l.imageUrl != null)
-                              ImageFiltered(
-                                imageFilter: l.blurred
-                                    ? ImageFilter.blur(sigmaX: 14, sigmaY: 14)
-                                    : ImageFilter.blur(sigmaX: 0, sigmaY: 0),
-                                child: CachedNetworkImage(
-                                  imageUrl: l.imageUrl!,
-                                  fit: BoxFit.cover,
-                                  errorWidget: (_, _, _) =>
-                                      const ColoredBox(
-                                          color: SpyceColors.dark600),
-                                ),
-                              )
-                            else
-                              const ColoredBox(color: SpyceColors.dark600),
-                            if (l.blurred)
-                              const Center(
-                                child: Icon(Icons.lock_outline,
-                                    color: Colors.white70, size: 32),
+                  child: n == 0
+                      ? const Center(
+                          child: Text(
+                            'When someone likes you, they show up here.',
+                            style: TextStyle(color: SpyceColors.dark200),
+                          ),
+                        )
+                      : GridView.builder(
+                          controller: scrollCtrl,
+                          padding: const EdgeInsets.all(16),
+                          gridDelegate:
+                              const
+                             
+                              SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            mainAxisSpacing: 12,
+                            crossAxisSpacing: 12,
+                            childAspectRatio: 0.85,
+                          ),
+                          itemCount: list.isNotEmpty ? list.length : n.clamp(0, 12),
+                          itemBuilder: (_, i) {
+                            final l = i < list.length
+                                ? list[i]
+                                : IncomingLike(
+                                    id: 'stub_$i',
+                                    blurred: true,
+                                  );
+                            return Container(
+                              decoration: BoxDecoration(
+                                color: SpyceColors.dark700,
+                                borderRadius: BorderRadius.circular(16),
                               ),
-                            Positioned(
-                              left: 8,
-                              right: 8,
-                              bottom: 8,
-                              child: Text(
-                                l.blurred
-                                    ? 'Liked you'
-                                    : (l.username ?? 'Someone'),
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w600,
-                                ),
+                              clipBehavior: Clip.antiAlias,
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  if (l.imageUrl != null &&
+                                      l.imageUrl!.isNotEmpty)
+                                    ImageFiltered(
+                                      imageFilter: l.blurred
+                                          ? ImageFilter.blur(
+                                              sigmaX: 14, sigmaY: 14)
+                                          : ImageFilter.blur(
+                                              sigmaX: 0, sigmaY: 0),
+                                      child: CachedNetworkImage(
+                                        imageUrl: l.imageUrl!,
+                                        fit: BoxFit.cover,
+                                        errorWidget: (_, _, _) =>
+                                            const ColoredBox(
+                                                color: SpyceColors.dark600),
+                                      ),
+                                    )
+                                  else
+                                    Container(
+                                      decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                          colors: [
+                                            SpyceColors.pink
+                                                .withValues(alpha: 0.35),
+                                            SpyceColors.dark600,
+                                          ],
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight,
+                                        ),
+                                      ),
+                                    ),
+                                  if (l.blurred)
+                                    const Center(
+                                      child: Icon(Icons.lock_outline,
+                                          color: Colors.white70, size: 32),
+                                    ),
+                                  Positioned(
+                                    left: 8,
+                                    right: 8,
+                                    bottom: 8,
+                                    child: Text(
+                                      l.blurred
+                                          ? 'Liked you'
+                                          : (l.username ?? 'Someone'),
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ),
-                          ],
+                            );
+                          },
                         ),
-                      );
-                    },
-                  ),
                 ),
               ],
             );
@@ -353,20 +410,120 @@ class _ConversationsPageState extends ConsumerState<ConversationsPage> {
                   ),
                 ),
                 const Spacer(),
+                // Only for gender+sexuality combos with can_see_incoming_likes
                 if (canSeeLikes)
-                  TextButton.icon(
-                    onPressed: _showIncomingLikes,
-                    icon: const Icon(Icons.favorite,
-                        size: 18, color: SpyceColors.pinkSoft),
-                    label: const Text(
-                      'Likes',
-                      style: TextStyle(color: SpyceColors.pinkSoft),
+                  Material(
+                    color: SpyceColors.pink.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(22),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(22),
+                      onTap: _showIncomingLikes,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.favorite,
+                              size: 18,
+                              color: SpyceColors.pinkSoft,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              likesCount > 0 ? 'Likes ($likesCount)' : 'Likes',
+                              style: GoogleFonts.dmSans(
+                                color: SpyceColors.pinkSoft,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
               ],
             ),
           ),
         ),
+
+        // Prominent likes entry under header (same permission gate)
+        if (!loading && canSeeLikes)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+            child: Material(
+              color: SpyceColors.dark800,
+              borderRadius: BorderRadius.circular(16),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(16),
+                onTap: _showIncomingLikes,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: LinearGradient(
+                            colors: [
+                              SpyceColors.pink.withValues(alpha: 0.9),
+                              SpyceColors.gold.withValues(alpha: 0.75),
+                            ],
+                          ),
+                        ),
+                        child: const Icon(
+                          Icons.favorite,
+                          color: Colors.white,
+                          size: 22,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              likesCount > 0
+                                  ? '$likesCount people liked you'
+                                  : 'Who liked you',
+                              style: GoogleFonts.dmSans(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 15,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              likesCount > 0
+                                  ? (likesPremium
+                                      ? 'Tap to see them'
+                                      : 'Tap to preview · upgrade to reveal')
+                                  : 'You’ll see likes here when you get them',
+                              style: const TextStyle(
+                                color: SpyceColors.dark100,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(
+                        Icons.chevron_right,
+                        color: SpyceColors.dark200,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
 
         // WhatsApp-style matches strip
         if (!loading && matches.isNotEmpty)

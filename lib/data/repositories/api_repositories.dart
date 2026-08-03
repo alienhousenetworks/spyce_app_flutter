@@ -266,14 +266,41 @@ class FeedRepository {
   }
 
   Future<List<IncomingLike>> getIncomingLikesList() async {
+    final r = await getIncomingLikes();
+    return r.users;
+  }
+
+  /// Chat → Likes: only gender+sexuality combos with permission see data.
+  Future<IncomingLikesResult> getIncomingLikes() async {
     final data = await _api.get<dynamic>('/interaction/received/');
     final map = _asMap(data);
-    final list = map['users'] ?? map['results'] ?? map['likes'] ?? data;
-    if (list is! List) return const [];
-    return list
-        .whereType<Map>()
-        .map((e) => IncomingLike.fromJson(Map<String, dynamic>.from(e)))
-        .toList();
+
+    final bool canSee;
+    if (map.containsKey('can_see_incoming_likes')) {
+      canSee = map['can_see_incoming_likes'] == true;
+    } else {
+      // Older API: deny only on explicit permission error
+      final err = map['error']?.toString().toLowerCase() ?? '';
+      canSee = !err.contains('not permitted');
+    }
+    if (!canSee) {
+      return const IncomingLikesResult(canSee: false);
+    }
+
+    final list = map['users'] ?? map['results'] ?? map['likes'];
+    final users = list is List
+        ? list
+            .whereType<Map>()
+            .map((e) => IncomingLike.fromJson(Map<String, dynamic>.from(e)))
+            .toList()
+        : const <IncomingLike>[];
+    final count = (map['count'] as num?)?.toInt() ?? users.length;
+    return IncomingLikesResult(
+      canSee: true,
+      count: count,
+      isPremium: map['is_premium'] == true,
+      users: users,
+    );
   }
 }
 

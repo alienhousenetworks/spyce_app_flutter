@@ -2184,21 +2184,56 @@ class IncomingLike {
   final bool blurred;
 
   factory IncomingLike.fromJson(Map<String, dynamic> json) {
+    final profile = json['profile'] is Map
+        ? Map<String, dynamic>.from(json['profile'] as Map)
+        : null;
     final imageUrl = resolveDisplayImageUrl(
-      images: json['images'] is List ? json['images'] as List : null,
-      avatarDetail: json['avatar_detail'] is Map
-          ? Map<String, dynamic>.from(json['avatar_detail'] as Map)
+      images: (json['images'] ?? profile?['images']) is List
+          ? (json['images'] ?? profile?['images']) as List
           : null,
-      photoStatus: json['photo_status']?.toString(),
-      avatarUrl: json['avatar_url']?.toString(),
-      imageUrl: json['image_url']?.toString(),
+      avatarDetail: (json['avatar_detail'] ?? profile?['avatar_detail']) is Map
+          ? Map<String, dynamic>.from(
+              (json['avatar_detail'] ?? profile?['avatar_detail']) as Map,
+            )
+          : null,
+      photoStatus:
+          (json['photo_status'] ?? profile?['photo_status'])?.toString(),
+      avatarUrl: (json['avatar_url'] ?? profile?['avatar_url'])?.toString(),
+      imageUrl: (json['image_url'] ?? profile?['image_url'])?.toString(),
     );
+    final explicitBlur = json['blurred'] == true || json['is_blurred'] == true;
+    final name = (json['username'] ??
+            profile?['username'] ??
+            json['name'] ??
+            profile?['name'])
+        ?.toString();
+    // Free tier stubs have no name/image → always blurred
+    final blurred = explicitBlur ||
+        ((name == null || name.isEmpty) &&
+            (imageUrl == null || imageUrl.isEmpty));
     return IncomingLike(
-      id: (json['id'] ?? json['user_id'] ?? '').toString(),
-      username: json['username']?.toString(),
+      id: (json['id'] ?? json['user_id'] ?? profile?['id'] ?? '').toString(),
+      username: name,
       imageUrl: imageUrl,
-      age: (json['age'] as num?)?.toInt(),
-      blurred: json['blurred'] == true || json['is_blurred'] == true,
+      age: (json['age'] as num?)?.toInt() ??
+          (profile?['age'] as num?)?.toInt(),
+      blurred: blurred,
     );
   }
 }
+
+/// Result of GET /interaction/received/ for Chat → Likes.
+class IncomingLikesResult {
+  const IncomingLikesResult({
+    this.canSee = false,
+    this.count = 0,
+    this.isPremium = false,
+    this.users = const [],
+  });
+
+  final bool canSee;
+  final int count;
+  final bool isPremium;
+  final List<IncomingLike> users;
+}
+
