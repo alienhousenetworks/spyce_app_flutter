@@ -192,6 +192,8 @@ class FeedRepository {
       query['intent'] = f['intent'];
     }
     if (f['currently_online'] == true) query['currently_online'] = true;
+    // When client relaxes filters for "more variety" / out-of-taste continue
+    if (f['include_liked'] == true) query['include_liked'] = true;
 
     final locationMode = f['location_mode']?.toString() ?? 'distance';
     final city = (f['city'] ?? '').toString().trim();

@@ -34,8 +34,13 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
   String? error;
   String? toast;
   String? locationBanner;
+  /// Informational only — filters were relaxed; feed keeps going.
+  String? varietyBanner;
   bool showPaywall = false;
   SubscriptionStatus? paywallStatus;
+  /// True after we auto-relaxed filters to keep showing people.
+  bool _varietyMode = false;
+  bool _enteringVariety = false;
 
   /// distance 0 = Anywhere (worldwide). 1–1000 = radius km. Default Anywhere.
   Map<String, dynamic> filters = {
@@ -119,8 +124,45 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
         .toList();
   }
 
+  /// Widen discovery so the feed does not stop — only informs the user.
+  void _applyRelaxedFilters() {
+    filters = {
+      ...filters,
+      'distance': 0,
+      'location_mode': 'distance',
+      'currently_online': false,
+      'include_liked': true,
+      // Full age band while in variety mode (user can re-tighten in filters)
+      'min_age': 18,
+      'max_age': 100,
+    };
+    filters.remove('city');
+    filters.remove('state');
+    filters.remove('country');
+    filters.remove('city_lat');
+    filters.remove('city_lon');
+  }
+
+  /// Enter variety mode once: banner + relaxed filters + keep loading profiles.
+  Future<void> _enterVarietyAndContinue({bool keepProfiles = true}) async {
+    if (_varietyMode || _enteringVariety) return;
+    _enteringVariety = true;
+    setState(() {
+      _varietyMode = true;
+      varietyBanner =
+          "We're out of your taste — filters relaxed to show more variety. "
+          'Keep swiping.';
+      _applyRelaxedFilters();
+    });
+    try {
+      await _load(0, append: keepProfiles && profiles.isNotEmpty);
+    } finally {
+      _enteringVariety = false;
+    }
+  }
+
   Future<void> _load(int cursor, {bool append = false}) async {
-    if (cursor == 0) {
+    if (cursor == 0 && !append) {
       setState(() {
         loading = true;
         error = null;
@@ -168,9 +210,25 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
         if (profiles.isEmpty && res.emptyReason != null) {
           error = res.emptyReason;
         } else if (profiles.isEmpty) {
-          error ??= null;
+          error = null;
+        } else {
+          error = null;
         }
       });
+
+      // Empty under current filters → relax once and keep the feed going
+      if (profiles.isEmpty && !_varietyMode && !_enteringVariety) {
+        await _enterVarietyAndContinue(keepProfiles: false);
+        return;
+      }
+      // Page exhausted → relax once, append more people (don't stop)
+      if (!hasMore &&
+          profiles.isNotEmpty &&
+          !_varietyMode &&
+          !_enteringVariety) {
+        await _enterVarietyAndContinue(keepProfiles: true);
+        return;
+      }
     } on ApiException catch (e) {
       if (!mounted) return;
       if (e.isSubscriptionRequired || e.isForbidden) {
@@ -875,6 +933,9 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                         final hasRegion = selectedCity.trim().isNotEmpty;
                         Navigator.pop(context);
                         setState(() {
+                          // User chose filters again — leave variety mode
+                          _varietyMode = false;
+                          varietyBanner = null;
                           filters = {
                             ...filters,
                             'min_age': minAge.round(),
@@ -889,6 +950,7 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                             'intent': selectedIntent,
                             'currently_online': online,
                             'location_mode': hasRegion ? 'region' : 'distance',
+                            'include_liked': false,
                           };
                           if (hasRegion &&
                               selectedCityLat != null &&
@@ -967,6 +1029,37 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                 ),
               ),
             ),
+            if (varietyBanner != null && varietyBanner!.isNotEmpty)
+              Material(
+                color: SpyceColors.pink.withValues(alpha: 0.18),
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.auto_awesome,
+                          color: SpyceColors.pinkSoft, size: 18),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          varietyBanner!,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        visualDensity: VisualDensity.compact,
+                        onPressed: () => setState(() => varietyBanner = null),
+                        icon: const Icon(Icons.close,
+                            size: 16, color: Colors.white54),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             if (locationBanner != null &&
                 locationBanner!.isNotEmpty &&
                 profiles.isNotEmpty)
@@ -1011,38 +1104,23 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                           icon: Icons.explore_outlined,
                           title: (filters['city']?.toString().isNotEmpty == true)
                               ? 'No one in ${filters['city']} yet'
-                              : "We're out of your taste",
+                              : 'No more people right now',
                           subtitle: error ??
                               locationBanner ??
-                              "We've shown everyone who matches your filters. "
-                                  'Try more variety — widen age or distance, '
-                                  'or switch to Anywhere for a broader mix.',
+                              'Pull to refresh or adjust filters — new people show up as they come online.',
                           action: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               TextButton(
-                                onPressed: () => _load(0),
-                                child: const Text('Refresh',
-                                    style: TextStyle(
-                                        color: SpyceColors.pinkSoft)),
-                              ),
-                              TextButton(
                                 onPressed: () {
                                   setState(() {
-                                    filters = {
-                                      ...filters,
-                                      'distance': 0,
-                                      'location_mode': 'distance',
-                                      'city': '',
-                                      'state': '',
-                                      'country': '',
-                                    };
-                                    filters.remove('city_lat');
-                                    filters.remove('city_lon');
+                                    _varietyMode = false;
+                                    varietyBanner = null;
+                                    filters.remove('include_liked');
                                   });
                                   _load(0);
                                 },
-                                child: const Text('Try more variety · Anywhere',
+                                child: const Text('Refresh',
                                     style: TextStyle(
                                         color: SpyceColors.pinkSoft)),
                               ),
@@ -1058,39 +1136,22 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                       : PageView.builder(
                           controller: _pageCtrl,
                           scrollDirection: Axis.vertical,
-                          // Extra end page when relaxed pool is exhausted
-                          itemCount: profiles.length +
-                              (!hasMore && profiles.isNotEmpty ? 1 : 0),
+                          itemCount: profiles.length,
                           onPageChanged: (i) {
                             if (hasMore &&
                                 !loadingMore &&
                                 i >= profiles.length - 3 &&
                                 nextCursor != null) {
                               _load(nextCursor!, append: true);
+                            } else if (!hasMore &&
+                                !_varietyMode &&
+                                !_enteringVariety &&
+                                i >= profiles.length - 2) {
+                              // Near the end of filtered results → relax & keep going
+                              _enterVarietyAndContinue(keepProfiles: true);
                             }
                           },
                           itemBuilder: (context, index) {
-                            if (index >= profiles.length) {
-                              return _OutOfTasteEndCard(
-                                onAnywhere: () {
-                                  setState(() {
-                                    filters = {
-                                      ...filters,
-                                      'distance': 0,
-                                      'location_mode': 'distance',
-                                      'city': '',
-                                      'state': '',
-                                      'country': '',
-                                    };
-                                    filters.remove('city_lat');
-                                    filters.remove('city_lon');
-                                  });
-                                  _load(0);
-                                },
-                                onFilters: _openFilters,
-                                onRefresh: () => _load(0),
-                              );
-                            }
                             final p = profiles[index];
                             return Padding(
                               padding:
@@ -1120,89 +1181,4 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
     );
   }
 
-}
-
-/// Shown after the last profile when the filtered/relaxed pool is empty.
-class _OutOfTasteEndCard extends StatelessWidget {
-  const _OutOfTasteEndCard({
-    required this.onAnywhere,
-    required this.onFilters,
-    required this.onRefresh,
-  });
-
-  final VoidCallback onAnywhere;
-  final VoidCallback onFilters;
-  final VoidCallback onRefresh;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
-      child: Center(
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.fromLTRB(24, 32, 24, 28),
-          decoration: BoxDecoration(
-            color: SpyceColors.dark800.withValues(alpha: 0.92),
-            borderRadius: BorderRadius.circular(28),
-            border: Border.all(
-              color: SpyceColors.pink.withValues(alpha: 0.25),
-            ),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.auto_awesome,
-                size: 40,
-                color: SpyceColors.pinkSoft.withValues(alpha: 0.9),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                "We're out of your taste",
-                textAlign: TextAlign.center,
-                style: GoogleFonts.syne(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.white,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                "We've shown everyone who matches your filters. "
-                'Try more variety — widen age or distance, '
-                'or go Anywhere for a broader mix.',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.dmSans(
-                  fontSize: 14,
-                  height: 1.45,
-                  color: Colors.white.withValues(alpha: 0.65),
-                ),
-              ),
-              const SizedBox(height: 22),
-              SpycePrimaryButton(
-                label: 'Try more variety · Anywhere',
-                onPressed: onAnywhere,
-              ),
-              const SizedBox(height: 10),
-              TextButton(
-                onPressed: onFilters,
-                child: const Text(
-                  'Adjust filters',
-                  style: TextStyle(color: SpyceColors.pinkSoft),
-                ),
-              ),
-              TextButton(
-                onPressed: onRefresh,
-                child: const Text(
-                  'Refresh feed',
-                  style: TextStyle(color: SpyceColors.dark100),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 }
