@@ -303,14 +303,14 @@ class _ConversationsPageState extends ConsumerState<ConversationsPage> {
                           padding: const EdgeInsets.all(16),
                           gridDelegate:
                               const
-                             
                               SliverGridDelegateWithFixedCrossAxisCount(
                             crossAxisCount: 2,
                             mainAxisSpacing: 12,
                             crossAxisSpacing: 12,
                             childAspectRatio: 0.85,
                           ),
-                          itemCount: list.isNotEmpty ? list.length : n.clamp(0, 12),
+                          itemCount:
+                              list.isNotEmpty ? list.length : n.clamp(0, 12),
                           itemBuilder: (_, i) {
                             final l = i < list.length
                                 ? list[i]
