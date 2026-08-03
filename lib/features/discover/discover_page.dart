@@ -1011,10 +1011,12 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                           icon: Icons.explore_outlined,
                           title: (filters['city']?.toString().isNotEmpty == true)
                               ? 'No one in ${filters['city']} yet'
-                              : 'Feed is quiet',
+                              : "We're out of your taste",
                           subtitle: error ??
                               locationBanner ??
-                              'Try Anywhere, a nearby city, or widen age filters.',
+                              "We've shown everyone who matches your filters. "
+                                  'Try more variety — widen age or distance, '
+                                  'or switch to Anywhere for a broader mix.',
                           action: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
@@ -1040,7 +1042,7 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                                   });
                                   _load(0);
                                 },
-                                child: const Text('Switch to Anywhere',
+                                child: const Text('Try more variety · Anywhere',
                                     style: TextStyle(
                                         color: SpyceColors.pinkSoft)),
                               ),
@@ -1056,7 +1058,9 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                       : PageView.builder(
                           controller: _pageCtrl,
                           scrollDirection: Axis.vertical,
-                          itemCount: profiles.length,
+                          // Extra end page when relaxed pool is exhausted
+                          itemCount: profiles.length +
+                              (!hasMore && profiles.isNotEmpty ? 1 : 0),
                           onPageChanged: (i) {
                             if (hasMore &&
                                 !loadingMore &&
@@ -1066,6 +1070,27 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                             }
                           },
                           itemBuilder: (context, index) {
+                            if (index >= profiles.length) {
+                              return _OutOfTasteEndCard(
+                                onAnywhere: () {
+                                  setState(() {
+                                    filters = {
+                                      ...filters,
+                                      'distance': 0,
+                                      'location_mode': 'distance',
+                                      'city': '',
+                                      'state': '',
+                                      'country': '',
+                                    };
+                                    filters.remove('city_lat');
+                                    filters.remove('city_lon');
+                                  });
+                                  _load(0);
+                                },
+                                onFilters: _openFilters,
+                                onRefresh: () => _load(0),
+                              );
+                            }
                             final p = profiles[index];
                             return Padding(
                               padding:
@@ -1095,4 +1120,89 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
     );
   }
 
+}
+
+/// Shown after the last profile when the filtered/relaxed pool is empty.
+class _OutOfTasteEndCard extends StatelessWidget {
+  const _OutOfTasteEndCard({
+    required this.onAnywhere,
+    required this.onFilters,
+    required this.onRefresh,
+  });
+
+  final VoidCallback onAnywhere;
+  final VoidCallback onFilters;
+  final VoidCallback onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
+      child: Center(
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(24, 32, 24, 28),
+          decoration: BoxDecoration(
+            color: SpyceColors.dark800.withValues(alpha: 0.92),
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(
+              color: SpyceColors.pink.withValues(alpha: 0.25),
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.auto_awesome,
+                size: 40,
+                color: SpyceColors.pinkSoft.withValues(alpha: 0.9),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                "We're out of your taste",
+                textAlign: TextAlign.center,
+                style: GoogleFonts.syne(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                "We've shown everyone who matches your filters. "
+                'Try more variety — widen age or distance, '
+                'or go Anywhere for a broader mix.',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.dmSans(
+                  fontSize: 14,
+                  height: 1.45,
+                  color: Colors.white.withValues(alpha: 0.65),
+                ),
+              ),
+              const SizedBox(height: 22),
+              SpycePrimaryButton(
+                label: 'Try more variety · Anywhere',
+                onPressed: onAnywhere,
+              ),
+              const SizedBox(height: 10),
+              TextButton(
+                onPressed: onFilters,
+                child: const Text(
+                  'Adjust filters',
+                  style: TextStyle(color: SpyceColors.pinkSoft),
+                ),
+              ),
+              TextButton(
+                onPressed: onRefresh,
+                child: const Text(
+                  'Refresh feed',
+                  style: TextStyle(color: SpyceColors.dark100),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

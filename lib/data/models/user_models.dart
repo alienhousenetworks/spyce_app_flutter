@@ -1,6 +1,7 @@
 import '../../core/config/env.dart';
 import '../../core/utils/language_labels.dart';
 import '../../core/utils/num_parse.dart';
+import '../../core/utils/presence_labels.dart';
 
 double? _parseDouble(dynamic v) => parseDouble(v);
 int? _parseInt(dynamic v) => parseInt(v);
@@ -492,16 +493,9 @@ class FeedProfile {
           (json['bg_variant_id'] ?? theme['bg_variant_id'])?.toString(),
       isOnline: json['is_online'] == true,
       lastSeen: json['last_seen']?.toString(),
-      lastActiveAt: () {
-        final raw = json['last_active'] ?? json['last_active_at'];
-        if (raw == null) return null;
-        if (raw is num) {
-          final n = raw.toDouble();
-          final ms = n > 1e12 ? n.toInt() : (n * 1000).toInt();
-          return DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true);
-        }
-        return DateTime.tryParse(raw.toString());
-      }(),
+      lastActiveAt: PresenceLabels.parseLastActive(
+        json['last_active'] ?? json['last_active_at'],
+      ),
       isBoosted: json['is_boosted'] == true,
       canDirectMessage: json['can_direct_message'] == true,
       canSeeIncomingLikes: json['can_see_incoming_likes'] == true ||
@@ -538,6 +532,8 @@ class FeedProfile {
     // Presence may live on envelope or profile_card
     map['is_online'] = map['is_online'] ?? r['is_online'];
     map['last_seen'] = map['last_seen'] ?? r['last_seen'];
+    map['last_active'] =
+        map['last_active'] ?? r['last_active'] ?? map['last_active_at'];
     // Distance often set on feed envelope after cache merge
     map['distance_km'] = map['distance_km'] ?? r['distance_km'] ?? r['distance'];
     if (r['theme'] != null) map['theme'] = r['theme'];
