@@ -34,13 +34,15 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
   String? error;
   String? toast;
   String? locationBanner;
-  /// Informational only — filters were relaxed; feed keeps going.
-  String? varietyBanner;
   bool showPaywall = false;
   SubscriptionStatus? paywallStatus;
   /// True after we auto-relaxed filters to keep showing people.
   bool _varietyMode = false;
   bool _enteringVariety = false;
+  /// One thin interstitial page (2 playful lines) before variety profiles.
+  bool _showVarietyBridge = false;
+  /// PageView index where the bridge sits (profiles after it are offset by 1).
+  int _bridgePageIndex = 0;
 
   /// distance 0 = Anywhere (worldwide). 1–1000 = radius km. Default Anywhere.
   Map<String, dynamic> filters = {
@@ -143,22 +145,38 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
     filters.remove('city_lon');
   }
 
-  /// Enter variety mode once: banner + relaxed filters + keep loading profiles.
+  /// Enter variety mode once: short 2-line bridge page, then more profiles.
   Future<void> _enterVarietyAndContinue({bool keepProfiles = true}) async {
     if (_varietyMode || _enteringVariety) return;
     _enteringVariety = true;
+    final keep = keepProfiles && profiles.isNotEmpty;
     setState(() {
       _varietyMode = true;
-      varietyBanner =
-          "We're out of your taste — filters relaxed to show more variety. "
-          'Keep swiping.';
+      _showVarietyBridge = true;
+      // Bridge sits right after current last profile (or at 0 if starting fresh)
+      _bridgePageIndex = keep ? profiles.length : 0;
       _applyRelaxedFilters();
     });
     try {
-      await _load(0, append: keepProfiles && profiles.isNotEmpty);
+      await _load(0, append: keep);
     } finally {
       _enteringVariety = false;
     }
+  }
+
+  int get _pageCount {
+    final n = profiles.length;
+    if (!_showVarietyBridge) return n;
+    // Bridge is an extra page; still show it even if variety load is empty
+    return n + 1;
+  }
+
+  /// Map PageView index → profile index (null = bridge page).
+  int? _profileIndexForPage(int pageIndex) {
+    if (!_showVarietyBridge) return pageIndex;
+    if (pageIndex == _bridgePageIndex) return null;
+    if (pageIndex < _bridgePageIndex) return pageIndex;
+    return pageIndex - 1;
   }
 
   Future<void> _load(int cursor, {bool append = false}) async {
@@ -935,7 +953,8 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                         setState(() {
                           // User chose filters again — leave variety mode
                           _varietyMode = false;
-                          varietyBanner = null;
+                          _showVarietyBridge = false;
+                          _bridgePageIndex = 0;
                           filters = {
                             ...filters,
                             'min_age': minAge.round(),
@@ -1029,37 +1048,6 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                 ),
               ),
             ),
-            if (varietyBanner != null && varietyBanner!.isNotEmpty)
-              Material(
-                color: SpyceColors.pink.withValues(alpha: 0.18),
-                child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.auto_awesome,
-                          color: SpyceColors.pinkSoft, size: 18),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          varietyBanner!,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        visualDensity: VisualDensity.compact,
-                        onPressed: () => setState(() => varietyBanner = null),
-                        icon: const Icon(Icons.close,
-                            size: 16, color: Colors.white54),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
             if (locationBanner != null &&
                 locationBanner!.isNotEmpty &&
                 profiles.isNotEmpty)
@@ -1099,7 +1087,7 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                       child:
                           CircularProgressIndicator(color: SpyceColors.pink),
                     )
-                  : profiles.isEmpty
+                  : profiles.isEmpty && !_showVarietyBridge
                       ? EmptyState(
                           icon: Icons.explore_outlined,
                           title: (filters['city']?.toString().isNotEmpty == true)
@@ -1115,7 +1103,7 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                                 onPressed: () {
                                   setState(() {
                                     _varietyMode = false;
-                                    varietyBanner = null;
+                                    _showVarietyBridge = false;
                                     filters.remove('include_liked');
                                   });
                                   _load(0);
@@ -1136,23 +1124,37 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                       : PageView.builder(
                           controller: _pageCtrl,
                           scrollDirection: Axis.vertical,
-                          itemCount: profiles.length,
+                          itemCount: _pageCount,
                           onPageChanged: (i) {
+                            final profIdx = _profileIndexForPage(i);
+                            final nearEnd = profIdx != null &&
+                                profIdx >= profiles.length - 3;
                             if (hasMore &&
                                 !loadingMore &&
-                                i >= profiles.length - 3 &&
+                                nearEnd &&
                                 nextCursor != null) {
                               _load(nextCursor!, append: true);
                             } else if (!hasMore &&
                                 !_varietyMode &&
                                 !_enteringVariety &&
-                                i >= profiles.length - 2) {
+                                profiles.isNotEmpty &&
+                                (profIdx == null
+                                    ? false
+                                    : profIdx >= profiles.length - 2)) {
                               // Near the end of filtered results → relax & keep going
                               _enterVarietyAndContinue(keepProfiles: true);
                             }
                           },
                           itemBuilder: (context, index) {
-                            final p = profiles[index];
+                            final profIdx = _profileIndexForPage(index);
+                            if (profIdx == null) {
+                              // Compact two-line bridge — not a full empty screen
+                              return const _VarietyBridgePage();
+                            }
+                            if (profIdx < 0 || profIdx >= profiles.length) {
+                              return const SizedBox.shrink();
+                            }
+                            final p = profiles[profIdx];
                             return Padding(
                               padding:
                                   const EdgeInsets.fromLTRB(10, 0, 10, 8),
@@ -1181,4 +1183,57 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
     );
   }
 
+}
+
+/// Thin interstitial: two playful lines, then swipe to next profile.
+class _VarietyBridgePage extends StatelessWidget {
+  const _VarietyBridgePage();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(28, 0, 28, 24),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              "We're out of the Spyce you want…",
+              textAlign: TextAlign.center,
+              style: GoogleFonts.syne(
+                fontSize: 22,
+                fontWeight: FontWeight.w800,
+                color: Colors.white,
+                height: 1.25,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'but here are many more to try ✨',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.dmSans(
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                color: SpyceColors.pinkSoft,
+                height: 1.35,
+              ),
+            ),
+            const SizedBox(height: 28),
+            Icon(
+              Icons.keyboard_arrow_up_rounded,
+              color: Colors.white.withValues(alpha: 0.35),
+              size: 28,
+            ),
+            Text(
+              'swipe for more',
+              style: GoogleFonts.dmSans(
+                fontSize: 12,
+                color: Colors.white.withValues(alpha: 0.4),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
