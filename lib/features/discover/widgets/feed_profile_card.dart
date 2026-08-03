@@ -14,7 +14,7 @@ import '../../../shared/widgets/turn_on_stickers.dart';
 import '../../auth/auth_controller.dart';
 
 /// Horizontal multi-page feed card matching SPYCE design screenshots:
-/// 0 Hero · 1 Photos (only if user uploaded images) · 2 Details · 3 Turn-ons
+/// Hero · Photos (if any) · Details + hot takes · Turn-ons (stickers)
 class FeedProfileCard extends ConsumerStatefulWidget {
   const FeedProfileCard({
     super.key,
@@ -724,7 +724,7 @@ class _PhotosPage extends StatelessWidget {
   }
 }
 
-// ── Page 3: Details ──────────────────────────────────────────
+// ── Second-last page: Details + hot takes ────────────────────
 
 class _DetailsPage extends StatelessWidget {
   const _DetailsPage({required this.profile});
@@ -733,6 +733,8 @@ class _DetailsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = profile;
+    // Cap at 3 (backend max); empty = no hot-take section
+    final hotTakes = p.hotTakes.take(3).toList();
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 28, 20, 16),
@@ -783,7 +785,66 @@ class _DetailsPage extends StatelessWidget {
             ],
           ),
         ),
-        // Hot takes live on the last (turn-ons) page — not duplicated here.
+        // Hot takes on second-last page (not on turn-ons page)
+        if (hotTakes.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          _CreamCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Text('🌶', style: TextStyle(fontSize: 16)),
+                    const SizedBox(width: 8),
+                    Text(
+                      hotTakes.length == 1 ? 'Hot take' : 'Hot takes',
+                      style: GoogleFonts.dmSans(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 16,
+                        color: SpyceColors.dark900,
+                      ),
+                    ),
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: SpyceColors.pink.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        '${hotTakes.length}/3',
+                        style: GoogleFonts.dmSans(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: SpyceColors.pink,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                for (var i = 0; i < hotTakes.length; i++) ...[
+                  if (i > 0) ...[
+                    const SizedBox(height: 10),
+                    Divider(
+                      height: 1,
+                      color: SpyceColors.dark900.withValues(alpha: 0.08),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
+                  _HotTakeTile(
+                    index: i + 1,
+                    total: hotTakes.length,
+                    take: hotTakes[i],
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
         if (p.languages.isNotEmpty) ...[
           const SizedBox(height: 12),
           _CreamCard(
@@ -875,7 +936,7 @@ class _DetailsPage extends StatelessWidget {
   }
 }
 
-// ── Last page: Hot takes (0–3) + Turn-ons ─────────────────────
+// ── Last page: Turn-on stickers only ─────────────────────────
 
 class _TurnOnsPage extends StatelessWidget {
   const _TurnOnsPage({required this.profile});
@@ -884,8 +945,6 @@ class _TurnOnsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = profile;
-    // Cap at 3 (backend max); empty list = no hot-take section
-    final hotTakes = p.hotTakes.take(3).toList();
     // Prefer structured stickers (id + name + image_url from R2)
     final stickerItems = p.turnOnItems.isNotEmpty
         ? p.turnOnItems
@@ -896,67 +955,6 @@ class _TurnOnsPage extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 28, 20, 16),
       children: [
-        // ── Hot takes at top (only when 1–3 available) ────────
-        if (hotTakes.isNotEmpty) ...[
-          _CreamCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Text('🌶', style: TextStyle(fontSize: 16)),
-                    const SizedBox(width: 8),
-                    Text(
-                      hotTakes.length == 1 ? 'Hot take' : 'Hot takes',
-                      style: GoogleFonts.dmSans(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 16,
-                        color: SpyceColors.dark900,
-                      ),
-                    ),
-                    const Spacer(),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: SpyceColors.pink.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        '${hotTakes.length}/3',
-                        style: GoogleFonts.dmSans(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: SpyceColors.pink,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                for (var i = 0; i < hotTakes.length; i++) ...[
-                  if (i > 0) ...[
-                    const SizedBox(height: 10),
-                    Divider(
-                      height: 1,
-                      color: SpyceColors.dark900.withValues(alpha: 0.08),
-                    ),
-                    const SizedBox(height: 10),
-                  ],
-                  _HotTakeTile(
-                    index: i + 1,
-                    total: hotTakes.length,
-                    take: hotTakes[i],
-                  ),
-                ],
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-        ],
-
         // ── Turn-ons (R2 stickers + name from backend) ────────
         _CreamCard(
           child: Column(
