@@ -1553,6 +1553,7 @@ class ConfessionPost {
     this.sexuality,
     this.age,
     this.hasRequestedChat = false,
+    this.canRequestChat = false,
     this.isAuthor = false,
     this.isRepost = false,
     this.parentId,
@@ -1573,6 +1574,8 @@ class ConfessionPost {
   final String? sexuality;
   final int? age;
   final bool hasRequestedChat;
+  /// Mutual preferred genders — may send "message me first" note.
+  final bool canRequestChat;
   /// True when current user wrote this confession (from API `is_author`).
   final bool isAuthor;
   /// Tumblr-style plain repost of another confession.
@@ -1661,6 +1664,7 @@ class ConfessionPost {
       sexuality: sexuality,
       age: age,
       hasRequestedChat: json['has_requested_chat'] == true,
+      canRequestChat: json['can_request_chat'] == true,
       isAuthor: json['is_author'] == true || json['is_mine'] == true,
       isRepost: isRepost,
       parentId: parentId,
@@ -1674,6 +1678,7 @@ class ConfessionPost {
     int? repostCount,
     bool? hasRelated,
     bool? hasRequestedChat,
+    bool? canRequestChat,
     bool? isAuthor,
     bool? isRepost,
     String? parentId,
@@ -1694,6 +1699,7 @@ class ConfessionPost {
       sexuality: sexuality,
       age: age,
       hasRequestedChat: hasRequestedChat ?? this.hasRequestedChat,
+      canRequestChat: canRequestChat ?? this.canRequestChat,
       isAuthor: isAuthor ?? this.isAuthor,
       isRepost: isRepost ?? this.isRepost,
       parentId: parentId ?? this.parentId,

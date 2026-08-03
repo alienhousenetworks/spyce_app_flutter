@@ -20,12 +20,15 @@ class FeedProfileCard extends ConsumerStatefulWidget {
     super.key,
     required this.profile,
     required this.onLike,
+    this.onMessage,
     this.onPass,
     this.liked = false,
   });
 
   final FeedProfile profile;
   final VoidCallback onLike;
+  /// Shown beside like when gender+sexuality DM matrix allows messaging.
+  final VoidCallback? onMessage;
   final VoidCallback? onPass;
   final bool liked;
 
@@ -95,6 +98,7 @@ class _FeedProfileCardState extends ConsumerState<FeedProfileCard> {
                         profile: p,
                         liked: widget.liked,
                         onLike: widget.onLike,
+                        onMessage: widget.onMessage,
                         viewerUsername: viewerUsername,
                       ),
                     _FeedPage.photos => _PhotosPage(
@@ -208,12 +212,14 @@ class _HeroPage extends StatelessWidget {
     required this.profile,
     required this.liked,
     required this.onLike,
+    this.onMessage,
     this.viewerUsername,
   });
 
   final FeedProfile profile;
   final bool liked;
   final VoidCallback onLike;
+  final VoidCallback? onMessage;
   /// Logged-in viewer username for anti-leak watermark (not the profile owner).
   final String? viewerUsername;
 
@@ -371,14 +377,13 @@ class _HeroPage extends StatelessWidget {
               },
             ),
           ),
-          // ── Pinned action footer: always visible, never covered by bio/bg ──
-          // Like stays on card until backend LIKE_TTL (~36h) expires
+          // ── Pinned action footer: like always; message when DM matrix allows ──
           Padding(
             padding: const EdgeInsets.only(top: 4, bottom: 6),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (liked && !p.canDirectMessage) ...[
+                if (liked) ...[
                   Container(
                     padding:
                         const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
@@ -404,10 +409,17 @@ class _HeroPage extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
+                    // Message (gender+sexuality DirectMessagePermission) — left of like
+                    if (p.canDirectMessage && onMessage != null) ...[
+                      _RoundAction(
+                        icon: Icons.chat_bubble_outline_rounded,
+                        filled: false,
+                        onTap: onMessage!,
+                      ),
+                      const SizedBox(width: 20),
+                    ],
                     _RoundAction(
-                      icon: p.canDirectMessage
-                          ? Icons.chat_bubble_outline_rounded
-                          : (liked ? Icons.favorite : Icons.favorite_border),
+                      icon: liked ? Icons.favorite : Icons.favorite_border,
                       filled: liked,
                       onTap: onLike,
                     ),

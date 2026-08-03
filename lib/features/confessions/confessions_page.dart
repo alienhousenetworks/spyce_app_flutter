@@ -355,6 +355,22 @@ class _ConfessionsPageState extends ConsumerState<ConfessionsPage> {
 
   Future<void> _sendNote(ConfessionPost p) async {
     if (p.isAuthor) return;
+    if (p.hasRequestedChat) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You already sent a note')),
+      );
+      return;
+    }
+    if (!p.canRequestChat) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Notes only when you both prefer each other\'s gender',
+          ),
+        ),
+      );
+      return;
+    }
     final ctrl = TextEditingController();
     final ok = await showModalBottomSheet<bool>(
       context: context,
@@ -382,7 +398,7 @@ class _ConfessionsPageState extends ConsumerState<ConfessionsPage> {
               ),
               const SizedBox(height: 8),
               const Text(
-                'If they accept, you\'ll match and can chat. Profiles stay hidden until then.',
+                'Only if you both prefer each other\'s gender. If they accept, you can chat. Profiles stay hidden until then.',
                 style: TextStyle(color: SpyceColors.dark100, fontSize: 13),
               ),
               const SizedBox(height: 14),
@@ -421,8 +437,14 @@ class _ConfessionsPageState extends ConsumerState<ConfessionsPage> {
             .chatRequest(p.id, ctrl.text.trim());
         setState(() {
           feed = feed
-              .map((e) =>
-                  e.id == p.id ? e.copyWith(hasRequestedChat: true) : e)
+              .map(
+                (e) => e.id == p.id
+                    ? e.copyWith(
+                        hasRequestedChat: true,
+                        canRequestChat: false,
+                      )
+                    : e,
+              )
               .toList();
         });
         if (mounted) {
@@ -986,16 +1008,18 @@ class _FeedList extends StatelessWidget {
                     onTap: () => onRepost(p),
                   ),
                   const SizedBox(width: 18),
-                  _Action(
-                    icon: p.hasRequestedChat
-                        ? Icons.mark_email_read_outlined
-                        : Icons.mail_outline,
-                    label: p.hasRequestedChat ? 'Sent' : 'Note',
-                    color: p.hasRequestedChat
-                        ? SpyceColors.teal
-                        : SpyceColors.dark100,
-                    onTap: p.hasRequestedChat ? null : () => onNote(p),
-                  ),
+                  // Note only when mutual preferred genders (or already sent)
+                  if (p.hasRequestedChat || p.canRequestChat)
+                    _Action(
+                      icon: p.hasRequestedChat
+                          ? Icons.mark_email_read_outlined
+                          : Icons.mail_outline,
+                      label: p.hasRequestedChat ? 'Sent' : 'Note',
+                      color: p.hasRequestedChat
+                          ? SpyceColors.teal
+                          : SpyceColors.dark100,
+                      onTap: p.hasRequestedChat ? null : () => onNote(p),
+                    ),
                   const Spacer(),
                   _Action(
                     icon: Icons.flag_outlined,

@@ -217,6 +217,105 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
     return false;
   }
 
+  Future<void> _message(FeedProfile p) async {
+    if (!p.canDirectMessage) {
+      _showToast('Messaging not available for this profile');
+      return;
+    }
+    final uid = p.userId ?? p.id;
+    if (uid.isEmpty) return;
+
+    final ctrl = TextEditingController();
+    final ok = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: SpyceColors.dark800,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.fromLTRB(
+            20,
+            16,
+            20,
+            24 + MediaQuery.of(ctx).viewInsets.bottom,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Message ${p.shortName}',
+                style: GoogleFonts.syne(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Direct message (your gender + sexuality can reach theirs). They must accept to chat.',
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.55),
+                  fontSize: 13,
+                ),
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: ctrl,
+                maxLines: 4,
+                maxLength: 500,
+                autofocus: true,
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(
+                  hintText: 'Say hi (min 3 characters)…',
+                ),
+              ),
+              const SizedBox(height: 12),
+              SpycePrimaryButton(
+                label: 'Send message',
+                icon: Icons.chat_bubble_outline,
+                onPressed: () {
+                  if (ctrl.text.trim().length < 3) {
+                    ScaffoldMessenger.of(ctx).showSnackBar(
+                      const SnackBar(
+                        content: Text('Write at least 3 characters'),
+                      ),
+                    );
+                    return;
+                  }
+                  Navigator.pop(ctx, true);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+    if (ok != true || !mounted) {
+      ctrl.dispose();
+      return;
+    }
+    final text = ctrl.text.trim();
+    ctrl.dispose();
+    try {
+      final res = await ref
+          .read(feedRepositoryProvider)
+          .startConversation(uid, text);
+      if (!mounted) return;
+      if (res['error'] != null) {
+        _showToast(res['error']?.toString() ?? 'Could not send');
+        return;
+      }
+      _showToast('Message sent to ${p.shortName}');
+    } on ApiException catch (e) {
+      if (mounted) _showToast(e.message);
+    } catch (_) {
+      if (mounted) _showToast('Could not send message');
+    }
+  }
+
   Future<void> _like(FeedProfile p) async {
     // Already liked within TTL — keep card, show status, do not remove
     if (_isLiked(p)) {
@@ -975,6 +1074,9 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                                 profile: p,
                                 liked: _isLiked(p),
                                 onLike: () => _like(p),
+                                onMessage: p.canDirectMessage
+                                    ? () => _message(p)
+                                    : null,
                               ),
                             );
                           },
