@@ -345,7 +345,8 @@ class ProfileRepository {
     await _api.post('/mood/', data: {'mood_ids': moodIds});
   }
 
-  /// POST /images/upload/ multipart field `image` (async processing on server).
+  /// POST /images/upload/ multipart field `image`.
+  /// Prefer sync 201 `{status: ok, id, image_url}`; async 202 returns `job_id`.
   Future<Map<String, dynamic>> uploadImage(String filePath) async {
     final name = filePath.split(RegExp(r'[/\\]')).last;
     final lower = name.toLowerCase();
@@ -364,6 +365,15 @@ class ProfileRepository {
       ),
     });
     final data = await _api.postMultipart('/images/upload/', formData: form);
+    return _asMap(data);
+  }
+
+  /// GET /images/upload-status/?job_id= — poll async photo processing.
+  Future<Map<String, dynamic>> getImageUploadStatus(String jobId) async {
+    final data = await _api.get<dynamic>(
+      '/images/upload-status/',
+      query: {'job_id': jobId},
+    );
     return _asMap(data);
   }
 

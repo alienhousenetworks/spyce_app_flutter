@@ -87,7 +87,9 @@ class ChatLocalStore {
     await p.setString(_key(conversationId), encoded);
   }
 
-  /// Merge server list with local (prefer newer by id; keep optimistic locals).
+  /// Merge server list with local.
+  /// Server is source of truth for persisted ids (one-time media soft-deleted
+  /// server-side must drop out of local cache). Keep only optimistic locals.
   Future<List<ChatMessage>> mergeAndSave({
     required String conversationId,
     required List<ChatMessage> local,
@@ -95,8 +97,12 @@ class ChatLocalStore {
     String? myId,
   }) async {
     final byId = <String, ChatMessage>{};
+    // Optimistic / failed sends that never hit the server yet
     for (final m in local) {
-      byId[m.id] = m;
+      final id = m.id;
+      if (id.startsWith('local-') || id.startsWith('temp')) {
+        byId[id] = m;
+      }
     }
     for (final m in remote) {
       byId[m.id] = m;

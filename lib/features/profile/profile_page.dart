@@ -1148,6 +1148,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
       final status = (uploadRes['status'] ?? '').toString().toLowerCase();
       final newId = (uploadRes['id'] ?? '').toString();
+      final jobId = (uploadRes['job_id'] ?? '').toString();
       final readyImmediately = status == 'ok' ||
           status == 'success' ||
           (newId.isNotEmpty && uploadRes['image_url'] != null);
@@ -1170,16 +1171,43 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           const SnackBar(content: Text('Photo ready ✓')),
         );
       } else {
-        // Legacy async path (202 processing) — poll until visible
+        // Async path (202 processing) — poll job status, then profile
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Uploading photo…')),
         );
-        final ready = await _refreshImagesAfterUpload(
-          beforeIds: beforeIds,
-          beforeCount: beforeCount,
-        );
+        var ready = false;
+        String? processError;
+        if (jobId.isNotEmpty) {
+          final job = await _pollUploadJob(jobId);
+          if (!mounted) return;
+          if (job != null) {
+            final js = (job['status'] ?? '').toString().toLowerCase();
+            if (js == 'ok' || js == 'success') {
+              ready = true;
+              final url = (job['image_url'] ?? '').toString();
+              if (url.isNotEmpty) {
+                await CachedNetworkImage.evictFromCache(url);
+              }
+            } else if (js == 'failed') {
+              processError =
+                  (job['error'] ?? 'Photo processing failed').toString();
+            }
+          }
+        }
+        if (!ready && processError == null) {
+          ready = await _refreshImagesAfterUpload(
+            beforeIds: beforeIds,
+            beforeCount: beforeCount,
+          );
+        }
         if (!mounted) return;
         if (ready) {
+          await _load();
+          if (!mounted) return;
+          for (final img in profile?.images ?? const <ProfileImage>[]) {
+            final u = resolveMediaUrl(img.imageUrl);
+            if (u != null) await CachedNetworkImage.evictFromCache(u);
+          }
           setState(() => pendingLocalPhotoPath = null);
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Photo ready ✓')),
@@ -1187,11 +1215,12 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         } else {
           setState(() => pendingLocalPhotoPath = null);
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
+            SnackBar(
               content: Text(
-                'Photo is still processing. Pull down to refresh in a moment.',
+                processError ??
+                    'Photo is still processing. Pull down to refresh in a moment.',
               ),
-              duration: Duration(seconds: 6),
+              duration: const Duration(seconds: 6),
             ),
           );
         }
@@ -1217,6 +1246,28 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     } finally {
       if (mounted) setState(() => saving = false);
     }
+  }
+
+  /// Poll GET /images/upload-status/?job_id= until ok/failed or timeout.
+  /// Returns the last status map, or null if still processing / unknown.
+  Future<Map<String, dynamic>?> _pollUploadJob(String jobId) async {
+    final repo = ref.read(profileRepositoryProvider);
+    for (var attempt = 0; attempt < 16; attempt++) {
+      await Future.delayed(
+        Duration(milliseconds: attempt == 0 ? 600 : 1200),
+      );
+      if (!mounted) return null;
+      try {
+        final status = await repo.getImageUploadStatus(jobId);
+        final s = (status['status'] ?? '').toString().toLowerCase();
+        if (s == 'ok' || s == 'success' || s == 'failed') {
+          return status;
+        }
+      } catch (_) {
+        // Keep trying; profile poll is the fallback
+      }
+    }
+    return null;
   }
 
   /// Returns true when a new image is visible on the profile.

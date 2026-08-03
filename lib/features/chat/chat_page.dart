@@ -1170,6 +1170,8 @@ class _ChatThreadPageState extends ConsumerState<ChatThreadPage> {
     return url.startsWith('/') || RegExp(r'^[A-Za-z]:[\\/]').hasMatch(url);
   }
 
+  /// One-time media: open with viewer-id watermark; after close, receiver
+  /// marks seen (server deletes file + soft-deletes message) and bubble vanishes.
   Future<void> _openMedia(ChatMessage m) async {
     if (m.isDeleted && !m.isMe) return;
     final url = m.mediaUrl;
@@ -1188,114 +1190,49 @@ class _ChatThreadPageState extends ConsumerState<ChatThreadPage> {
 
     final stampName = ref.read(viewerUsernameProvider);
     final viewerId = ref.read(authControllerProvider).user?.id;
-    // Watermark prefers username; fall back to short viewer id for testing
-    final stamp = (stampName != null && stampName.trim().isNotEmpty)
-        ? stampName
-        : (viewerId != null && viewerId.length > 8
-            ? viewerId.substring(0, 8)
-            : viewerId);
 
-    if (m.isImage || (!m.isVideo && (_isNetworkMedia(url) || _isLocalMedia(url)))) {
-      if (!mounted) return;
-      await showDialog<void>(
-        context: context,
-        barrierColor: Colors.black87,
-        builder: (ctx) => Dialog(
-          backgroundColor: Colors.black,
-          insetPadding: const EdgeInsets.all(12),
-          child: Stack(
-            children: [
-              InteractiveViewer(
-                child: MediaUserIdWatermark(
-                  username: stamp,
-                  child: _isLocalMedia(url)
-                      ? Image.file(
-                          File(url),
-                          fit: BoxFit.contain,
-                          errorBuilder: (_, __, ___) => const Padding(
-                            padding: EdgeInsets.all(24),
-                            child: Icon(Icons.broken_image,
-                                color: Colors.white54, size: 48),
-                          ),
-                        )
-                      : CachedNetworkImage(
-                          imageUrl: url,
-                          fit: BoxFit.contain,
-                          placeholder: (_, __) => const SizedBox(
-                            height: 240,
-                            child: Center(
-                              child: CircularProgressIndicator(
-                                  color: SpyceColors.pink),
-                            ),
-                          ),
-                          errorWidget: (_, __, ___) => const Padding(
-                            padding: EdgeInsets.all(24),
-                            child: Icon(Icons.broken_image,
-                                color: Colors.white54, size: 48),
-                          ),
-                        ),
-                ),
-              ),
-              Positioned(
-                top: 8,
-                right: 8,
-                child: IconButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  icon: const Icon(Icons.close, color: Colors.white),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-      // Receiver marks seen only after viewing (view-once delete is server-side)
-      if (!m.isMe && !m.isSeen && !m.id.startsWith('local-')) {
-        try {
-          await ref.read(chatRepositoryProvider).markSeen(m.id);
-          if (mounted) {
-            setState(() {
-              messages = messages
-                  .map((x) => x.id == m.id ? x.copyWith(isSeen: true) : x)
-                  .toList();
-            });
-            await ChatLocalStore.instance.save(widget.conversationId, messages);
-          }
-        } catch (e) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Mark seen failed: ${ApiException.describe(e)}')),
-            );
-          }
-        }
-      }
-      return;
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      barrierColor: Colors.black87,
+      barrierDismissible: true,
+      builder: (ctx) => _OneTimeMediaDialog(
+        url: url,
+        isVideo: m.isVideo,
+        isLocal: _isLocalMedia(url),
+        viewerId: viewerId,
+        viewerUsername: stampName,
+      ),
+    );
+
+    // Receiver only: vanish after close (one-time view)
+    if (!m.isMe && !m.id.startsWith('local-')) {
+      await _consumeOneTimeMedia(m);
     }
+  }
 
-    // Video — open externally
-    final uri = Uri.tryParse(url);
-    if (uri != null && (_isNetworkMedia(url) || url.startsWith('file://'))) {
-      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
-      if (!ok && mounted) {
+  Future<void> _consumeOneTimeMedia(ChatMessage m) async {
+    // Remove from UI immediately (one-time)
+    if (mounted) {
+      setState(() {
+        messages = messages.where((x) => x.id != m.id).toList();
+      });
+      await ChatLocalStore.instance.save(widget.conversationId, messages);
+    }
+    if (m.isSeen) return;
+    try {
+      await ref.read(chatRepositoryProvider).markSeen(m.id);
+      _markedSeen.add(m.id);
+    } catch (e) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not open video')),
+          SnackBar(
+            content: Text(
+              'Could not finalize one-time view: ${ApiException.describe(e)}',
+            ),
+          ),
         );
       }
-    } else if (_isLocalMedia(url) && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Video still uploading…')),
-      );
-    }
-    if (!m.isMe && !m.isSeen && !m.id.startsWith('local-')) {
-      try {
-        await ref.read(chatRepositoryProvider).markSeen(m.id);
-        if (mounted) {
-          setState(() {
-            messages = messages
-                .map((x) => x.id == m.id ? x.copyWith(isSeen: true) : x)
-                .toList();
-          });
-        }
-      } catch (_) {}
     }
   }
 
@@ -1643,11 +1580,8 @@ class _ChatThreadPageState extends ConsumerState<ChatThreadPage> {
                     itemCount: messages.length,
                     itemBuilder: (context, i) {
                       final m = messages[i];
-                      // Anti-leak: stamp viewer username only (never id / @badge).
-                      final stamp = ref.read(viewerUsernameProvider);
                       return _MessageBubble(
                         message: m,
-                        stampUsername: stamp,
                         onOpenMedia: () => _openMedia(m),
                       );
                     },
@@ -1710,33 +1644,15 @@ class _ChatThreadPageState extends ConsumerState<ChatThreadPage> {
 }
 
 /// Bubble with media support + WhatsApp-style delivery ticks.
+/// Media never shows a thumbnail — only a distinct photo/video icon.
 class _MessageBubble extends StatelessWidget {
   const _MessageBubble({
     required this.message,
     required this.onOpenMedia,
-    this.stampUsername,
   });
 
   final ChatMessage message;
   final VoidCallback onOpenMedia;
-  /// Logged-in viewer username for anti-leak watermark (not the sender).
-  final String? stampUsername;
-
-  bool get _hasMediaAsset {
-    final u = message.mediaUrl;
-    if (u == null || u.isEmpty) return false;
-    return u.startsWith('http') ||
-        u.startsWith('file://') ||
-        u.startsWith('/') ||
-        RegExp(r'^[A-Za-z]:[\\/]').hasMatch(u);
-  }
-
-  bool get _isLocalPath {
-    final u = message.mediaUrl;
-    if (u == null || u.isEmpty) return false;
-    if (u.startsWith('http') || u.startsWith('file://')) return false;
-    return u.startsWith('/') || RegExp(r'^[A-Za-z]:[\\/]').hasMatch(u);
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -1745,9 +1661,7 @@ class _MessageBubble extends StatelessWidget {
         ? DateFormat.jm().format(m.createdAt!.toLocal())
         : '';
     final maxW = MediaQuery.of(context).size.width * 0.75;
-    // Sender keeps media tile even after peer opens (is_deleted for receiver only).
-    final showMediaTile = m.isMedia && (!m.isDeleted || m.isMe) && _hasMediaAsset;
-    final showMediaPlaceholder = m.isMedia && !showMediaTile && !m.isDeleted;
+    final isMediaIcon = m.isMedia && !m.isDeleted;
 
     return Align(
       alignment: m.isMe ? Alignment.centerRight : Alignment.centerLeft,
@@ -1759,8 +1673,8 @@ class _MessageBubble extends StatelessWidget {
               m.isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
           children: [
             Container(
-              padding: showMediaTile
-                  ? const EdgeInsets.all(4)
+              padding: isMediaIcon
+                  ? const EdgeInsets.symmetric(horizontal: 12, vertical: 10)
                   : const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
                 color: m.isMe ? SpyceColors.pink : SpyceColors.dark700,
@@ -1771,7 +1685,7 @@ class _MessageBubble extends StatelessWidget {
                   bottomRight: Radius.circular(m.isMe ? 4 : 16),
                 ),
               ),
-              child: _buildBody(context, showMediaTile, showMediaPlaceholder),
+              child: _buildBody(context),
             ),
             if (time.isNotEmpty || m.isMe)
               Padding(
@@ -1800,16 +1714,13 @@ class _MessageBubble extends StatelessWidget {
     );
   }
 
-  Widget _buildBody(
-    BuildContext context,
-    bool showMediaTile,
-    bool showMediaPlaceholder,
-  ) {
+  Widget _buildBody(BuildContext context) {
     final m = message;
-    // Receiver only: opened/vanished media
-    if (m.isDeleted && !m.isMe) {
+
+    // Opened / vanished (receiver or after server soft-delete)
+    if (m.isDeleted && m.isMedia) {
       return Text(
-        m.text.isNotEmpty ? m.text : '🔒 Media opened',
+        m.isVideo ? '🔒 Video opened' : '🔒 Photo opened',
         style: GoogleFonts.dmSans(
           color: SpyceColors.white.withValues(alpha: 0.7),
           fontStyle: FontStyle.italic,
@@ -1818,120 +1729,68 @@ class _MessageBubble extends StatelessWidget {
       );
     }
 
-    if (showMediaTile) {
-      // Photo icon covers the image; tap opens full watermarked view
+    // Icon-only one-time media (photo ≠ video icons)
+    if (m.isMedia) {
+      final sending = m.localStatus == ChatSendStatus.sending;
+      final canOpen = !sending && m.mediaUrl != null && m.mediaUrl!.isNotEmpty;
       return GestureDetector(
-        onTap: onOpenMedia,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: SizedBox(
-            width: 220,
-            height: m.isVideo ? 160 : 220,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                // Soft preview under cover
-                if (m.isImage || !m.isVideo)
-                  _isLocalPath
-                      ? Image.file(
-                          File(m.mediaUrl!),
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) =>
-                              const ColoredBox(color: SpyceColors.dark800),
-                        )
-                      : CachedNetworkImage(
-                          imageUrl: m.mediaUrl!,
-                          fit: BoxFit.cover,
-                          placeholder: (_, __) =>
-                              const ColoredBox(color: SpyceColors.dark800),
-                          errorWidget: (_, __, ___) =>
-                              const ColoredBox(color: SpyceColors.dark800),
-                        )
-                else
-                  const ColoredBox(color: SpyceColors.dark800),
-                // Cover + photo icon (industry chat style)
-                Container(
-                  color: Colors.black.withValues(alpha: 0.45),
+        onTap: canOpen ? onOpenMedia : null,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.black.withValues(alpha: 0.28),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.55),
+                  width: 1.2,
                 ),
-                Center(
-                  child: Container(
-                    width: 64,
-                    height: 64,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.black.withValues(alpha: 0.45),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.7),
-                        width: 1.5,
-                      ),
-                    ),
-                    child: Icon(
-                      m.isVideo
-                          ? Icons.play_circle_fill
-                          : Icons.photo_outlined,
-                      color: Colors.white,
-                      size: 34,
-                    ),
-                  ),
-                ),
-                if (m.localStatus == ChatSendStatus.sending)
-                  const Positioned(
-                    left: 10,
-                    bottom: 10,
-                    child: SizedBox(
-                      width: 16,
-                      height: 16,
+              ),
+              child: sending
+                  ? const Padding(
+                      padding: EdgeInsets.all(10),
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
                         color: Colors.white,
                       ),
-                    ),
-                  ),
-                Positioned(
-                  right: 10,
-                  bottom: 10,
-                  child: Text(
-                    m.isMe
-                        ? (m.isVideo ? 'Video' : 'Photo')
-                        : 'Tap to view',
-                    style: GoogleFonts.dmSans(
+                    )
+                  : Icon(
+                      m.isVideo
+                          ? Icons.videocam_rounded
+                          : Icons.image_rounded,
                       color: Colors.white,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      shadows: const [
-                        Shadow(blurRadius: 4, color: Colors.black54),
-                      ],
+                      size: 22,
+                    ),
+            ),
+            const SizedBox(width: 10),
+            Flexible(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    m.isVideo ? 'Video' : 'Photo',
+                    style: GoogleFonts.dmSans(
+                      color: SpyceColors.white,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                      height: 1.2,
                     ),
                   ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
-    if (showMediaPlaceholder || m.isMedia) {
-      return GestureDetector(
-        onTap: m.mediaUrl != null ? onOpenMedia : null,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              m.isVideo ? Icons.videocam : Icons.photo,
-              color: Colors.white,
-              size: 18,
-            ),
-            const SizedBox(width: 8),
-            Flexible(
-              child: Text(
-                m.text.isNotEmpty
-                    ? m.text
-                    : (m.isVideo ? '🎥 Video' : '📷 Photo'),
-                style: GoogleFonts.dmSans(
-                  color: SpyceColors.white,
-                  height: 1.35,
-                ),
+                  Text(
+                    sending
+                        ? 'Uploading…'
+                        : (m.isMe ? 'Tap to preview · one-time' : 'Tap once to view'),
+                    style: GoogleFonts.dmSans(
+                      color: SpyceColors.white.withValues(alpha: 0.8),
+                      fontSize: 11,
+                      height: 1.2,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -1944,6 +1803,146 @@ class _MessageBubble extends StatelessWidget {
       style: GoogleFonts.dmSans(
         color: SpyceColors.white,
         height: 1.35,
+      ),
+    );
+  }
+}
+
+/// Fullscreen one-time media viewer with viewer-id watermark.
+class _OneTimeMediaDialog extends StatelessWidget {
+  const _OneTimeMediaDialog({
+    required this.url,
+    required this.isVideo,
+    required this.isLocal,
+    this.viewerId,
+    this.viewerUsername,
+  });
+
+  final String url;
+  final bool isVideo;
+  final bool isLocal;
+  final String? viewerId;
+  final String? viewerUsername;
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.black,
+      insetPadding: const EdgeInsets.all(12),
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: MediaUserIdWatermark(
+              userId: viewerId,
+              username: viewerUsername,
+              child: Center(
+                child: isVideo
+                    ? _VideoOneTimeBody(url: url, isLocal: isLocal)
+                    : InteractiveViewer(
+                        child: isLocal
+                            ? Image.file(
+                                File(url),
+                                fit: BoxFit.contain,
+                                errorBuilder: (_, __, ___) => const Padding(
+                                  padding: EdgeInsets.all(24),
+                                  child: Icon(Icons.broken_image,
+                                      color: Colors.white54, size: 48),
+                                ),
+                              )
+                            : CachedNetworkImage(
+                                imageUrl: url,
+                                fit: BoxFit.contain,
+                                placeholder: (_, __) => const SizedBox(
+                                  height: 240,
+                                  child: Center(
+                                    child: CircularProgressIndicator(
+                                      color: SpyceColors.pink,
+                                    ),
+                                  ),
+                                ),
+                                errorWidget: (_, __, ___) => const Padding(
+                                  padding: EdgeInsets.all(24),
+                                  child: Icon(Icons.broken_image,
+                                      color: Colors.white54, size: 48),
+                                ),
+                              ),
+                      ),
+              ),
+            ),
+          ),
+          Positioned(
+            top: 8,
+            left: 12,
+            child: Text(
+              isVideo ? 'One-time video' : 'One-time photo',
+              style: GoogleFonts.dmSans(
+                color: Colors.white70,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          Positioned(
+            top: 0,
+            right: 0,
+            child: IconButton(
+              onPressed: () => Navigator.pop(context),
+              icon: const Icon(Icons.close, color: Colors.white),
+              tooltip: 'Close',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Video body: in-dialog preview with watermark; falls back to external open.
+class _VideoOneTimeBody extends StatelessWidget {
+  const _VideoOneTimeBody({required this.url, required this.isLocal});
+
+  final String url;
+  final bool isLocal;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.videocam_rounded, color: Colors.white, size: 64),
+          const SizedBox(height: 16),
+          Text(
+            'Video is watermarked with your viewer id.\nIt will vanish after you close this screen.',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.dmSans(color: Colors.white70, height: 1.4),
+          ),
+          const SizedBox(height: 20),
+          FilledButton.icon(
+            onPressed: () async {
+              final uri = isLocal
+                  ? Uri.file(url)
+                  : Uri.tryParse(url);
+              if (uri == null) return;
+              final ok = await launchUrl(
+                uri,
+                mode: LaunchMode.externalApplication,
+              );
+              if (!ok && context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Could not open video')),
+                );
+              }
+            },
+            icon: const Icon(Icons.play_arrow_rounded),
+            label: const Text('Play video'),
+            style: FilledButton.styleFrom(
+              backgroundColor: SpyceColors.pink,
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ],
       ),
     );
   }

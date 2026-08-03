@@ -2,33 +2,32 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-/// Light media watermark: stamps the **viewer's username** only (never UUID),
-/// with a few diagonal stamps — anti-leak without a heavy overlay.
-/// Always pass the logged-in user's username, not the media owner.
+/// Anti-leak media watermark: stamps the **viewer's user id** (and optional
+/// username) diagonally on photos/videos opened in chat.
+/// Always pass the logged-in viewer's identity, never the media owner.
 class MediaUserIdWatermark extends StatelessWidget {
   const MediaUserIdWatermark({
     super.key,
     required this.child,
     this.username,
-    this.dense = false,
-    /// Kept for API compatibility; unused — never stamp raw user ids.
-    @Deprecated('Do not pass user ids; watermark uses username only')
     this.userId,
+    this.dense = false,
   });
 
-  /// Preferred stamp — display username without @. No id fallback.
+  /// Optional display name; combined with [userId] when both present.
   final String? username;
 
-  /// Ignored (legacy). Watermark never shows user ids.
-  @Deprecated('Do not pass user ids; watermark uses username only')
+  /// Viewer user id — primary stamp for one-time media.
   final String? userId;
 
   final Widget child;
   final bool dense;
 
-  /// Username only — strip leading @; empty → no stamp (never UUID).
   String get _stamp {
+    final id = (userId ?? '').trim();
     final u = (username ?? '').trim().replaceFirst(RegExp(r'^@+'), '');
+    if (id.isNotEmpty && u.isNotEmpty) return '$u · $id';
+    if (id.isNotEmpty) return id;
     return u;
   }
 
@@ -55,7 +54,7 @@ class MediaUserIdWatermark extends StatelessWidget {
   }
 }
 
-/// Only **3** diagonal stamps (or 2 when dense) — not a full tile grid.
+/// Sparse diagonal stamps — not a full tile grid.
 class _SparseUsernameWatermarkPainter extends CustomPainter {
   _SparseUsernameWatermarkPainter({
     required this.text,
@@ -69,13 +68,12 @@ class _SparseUsernameWatermarkPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     if (size.isEmpty || text.isEmpty) return;
 
-    final fontSize = dense ? 12.0 : 15.0;
-    // Stronger contrast so the stamp is readable on photos
+    final fontSize = dense ? 11.0 : 14.0;
     final style = TextStyle(
       color: Colors.white.withValues(alpha: dense ? 0.42 : 0.48),
       fontSize: fontSize,
       fontWeight: FontWeight.w800,
-      letterSpacing: 0.5,
+      letterSpacing: 0.4,
     );
     final shadowStyle = style.copyWith(
       color: Colors.black.withValues(alpha: 0.45),
@@ -92,7 +90,6 @@ class _SparseUsernameWatermarkPainter extends CustomPainter {
       maxLines: 1,
     )..layout();
 
-    // Exactly 2–3 positions across the media
     final points = dense
         ? <Offset>[
             Offset(size.width * 0.28, size.height * 0.35),
