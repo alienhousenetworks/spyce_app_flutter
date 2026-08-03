@@ -136,7 +136,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         parentNavigatorKey: _rootKey,
         builder: (c, s) => const SettingsPage(),
       ),
-      // Peer profile from chat avatar / match
+      // Peer profile from chat avatar / match / incoming likes
       GoRoute(
         path: '/app/user/:userId',
         parentNavigatorKey: _rootKey,
@@ -144,14 +144,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           final extra = state.extra;
           String? name;
           String? image;
+          var allowLikeBack = false;
           if (extra is Map) {
             name = extra['title']?.toString() ?? extra['name']?.toString();
             image = extra['image']?.toString() ?? extra['peerImage']?.toString();
+            allowLikeBack = extra['allowLikeBack'] == true ||
+                extra['from_incoming_like'] == true;
           }
           return PeerProfilePage(
             userId: state.pathParameters['userId']!,
             initialName: name,
             initialImage: image,
+            allowLikeBack: allowLikeBack,
           );
         },
       ),

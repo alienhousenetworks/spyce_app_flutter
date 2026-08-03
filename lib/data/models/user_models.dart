@@ -2175,6 +2175,7 @@ class IncomingLike {
     this.imageUrl,
     this.age,
     this.blurred = true,
+    this.canLikeBack = true,
   });
 
   final String id;
@@ -2182,11 +2183,17 @@ class IncomingLike {
   final String? imageUrl;
   final int? age;
   final bool blurred;
+  /// Admin-permitted combos can like back to match (always true when unblurred).
+  final bool canLikeBack;
 
   factory IncomingLike.fromJson(Map<String, dynamic> json) {
-    final profile = json['profile'] is Map
-        ? Map<String, dynamic>.from(json['profile'] as Map)
-        : null;
+    // DiscoveryUserSerializer uses profile_card; older payloads may use profile.
+    final profile = (json['profile_card'] is Map
+            ? Map<String, dynamic>.from(json['profile_card'] as Map)
+            : null) ??
+        (json['profile'] is Map
+            ? Map<String, dynamic>.from(json['profile'] as Map)
+            : null);
     final imageUrl = resolveDisplayImageUrl(
       images: (json['images'] ?? profile?['images']) is List
           ? (json['images'] ?? profile?['images']) as List
@@ -2201,23 +2208,32 @@ class IncomingLike {
       avatarUrl: (json['avatar_url'] ?? profile?['avatar_url'])?.toString(),
       imageUrl: (json['image_url'] ?? profile?['image_url'])?.toString(),
     );
-    final explicitBlur = json['blurred'] == true || json['is_blurred'] == true;
     final name = (json['username'] ??
             profile?['username'] ??
             json['name'] ??
             profile?['name'])
         ?.toString();
-    // Free tier stubs have no name/image → always blurred
-    final blurred = explicitBlur ||
-        ((name == null || name.isEmpty) &&
-            (imageUrl == null || imageUrl.isEmpty));
+    // Trust server blurred flag; only fall back to stub detection when omitted.
+    final hasBlurKey =
+        json.containsKey('blurred') || json.containsKey('is_blurred');
+    final explicitBlur = json['blurred'] == true || json['is_blurred'] == true;
+    final looksLikeStub = (name == null || name.isEmpty) &&
+        (imageUrl == null || imageUrl.isEmpty);
+    final blurred =
+        hasBlurKey ? explicitBlur : looksLikeStub;
     return IncomingLike(
-      id: (json['id'] ?? json['user_id'] ?? profile?['id'] ?? '').toString(),
+      id: (json['id'] ??
+              json['user_id'] ??
+              profile?['id'] ??
+              profile?['user_id'] ??
+              '')
+          .toString(),
       username: name,
       imageUrl: imageUrl,
       age: (json['age'] as num?)?.toInt() ??
           (profile?['age'] as num?)?.toInt(),
       blurred: blurred,
+      canLikeBack: json['can_like_back'] != false && !blurred,
     );
   }
 }
@@ -2228,12 +2244,17 @@ class IncomingLikesResult {
     this.canSee = false,
     this.count = 0,
     this.isPremium = false,
+    this.canViewFullProfiles = false,
+    this.canLikeBack = false,
     this.users = const [],
   });
 
   final bool canSee;
   final int count;
   final bool isPremium;
+  /// True when admin gender+sexuality matrix allows clear faces + full profile.
+  final bool canViewFullProfiles;
+  final bool canLikeBack;
   final List<IncomingLike> users;
 }
 

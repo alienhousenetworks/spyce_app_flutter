@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
+import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
+import 'package:dio/io.dart';
 import 'package:flutter/foundation.dart';
 
 import '../config/env.dart';
@@ -29,6 +32,20 @@ class ApiClient {
         },
       ),
     );
+
+    if (!kIsWeb && Env.enableSslPinning && Env.sslFingerprints.isNotEmpty) {
+      _dio.httpClientAdapter = IOHttpClientAdapter(
+        createHttpClient: () {
+          final client = HttpClient();
+          client.badCertificateCallback = (X509Certificate cert, String host, int port) {
+            final certDer = cert.der;
+            final sha256Fingerprint = sha256.convert(certDer).toString().toLowerCase();
+            return Env.sslFingerprints.contains(sha256Fingerprint);
+          };
+          return client;
+        },
+      );
+    }
 
     _dio.interceptors.add(
       InterceptorsWrapper(

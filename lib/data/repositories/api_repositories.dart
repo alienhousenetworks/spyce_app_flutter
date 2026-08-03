@@ -295,10 +295,16 @@ class FeedRepository {
             .toList()
         : const <IncomingLike>[];
     final count = (map['count'] as num?)?.toInt() ?? users.length;
+    // Admin matrix path: full profiles + like-back (premium no longer required).
+    final canViewFull = map['can_view_full_profiles'] == true ||
+        (users.isNotEmpty && users.any((u) => !u.blurred));
+    final canLikeBack = map['can_like_back'] == true || canViewFull;
     return IncomingLikesResult(
       canSee: true,
       count: count,
       isPremium: map['is_premium'] == true,
+      canViewFullProfiles: canViewFull,
+      canLikeBack: canLikeBack,
       users: users,
     );
   }

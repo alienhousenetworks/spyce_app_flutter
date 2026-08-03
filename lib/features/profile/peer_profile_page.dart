@@ -23,11 +23,14 @@ class PeerProfilePage extends ConsumerStatefulWidget {
     required this.userId,
     this.initialName,
     this.initialImage,
+    /// When true (Chat → Likes), heart likes back and can create a match.
+    this.allowLikeBack = false,
   });
 
   final String userId;
   final String? initialName;
   final String? initialImage;
+  final bool allowLikeBack;
 
   @override
   ConsumerState<PeerProfilePage> createState() => _PeerProfilePageState();
@@ -37,6 +40,8 @@ class _PeerProfilePageState extends ConsumerState<PeerProfilePage> {
   UserProfile? profile;
   bool loading = true;
   String? error;
+  bool liked = false;
+  bool liking = false;
 
   @override
   void initState() {
@@ -82,6 +87,51 @@ class _PeerProfilePageState extends ConsumerState<PeerProfilePage> {
         error = e.toString();
         loading = false;
       });
+    }
+  }
+
+  Future<void> _likeBack() async {
+    if (!widget.allowLikeBack || liked || liking) return;
+    setState(() => liking = true);
+    try {
+      final res = await ref.read(feedRepositoryProvider).like(widget.userId);
+      if (!mounted) return;
+      final status = (res['status'] ?? res['result'] ?? '').toString().toLowerCase();
+      final isMatch = status == 'match' ||
+          res['is_match'] == true ||
+          res['matched'] == true ||
+          res['match'] != null;
+      setState(() {
+        liked = true;
+        liking = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            isMatch
+                ? "It's a Match! You can chat now."
+                : 'Liked back successfully',
+          ),
+          backgroundColor: isMatch ? SpyceColors.pink : SpyceColors.dark700,
+        ),
+      );
+      if (isMatch) {
+        // Return to chat with match so list can refresh
+        await Future<void>.delayed(const Duration(milliseconds: 400));
+        if (mounted) context.pop(true);
+      }
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() => liking = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.fullDetail)),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => liking = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not like: $e')),
+      );
     }
   }
 
@@ -209,9 +259,12 @@ class _PeerProfilePageState extends ConsumerState<PeerProfilePage> {
                                       12, 4, 12, 12),
                                   child: FeedProfileCard(
                                     profile: feed,
-                                    liked: false,
-                                    // Read-only from chat — no like action
+                                    liked: liked,
                                     onLike: () {
+                                      if (widget.allowLikeBack) {
+                                        _likeBack();
+                                        return;
+                                      }
                                       ScaffoldMessenger.of(context)
                                           .showSnackBar(
                                         const SnackBar(

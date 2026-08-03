@@ -39,6 +39,9 @@ class _ConversationsPageState extends ConsumerState<ConversationsPage> {
   bool loading = true;
   /// True only for gender+sexuality combos allowed to see incoming likes.
   bool canSeeLikes = false;
+  /// Admin matrix: clear faces + open full profile + like back to match.
+  bool canViewFullLikeProfiles = false;
+  bool canLikeBackIncoming = false;
 
   @override
   void initState() {
@@ -94,29 +97,21 @@ class _ConversationsPageState extends ConsumerState<ConversationsPage> {
       List<IncomingLike> incoming = [];
       var count = 0;
       var premium = false;
-      if (seeLikes) {
-        try {
-          final likesRes = await feed.getIncomingLikes();
-          seeLikes = likesRes.canSee;
-          if (seeLikes) {
-            incoming = likesRes.users;
-            count = likesRes.count;
-            premium = likesRes.isPremium;
-          }
-        } catch (_) {
-          // Keep profile flag if list fetch fails (still show button)
+      var viewFull = false;
+      var likeBack = false;
+      try {
+        final likesRes = await feed.getIncomingLikes();
+        seeLikes = likesRes.canSee;
+        if (seeLikes) {
+          incoming = likesRes.users;
+          count = likesRes.count;
+          premium = likesRes.isPremium;
+          viewFull = likesRes.canViewFullProfiles ||
+              incoming.any((u) => !u.blurred);
+          likeBack = likesRes.canLikeBack || viewFull;
         }
-      } else {
-        // Profile may be stale; trust received endpoint as source of truth
-        try {
-          final likesRes = await feed.getIncomingLikes();
-          seeLikes = likesRes.canSee;
-          if (seeLikes) {
-            incoming = likesRes.users;
-            count = likesRes.count;
-            premium = likesRes.isPremium;
-          }
-        } catch (_) {}
+      } catch (_) {
+        // Keep profile flag if list fetch fails (still show button)
       }
 
       if (!mounted) return;
@@ -127,6 +122,8 @@ class _ConversationsPageState extends ConsumerState<ConversationsPage> {
         likesCount = count > 0 ? count : incoming.length;
         likesPremium = premium;
         canSeeLikes = seeLikes;
+        canViewFullLikeProfiles = viewFull;
+        canLikeBackIncoming = likeBack;
         loading = false;
       });
     } catch (_) {
@@ -137,6 +134,8 @@ class _ConversationsPageState extends ConsumerState<ConversationsPage> {
         likes = [];
         likesCount = 0;
         canSeeLikes = false;
+        canViewFullLikeProfiles = false;
+        canLikeBackIncoming = false;
         loading = false;
       });
     }
@@ -250,6 +249,62 @@ class _ConversationsPageState extends ConsumerState<ConversationsPage> {
     );
   }
 
+  Future<void> _likeBackIncoming(IncomingLike l) async {
+    if (l.id.isEmpty || l.id.startsWith('stub_')) return;
+    try {
+      final res = await ref.read(feedRepositoryProvider).like(l.id);
+      if (!mounted) return;
+      final status =
+          (res['status'] ?? res['result'] ?? '').toString().toLowerCase();
+      final isMatch = status == 'match' ||
+          res['is_match'] == true ||
+          res['matched'] == true ||
+          res['match'] != null;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            isMatch
+                ? "It's a Match with ${l.username ?? 'them'}!"
+                : 'Liked ${l.username ?? 'them'} back',
+          ),
+        ),
+      );
+      setState(() {
+        likes = likes.where((x) => x.id != l.id).toList();
+        likesCount = likes.length;
+      });
+      await _load();
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.fullDetail)),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not like back: $e')),
+      );
+    }
+  }
+
+  void _openIncomingLikeProfile(IncomingLike l) {
+    if (l.id.isEmpty || l.id.startsWith('stub_') || l.blurred) return;
+    Navigator.of(context).pop(); // close likes sheet
+    context
+        .push(
+      '/app/user/${l.id}',
+      extra: {
+        'title': l.username,
+        'image': l.imageUrl,
+        'allowLikeBack': canLikeBackIncoming || l.canLikeBack,
+        'from_incoming_like': true,
+      },
+    )
+        .then((matched) {
+      if (matched == true && mounted) _load();
+    });
+  }
+
   void _showIncomingLikes() {
     showModalBottomSheet(
       context: context,
@@ -261,11 +316,13 @@ class _ConversationsPageState extends ConsumerState<ConversationsPage> {
       builder: (ctx) {
         final list = likes;
         final n = likesCount > 0 ? likesCount : list.length;
+        final fullAccess =
+            canViewFullLikeProfiles || list.any((u) => !u.blurred);
         return DraggableScrollableSheet(
           expand: false,
           initialChildSize: 0.55,
           minChildSize: 0.35,
-          maxChildSize: 0.85,
+          maxChildSize: 0.9,
           builder: (_, scrollCtrl) {
             return Column(
               children: [
@@ -281,9 +338,9 @@ class _ConversationsPageState extends ConsumerState<ConversationsPage> {
                   child: Text(
                     n == 0
                         ? 'No new likes yet — keep swiping.'
-                        : likesPremium
-                            ? '$n people liked you'
-                            : '$n likes · Upgrade to see who',
+                        : fullAccess
+                            ? '$n liked you · open profile · like back to match'
+                            : '$n people liked you',
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                         color: SpyceColors.dark100, fontSize: 12),
@@ -302,12 +359,11 @@ class _ConversationsPageState extends ConsumerState<ConversationsPage> {
                           controller: scrollCtrl,
                           padding: const EdgeInsets.all(16),
                           gridDelegate:
-                              const
-                              SliverGridDelegateWithFixedCrossAxisCount(
+                              const SliverGridDelegateWithFixedCrossAxisCount(
                             crossAxisCount: 2,
                             mainAxisSpacing: 12,
                             crossAxisSpacing: 12,
-                            childAspectRatio: 0.85,
+                            childAspectRatio: 0.78,
                           ),
                           itemCount:
                               list.isNotEmpty ? list.length : n.clamp(0, 12),
@@ -318,66 +374,132 @@ class _ConversationsPageState extends ConsumerState<ConversationsPage> {
                                     id: 'stub_$i',
                                     blurred: true,
                                   );
-                            return Container(
-                              decoration: BoxDecoration(
-                                color: SpyceColors.dark700,
-                                borderRadius: BorderRadius.circular(16),
-                              ),
+                            return Material(
+                              color: SpyceColors.dark700,
+                              borderRadius: BorderRadius.circular(16),
                               clipBehavior: Clip.antiAlias,
-                              child: Stack(
-                                fit: StackFit.expand,
-                                children: [
-                                  if (l.imageUrl != null &&
-                                      l.imageUrl!.isNotEmpty)
-                                    ImageFiltered(
-                                      imageFilter: l.blurred
-                                          ? ImageFilter.blur(
-                                              sigmaX: 14, sigmaY: 14)
-                                          : ImageFilter.blur(
-                                              sigmaX: 0, sigmaY: 0),
-                                      child: CachedNetworkImage(
-                                        imageUrl: l.imageUrl!,
-                                        fit: BoxFit.cover,
-                                        errorWidget: (_, _, _) =>
-                                            const ColoredBox(
-                                                color: SpyceColors.dark600),
+                              child: InkWell(
+                                onTap: l.blurred
+                                    ? null
+                                    : () => _openIncomingLikeProfile(l),
+                                child: Stack(
+                                  fit: StackFit.expand,
+                                  children: [
+                                    if (l.imageUrl != null &&
+                                        l.imageUrl!.isNotEmpty)
+                                      ImageFiltered(
+                                        imageFilter: l.blurred
+                                            ? ImageFilter.blur(
+                                                sigmaX: 14, sigmaY: 14)
+                                            : ImageFilter.blur(
+                                                sigmaX: 0, sigmaY: 0),
+                                        child: CachedNetworkImage(
+                                          imageUrl: l.imageUrl!,
+                                          fit: BoxFit.cover,
+                                          errorWidget: (_, _, _) =>
+                                              const ColoredBox(
+                                                  color: SpyceColors.dark600),
+                                        ),
+                                      )
+                                    else
+                                      Container(
+                                        decoration: BoxDecoration(
+                                          gradient: LinearGradient(
+                                            colors: [
+                                              SpyceColors.pink
+                                                  .withValues(alpha: 0.35),
+                                              SpyceColors.dark600,
+                                            ],
+                                            begin: Alignment.topLeft,
+                                            end: Alignment.bottomRight,
+                                          ),
+                                        ),
                                       ),
-                                    )
-                                  else
-                                    Container(
-                                      decoration: BoxDecoration(
-                                        gradient: LinearGradient(
-                                          colors: [
-                                            SpyceColors.pink
-                                                .withValues(alpha: 0.35),
-                                            SpyceColors.dark600,
+                                    if (l.blurred)
+                                      const Center(
+                                        child: Icon(Icons.lock_outline,
+                                            color: Colors.white70, size: 32),
+                                      ),
+                                    Positioned(
+                                      left: 0,
+                                      right: 0,
+                                      bottom: 0,
+                                      child: Container(
+                                        padding: const EdgeInsets.fromLTRB(
+                                            8, 28, 8, 8),
+                                        decoration: BoxDecoration(
+                                          gradient: LinearGradient(
+                                            begin: Alignment.topCenter,
+                                            end: Alignment.bottomCenter,
+                                            colors: [
+                                              Colors.transparent,
+                                              Colors.black
+                                                  .withValues(alpha: 0.75),
+                                            ],
+                                          ),
+                                        ),
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              l.blurred
+                                                  ? 'Liked you'
+                                                  : (l.username ?? 'Someone'),
+                                              textAlign: TextAlign.center,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.w700,
+                                                fontSize: 13,
+                                              ),
+                                            ),
+                                            if (!l.blurred &&
+                                                (canLikeBackIncoming ||
+                                                    l.canLikeBack)) ...[
+                                              const SizedBox(height: 6),
+                                              SizedBox(
+                                                height: 32,
+                                                child: FilledButton.tonal(
+                                                  style: FilledButton.styleFrom(
+                                                    backgroundColor: SpyceColors
+                                                        .pink
+                                                        .withValues(alpha: 0.9),
+                                                    foregroundColor:
+                                                        Colors.white,
+                                                    padding: const EdgeInsets
+                                                        .symmetric(
+                                                      horizontal: 10,
+                                                    ),
+                                                    textStyle: const TextStyle(
+                                                      fontSize: 12,
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                    ),
+                                                  ),
+                                                  onPressed: () =>
+                                                      _likeBackIncoming(l),
+                                                  child:
+                                                      const Text('Like back'),
+                                                ),
+                                              ),
+                                            ] else if (!l.blurred) ...[
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                'Tap for full profile',
+                                                style: TextStyle(
+                                                  color: Colors.white
+                                                      .withValues(alpha: 0.7),
+                                                  fontSize: 10,
+                                                ),
+                                              ),
+                                            ],
                                           ],
-                                          begin: Alignment.topLeft,
-                                          end: Alignment.bottomRight,
                                         ),
                                       ),
                                     ),
-                                  if (l.blurred)
-                                    const Center(
-                                      child: Icon(Icons.lock_outline,
-                                          color: Colors.white70, size: 32),
-                                    ),
-                                  Positioned(
-                                    left: 8,
-                                    right: 8,
-                                    bottom: 8,
-                                    child: Text(
-                                      l.blurred
-                                          ? 'Liked you'
-                                          : (l.username ?? 'Someone'),
-                                      textAlign: TextAlign.center,
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                             );
                           },
@@ -502,9 +624,9 @@ class _ConversationsPageState extends ConsumerState<ConversationsPage> {
                             const SizedBox(height: 2),
                             Text(
                               likesCount > 0
-                                  ? (likesPremium
-                                      ? 'Tap to see them'
-                                      : 'Tap to preview · upgrade to reveal')
+                                  ? (canViewFullLikeProfiles
+                                      ? 'See full profiles · like back to match'
+                                      : 'Tap to see them')
                                   : 'You’ll see likes here when you get them',
                               style: const TextStyle(
                                 color: SpyceColors.dark100,
