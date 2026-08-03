@@ -375,9 +375,14 @@ class FeedProfile {
   List<ProfileImage> get galleryImages =>
       hasUserPhotos ? images : const [];
 
+  /// Prefer display name (`name` / first_name); username is a locked handle.
   String get displayName {
-    if (username != null && username!.isNotEmpty) return username!;
-    if (firstName != null && firstName!.isNotEmpty) return firstName!;
+    if (firstName != null && firstName!.trim().isNotEmpty) {
+      return firstName!.trim();
+    }
+    if (username != null && username!.trim().isNotEmpty) {
+      return username!.trim();
+    }
     return 'Someone';
   }
 

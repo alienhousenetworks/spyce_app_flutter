@@ -106,6 +106,7 @@ class _FeedProfileCardState extends ConsumerState<FeedProfileCard> {
                         selected: _photoIdx,
                         onSelect: (i) => setState(() => _photoIdx = i),
                         username: viewerUsername,
+                        intent: p.intent,
                       ),
                     _FeedPage.details => _DetailsPage(profile: p),
                     _FeedPage.turnOns => _TurnOnsPage(profile: p),
@@ -140,6 +141,16 @@ class _MoodChips extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        Text(
+          'Current mood',
+          style: GoogleFonts.dmSans(
+            color: SpyceColors.white.withValues(alpha: 0.75),
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.4,
+          ),
+        ),
+        const SizedBox(height: 6),
         Wrap(
           alignment: WrapAlignment.center,
           spacing: 6,
@@ -150,10 +161,10 @@ class _MoodChips extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
-                  color: SpyceColors.pink.withValues(alpha: 0.28),
+                  color: SpyceColors.pink.withValues(alpha: 0.32),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: SpyceColors.pinkSoft.withValues(alpha: 0.55),
+                    color: SpyceColors.pinkSoft.withValues(alpha: 0.65),
                   ),
                 ),
                 child: Row(
@@ -166,7 +177,7 @@ class _MoodChips extends StatelessWidget {
                       style: GoogleFonts.dmSans(
                         color: Colors.white,
                         fontSize: 12,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ],
@@ -175,6 +186,58 @@ class _MoodChips extends StatelessWidget {
           ],
         ),
       ],
+    );
+  }
+}
+
+/// Intent chip (used on photos / details pages).
+class _IntentChip extends StatelessWidget {
+  const _IntentChip({
+    required this.intent,
+    this.onDark = true,
+  });
+
+  final String intent;
+  final bool onDark;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = intent.trim();
+    if (text.isEmpty) return const SizedBox.shrink();
+    final bg = onDark
+        ? SpyceColors.white.withValues(alpha: 0.16)
+        : SpyceColors.pink.withValues(alpha: 0.12);
+    final fg = onDark ? SpyceColors.white : SpyceColors.dark900;
+    final border = onDark
+        ? SpyceColors.white.withValues(alpha: 0.35)
+        : SpyceColors.pink.withValues(alpha: 0.35);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: border),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.flag_outlined, size: 14, color: fg),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.dmSans(
+                color: fg,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -319,9 +382,9 @@ class _HeroPage extends StatelessWidget {
                           lastSeen: p.lastSeen,
                           lastActiveAt: p.lastActiveAt,
                         ),
-                        // Active moods on first page (same as web feed mood badge)
+                        // Current mood on first page (Discover hero)
                         if (p.moods.isNotEmpty) ...[
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 10),
                           _MoodChips(moods: p.moods),
                         ],
                         // Hero: city + privacy-bucketed distance (e.g. "Mumbai · ~15 km")
@@ -635,7 +698,7 @@ class _AvatarPlaceholder extends StatelessWidget {
   }
 }
 
-// ── Page 2: Photos ───────────────────────────────────────────
+// ── Page 2: Photos (+ intent when this is the second swipe page) ─
 
 class _PhotosPage extends StatelessWidget {
   const _PhotosPage({
@@ -643,20 +706,45 @@ class _PhotosPage extends StatelessWidget {
     required this.selected,
     required this.onSelect,
     this.username,
+    this.intent,
   });
 
   final List<ProfileImage> images;
   final int selected;
   final ValueChanged<int> onSelect;
   final String? username;
+  final String? intent;
 
   @override
   Widget build(BuildContext context) {
     final current = images[selected.clamp(0, images.length - 1)];
+    final intentLabel = intent?.trim();
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
       child: Column(
         children: [
+          if (intentLabel != null && intentLabel.isNotEmpty) ...[
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Intent',
+                    style: GoogleFonts.dmSans(
+                      color: SpyceColors.white.withValues(alpha: 0.7),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  _IntentChip(intent: intentLabel, onDark: true),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
           Expanded(
             child: Container(
               width: double.infinity,
@@ -767,6 +855,20 @@ class _DetailsPage extends StatelessWidget {
                         color: SpyceColors.dark900,
                       ),
                     ),
+                    if (p.intent != null && p.intent!.trim().isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Text(
+                        'Intent',
+                        style: GoogleFonts.dmSans(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 11,
+                          color: SpyceColors.dark300,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      _IntentChip(intent: p.intent!, onDark: false),
+                    ],
                     if (p.height != null) ...[
                       const SizedBox(height: 6),
                       Text(p.height!,

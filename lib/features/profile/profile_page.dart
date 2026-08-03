@@ -1917,12 +1917,26 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                       _EditTile(
                         label: 'Username',
                         value: p?.username != null ? '@${p!.username}' : '—',
-                        onTap: () => _editText(title: 'Username', field: 'username', initial: p?.username),
+                        subtitle: 'Locked — set at signup',
+                        locked: true,
+                        onTap: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Username cannot be changed. You can update your display name instead.',
+                              ),
+                            ),
+                          );
+                        },
                       ),
                       _EditTile(
                         label: 'Display Name',
                         value: p?.name ?? '—',
-                        onTap: () => _editText(title: 'Display Name', field: 'name', initial: p?.name),
+                        onTap: () => _editText(
+                          title: 'Display Name',
+                          field: 'name',
+                          initial: p?.name,
+                        ),
                       ),
                       _EditTile(
                         label: 'Gender',
