@@ -118,10 +118,13 @@ class CallController extends StateNotifier<CallUiState> {
   bool _peerReady = false;
   bool _listening = false;
   int _delayedTurnMs = 3500;
+  /// Matches backend RING_TIMEOUT_SECONDS — auto hang-up if no answer.
+  static const ringTimeout = Duration(seconds: 90); // 1.5 minutes
   Timer? _turnTimer;
   Timer? _heartbeat;
   Timer? _durationTimer;
   Timer? _failedDismissTimer;
+  Timer? _ringTimer;
   final _pendingRemoteCandidates = <RTCIceCandidate>[];
   Map<String, dynamic>? _pendingOffer;
   DateTime? _connectedAt;
@@ -215,6 +218,7 @@ class CallController extends StateNotifier<CallUiState> {
         'call_type': kind == CallKind.video ? 'VIDEO' : 'VOICE',
       });
       state = state.copyWith(phase: CallPhase.ringing, statusText: 'Ringing…');
+      _startRingTimeout();
     } catch (e, st) {
       debugPrint('[CALL] start failed: $e\n$st');
       await _teardownMedia();
@@ -230,6 +234,7 @@ class CallController extends StateNotifier<CallUiState> {
       _showFailed('Missing call id — cannot accept');
       return;
     }
+    _cancelRingTimeout();
     _acceptInFlight = true;
     final kind = state.kind;
 
@@ -301,6 +306,7 @@ class CallController extends StateNotifier<CallUiState> {
     _failedDismissTimer?.cancel();
     _turnTimer?.cancel();
     _durationTimer?.cancel();
+    _cancelRingTimeout();
     _acceptInFlight = false;
     _pendingOffer = null;
 
@@ -320,6 +326,34 @@ class CallController extends StateNotifier<CallUiState> {
   void dismissFailed() {
     _failedDismissTimer?.cancel();
     state = const CallUiState().copyWith(renderersReady: _renderersReady);
+  }
+
+  void _cancelRingTimeout() {
+    _ringTimer?.cancel();
+    _ringTimer = null;
+  }
+
+  /// Auto hang-up if peer never answers within 1.5 minutes.
+  void _startRingTimeout({Duration? duration}) {
+    _cancelRingTimeout();
+    final d = duration ?? ringTimeout;
+    _ringTimer = Timer(d, () {
+      _ringTimer = null;
+      if (state.phase != CallPhase.ringing &&
+          state.phase != CallPhase.incoming) {
+        return;
+      }
+      final wasIncoming = state.phase == CallPhase.incoming;
+      debugPrint('[CALL] ring timeout (1.5 min) — no answer');
+      unawaited(() async {
+        await hangup(reason: 'no_answer', silent: true);
+        _showFailed(
+          wasIncoming
+              ? 'Missed call — ring timed out'
+              : 'No answer after 1.5 minutes',
+        );
+      }());
+    });
   }
 
   void _showFailed(String message) {
@@ -442,6 +476,14 @@ class CallController extends StateNotifier<CallUiState> {
             phase: CallPhase.ringing,
             statusText: 'Ringing…',
           );
+          final ringSec = int.tryParse(
+            data['ring_timeout_seconds']?.toString() ?? '',
+          );
+          _startRingTimeout(
+            duration: ringSec != null
+                ? Duration(seconds: ringSec)
+                : ringTimeout,
+          );
         case 'call.incoming':
           final ct = (data['call_type'] ?? 'VOICE').toString().toUpperCase();
           // Don't interrupt an active call with a second ring
@@ -461,11 +503,20 @@ class CallController extends StateNotifier<CallUiState> {
                 'Incoming ${ct.contains('VIDEO') ? 'video' : 'voice'} call',
             clearError: true,
           );
+          final inRingSec = int.tryParse(
+            data['ring_timeout_seconds']?.toString() ?? '',
+          );
+          _startRingTimeout(
+            duration: inRingSec != null
+                ? Duration(seconds: inRingSec)
+                : ringTimeout,
+          );
           // Socket should already be open via startListening
           unawaited(_connectSignaling().catchError((e) {
             debugPrint('[CALL] ensure socket on incoming: $e');
           }));
         case 'call.accepted':
+          _cancelRingTimeout();
           state = state.copyWith(
             callId: data['call_id']?.toString() ?? state.callId,
             statusText: 'Accepted — negotiating…',
@@ -489,12 +540,19 @@ class CallController extends StateNotifier<CallUiState> {
           if (endedId == null ||
               state.callId == null ||
               endedId == state.callId) {
-            unawaited(
-              hangup(
-                reason: data['reason']?.toString() ?? 'remote_end',
-                silent: true,
-              ),
-            );
+            final reason = data['reason']?.toString() ?? 'remote_end';
+            final wasIncoming = state.phase == CallPhase.incoming;
+            final wasRinging = state.phase == CallPhase.ringing;
+            unawaited(() async {
+              await hangup(reason: reason, silent: true);
+              if (reason == 'no_answer' && (wasIncoming || wasRinging)) {
+                _showFailed(
+                  wasIncoming
+                      ? 'Missed call — ring timed out'
+                      : 'No answer after 1.5 minutes',
+                );
+              }
+            }());
           }
         case 'call.signal':
           // Full wrapper (if not unwrapped)
@@ -946,6 +1004,7 @@ class CallController extends StateNotifier<CallUiState> {
     _heartbeat?.cancel();
     _durationTimer?.cancel();
     _turnTimer?.cancel();
+    _cancelRingTimeout();
     unawaited(_teardownMedia());
     unawaited(_wsSub?.cancel());
     try {

@@ -72,14 +72,17 @@ class AuthRepository {
   Future<Map<String, dynamic>> requestOtp(
     String email, {
     String? intent,
+    String? captchaToken,
   }) async {
     final deviceId = await _storage.getOrCreateDeviceId();
+    final token = captchaToken?.trim();
     final data = await _api.post<dynamic>(
       '/auth/register/',
       data: {
         'email': email,
         'device_id': deviceId,
         if (intent != null) 'intent': intent,
+        if (token != null && token.isNotEmpty) 'captcha_token': token,
       },
     );
     return _asMap(data);
@@ -110,14 +113,17 @@ class AuthRepository {
   Future<Map<String, dynamic>> resendOtp(
     String email, {
     String? intent,
+    String? captchaToken,
   }) async {
     final deviceId = await _storage.getOrCreateDeviceId();
+    final token = captchaToken?.trim();
     final data = await _api.post<dynamic>(
       '/auth/otp/resend/',
       data: {
         'email': email,
         'device_id': deviceId,
         if (intent != null) 'intent': intent,
+        if (token != null && token.isNotEmpty) 'captcha_token': token,
       },
     );
     return _asMap(data);

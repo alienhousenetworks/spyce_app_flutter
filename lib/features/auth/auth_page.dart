@@ -5,8 +5,10 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../core/config/env.dart';
 import '../../core/theme/spyce_colors.dart';
 import '../../shared/widgets/spyce_widgets.dart';
+import '../../shared/widgets/turnstile_widget.dart';
 import 'auth_controller.dart';
 
 class AuthPage extends ConsumerWidget {
@@ -76,7 +78,11 @@ class AuthPage extends ConsumerWidget {
                                 initialEmail: email,
                                 onBack: ctrl.goBackToWelcome,
                                 onSwitchMode: ctrl.switchMode,
-                                onSendOtp: (value) => ctrl.requestOtp(value),
+                                onSendOtp: (value, captchaToken) =>
+                                    ctrl.requestOtp(
+                                  value,
+                                  captchaToken: captchaToken,
+                                ),
                               ),
                             AuthStep.otp => _OtpStep(
                                 key: const ValueKey('otp'),
@@ -86,7 +92,9 @@ class AuthPage extends ConsumerWidget {
                                 error: error,
                                 message: message,
                                 onBack: ctrl.goBackToEmail,
-                                onResend: ctrl.resendOtp,
+                                onResend: (captchaToken) => ctrl.resendOtp(
+                                  captchaToken: captchaToken,
+                                ),
                                 onVerify: (otp) async {
                                   final ok = await ctrl.verifyOtp(otp);
                                   if (!context.mounted || !ok) return;
@@ -242,7 +250,7 @@ class _EmailStep extends StatefulWidget {
   final String initialEmail;
   final VoidCallback onBack;
   final VoidCallback onSwitchMode;
-  final Future<bool> Function(String email) onSendOtp;
+  final Future<bool> Function(String email, String? captchaToken) onSendOtp;
 
   @override
   State<_EmailStep> createState() => _EmailStepState();
@@ -251,6 +259,9 @@ class _EmailStep extends StatefulWidget {
 class _EmailStepState extends State<_EmailStep> {
   late final TextEditingController _emailCtrl;
   late final FocusNode _focusNode;
+  String? _captchaToken;
+  int _turnstileReset = 0;
+  String? _localError;
 
   @override
   void initState() {
@@ -268,12 +279,28 @@ class _EmailStepState extends State<_EmailStep> {
 
   Future<void> _submit() async {
     FocusScope.of(context).unfocus();
-    await widget.onSendOtp(_emailCtrl.text);
+    if (Env.turnstileEnabled &&
+        (_captchaToken == null || _captchaToken!.isEmpty)) {
+      setState(() => _localError = 'Please complete the captcha first.');
+      return;
+    }
+    setState(() => _localError = null);
+    final ok = await widget.onSendOtp(_emailCtrl.text, _captchaToken);
+    if (!mounted) return;
+    // Token is single-use — always mint a fresh challenge after attempt.
+    setState(() {
+      _captchaToken = null;
+      _turnstileReset++;
+    });
+    if (!ok && Env.turnstileEnabled) {
+      // Keep local error only if backend didn't set one (shown via widget.error).
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final isSignUp = widget.mode == AuthMode.signUp;
+    final showError = _localError ?? widget.error;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -320,10 +347,33 @@ class _EmailStepState extends State<_EmailStep> {
           ),
           onSubmitted: (_) => _submit(),
         ),
-        if (widget.error != null) ...[
+        if (Env.turnstileEnabled) ...[
+          const SizedBox(height: 16),
+          TurnstileWidget(
+            resetKey: _turnstileReset,
+            onTokenReceived: (token) {
+              setState(() {
+                _captchaToken = token;
+                _localError = null;
+              });
+            },
+            onExpired: () {
+              setState(() {
+                _captchaToken = null;
+                _localError = 'Captcha expired — complete it again.';
+              });
+            },
+            onError: () {
+              setState(() {
+                _captchaToken = null;
+              });
+            },
+          ),
+        ],
+        if (showError != null) ...[
           const SizedBox(height: 12),
           Text(
-            widget.error!,
+            showError,
             style: const TextStyle(color: Color(0xFFFF6B81)),
           ),
         ],
@@ -374,7 +424,7 @@ class _OtpStep extends StatefulWidget {
   final String? error;
   final String? message;
   final VoidCallback onBack;
-  final Future<void> Function() onResend;
+  final Future<void> Function(String? captchaToken) onResend;
   final Future<void> Function(String otp) onVerify;
 
   @override
@@ -384,6 +434,9 @@ class _OtpStep extends StatefulWidget {
 class _OtpStepState extends State<_OtpStep> {
   late final TextEditingController _otpCtrl;
   late final FocusNode _focusNode;
+  String? _captchaToken;
+  int _turnstileReset = 0;
+  String? _localError;
 
   @override
   void initState() {
@@ -404,8 +457,27 @@ class _OtpStepState extends State<_OtpStep> {
     await widget.onVerify(_otpCtrl.text);
   }
 
+  Future<void> _resend() async {
+    if (Env.turnstileEnabled &&
+        (_captchaToken == null || _captchaToken!.isEmpty)) {
+      setState(
+        () => _localError = 'Complete the captcha, then resend the code.',
+      );
+      return;
+    }
+    setState(() => _localError = null);
+    await widget.onResend(_captchaToken);
+    if (!mounted) return;
+    // Token is single-use — refresh challenge for a later resend.
+    setState(() {
+      _captchaToken = null;
+      _turnstileReset++;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    final showError = _localError ?? widget.error;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -455,10 +527,41 @@ class _OtpStepState extends State<_OtpStep> {
           ),
           onSubmitted: (_) => _submit(),
         ),
-        if (widget.error != null) ...[
+        if (Env.turnstileEnabled) ...[
+          const SizedBox(height: 16),
+          Text(
+            'Captcha required only if you resend the code',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: SpyceColors.dark200,
+              fontSize: 12,
+              height: 1.3,
+            ),
+          ),
+          const SizedBox(height: 8),
+          TurnstileWidget(
+            resetKey: _turnstileReset,
+            onTokenReceived: (token) {
+              setState(() {
+                _captchaToken = token;
+                _localError = null;
+              });
+            },
+            onExpired: () {
+              setState(() {
+                _captchaToken = null;
+                _localError = 'Captcha expired — complete it again to resend.';
+              });
+            },
+            onError: () {
+              setState(() => _captchaToken = null);
+            },
+          ),
+        ],
+        if (showError != null) ...[
           const SizedBox(height: 12),
           Text(
-            widget.error!,
+            showError,
             style: const TextStyle(color: Color(0xFFFF6B81)),
           ),
         ],
@@ -479,7 +582,7 @@ class _OtpStepState extends State<_OtpStep> {
         ),
         const SizedBox(height: 12),
         TextButton(
-          onPressed: widget.loading ? null : widget.onResend,
+          onPressed: widget.loading ? null : _resend,
           child: const Text(
             'Resend code',
             style: TextStyle(color: SpyceColors.pinkSoft),

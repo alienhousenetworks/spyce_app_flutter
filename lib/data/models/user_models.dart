@@ -80,7 +80,8 @@ class AuthUser {
               profile?['first_name'] ??
               profile?['name'])
           ?.toString(),
-      isNew: json['is_new'] == true,
+      // Backend verify payload uses is_new_user; older clients used is_new
+      isNew: json['is_new_user'] == true || json['is_new'] == true,
     );
   }
 }

@@ -2,7 +2,7 @@
 ///
 /// Assets live in `assets/backgrounds/` (copied from SpyceBgs/SVGs).
 ///
-/// ## Background idea catalog (API codes B01–B11)
+/// ## Background idea catalog (API codes B01–B12)
 ///
 /// | Code | Idea              | SVG family                          |
 /// |------|-------------------|-------------------------------------|
@@ -17,6 +17,7 @@
 /// | B09  | Bi Splash         | falls back to Tri / Hex             |
 /// | B10  | Simple Flame Grid | Flame*                              |
 /// | B11  | Octagon Splash    | Hex / Square fallback               |
+/// | B12  | Spyder Splash     | SpyderSpyce / Cool / Warm           |
 ///
 /// Palette variants use suffixes: `-spyce`, `-cool`, `-warm` (and named colors).
 abstract final class FeedBackgrounds {
@@ -52,6 +53,11 @@ abstract final class FeedBackgrounds {
     'trisplashspyce': '$_base/TriSplashSpyce.svg',
     'trisplashcool': '$_base/TriSplashCool.svg',
     'trisplashwarm': '$_base/TriSplashWarm.svg',
+    // ── Spyder family (B12) ──────────────────────────────────────
+    'spyder': '$_base/SpyderSpyce.svg',
+    'spyderspyce': '$_base/SpyderSpyce.svg',
+    'spydercool': '$_base/SpyderCool.svg',
+    'spyderwarm': '$_base/SpyderWarm.svg',
 
     // ── Stable API bg_id (family → default SVG) ──────────────────
     'b01': '$_base/FlameSpyce.svg',
@@ -65,6 +71,7 @@ abstract final class FeedBackgrounds {
     'b09': '$_base/TriSplashCool.svg',
     'b10': '$_base/FlameCool.svg',
     'b11': '$_base/HexSplashWarm.svg',
+    'b12': '$_base/SpyderSpyce.svg',
 
     // ── Variant codes (B0x-palette) ──────────────────────────────
     // B01 Flame Wave
@@ -129,6 +136,10 @@ abstract final class FeedBackgrounds {
     'b11peach': '$_base/HexSplashWarm.svg',
     'b11lavender': '$_base/HexSplashCool.svg',
     'b11mint': '$_base/HexSplashSpyce.svg',
+    // B12 Spyder Splash (3 SVGs only)
+    'b12spyce': '$_base/SpyderSpyce.svg',
+    'b12cool': '$_base/SpyderCool.svg',
+    'b12warm': '$_base/SpyderWarm.svg',
   };
 
   /// All shipped SVG assets (picker order).
@@ -153,6 +164,9 @@ abstract final class FeedBackgrounds {
     '$_base/TriSplashCool.svg',
     '$_base/TriSplashSpyce.svg',
     '$_base/TriSplashWarm.svg',
+    '$_base/SpyderCool.svg',
+    '$_base/SpyderSpyce.svg',
+    '$_base/SpyderWarm.svg',
   ];
 
   /// Human-readable idea labels for pickers / debug.
@@ -168,6 +182,7 @@ abstract final class FeedBackgrounds {
     'B09': 'Bi Splash',
     'B10': 'Simple Flame Grid',
     'B11': 'Octagon Splash',
+    'B12': 'Spyder Splash',
   };
 
   /// Resolve SVG path for a feed profile theme.

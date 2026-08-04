@@ -1,19 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/network/api_exception.dart';
 import '../../core/theme/spyce_colors.dart';
+import '../../core/utils/language_labels.dart';
+import '../../core/utils/onboarding.dart';
 import '../../data/models/user_models.dart';
 import '../../data/repositories/api_repositories.dart';
+import '../../shared/widgets/language_picker.dart';
 import '../../shared/widgets/spyce_widgets.dart';
 import '../auth/auth_controller.dart';
 
 /// First-time user creation — all core steps are mandatory (no skip).
 ///
-/// 1 Username + age (DOB) · 2 Gender / sexuality / preferred · 3 Bio ·
-/// 4 Live face verification (mock bypass for now)
+/// 1 Username + age · 2 Gender / sexuality / preferred · 3 Languages ·
+/// 4 Bio · 5 Live face verification (mock bypass for now)
+///
+/// Returning users with core fields already set are redirected out immediately
+/// (gender is immutable server-side once set).
 class OnboardingPage extends ConsumerStatefulWidget {
   const OnboardingPage({super.key});
 
@@ -22,7 +29,7 @@ class OnboardingPage extends ConsumerStatefulWidget {
 }
 
 class _OnboardingPageState extends ConsumerState<OnboardingPage> {
-  static const _totalSteps = 4;
+  static const _totalSteps = 5;
   static const _minBioLen = 20;
 
   int step = 1;
@@ -39,9 +46,15 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
   String? gender;
   String? sexuality;
   final preferredGenders = <String>{};
+  final selectedLanguageIds = <String>{};
+
+  /// When true, gender was already locked on the server — do not PATCH it.
+  bool genderLocked = false;
+  bool sexualityLocked = false;
 
   List<CatalogOption> genderOpts = [];
   List<CatalogOption> sexualityOpts = [];
+  List<CatalogOption> languageOpts = [];
 
   @override
   void initState() {
@@ -51,15 +64,68 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
 
   Future<void> _load() async {
     final opts = ref.read(optionsRepositoryProvider);
+    final profileRepo = ref.read(profileRepositoryProvider);
     try {
-      final results = await Future.wait([
+      final results = await Future.wait<Object?>([
         opts.genders(),
         opts.sexualities(),
+        opts.languages(),
+        () async {
+          try {
+            return await profileRepo.getMyProfile();
+          } catch (_) {
+            return null;
+          }
+        }(),
       ]);
       if (!mounted) return;
+
+      final profile = results[3] as UserProfile?;
+
+      // Existing account already finished signup → enter app, never re-signup
+      if (isProfileOnboarded(profile)) {
+        ref.read(authControllerProvider.notifier).markOnboardingComplete(
+              username: profile?.username,
+            );
+        if (!mounted) return;
+        context.go('/app/discover');
+        return;
+      }
+
       setState(() {
-        genderOpts = results[0];
-        sexualityOpts = results[1];
+        genderOpts = results[0] as List<CatalogOption>;
+        sexualityOpts = results[1] as List<CatalogOption>;
+        languageOpts = results[2] as List<CatalogOption>;
+        LanguageLabels.setCatalog(languageOpts);
+
+        // Prefill any partial profile (e.g. username set, gender locked mid-flow)
+        if (profile != null) {
+          final u = profile.username?.trim();
+          if (u != null && u.isNotEmpty) usernameCtrl.text = u;
+          final dob = profile.dateOfBirth?.trim();
+          if (dob != null && dob.isNotEmpty) {
+            // API may return ISO datetime — keep YYYY-MM-DD for the field
+            dobCtrl.text = dob.length >= 10 ? dob.substring(0, 10) : dob;
+          }
+          final b = profile.bio?.trim();
+          if (b != null && b.isNotEmpty) bioCtrl.text = b;
+
+          if (profile.genderId != null && profile.genderId!.isNotEmpty) {
+            gender = profile.genderId;
+            genderLocked = true;
+          }
+          if (profile.sexualityId != null && profile.sexualityId!.isNotEmpty) {
+            sexuality = profile.sexualityId;
+            sexualityLocked = true;
+          }
+          preferredGenders
+            ..clear()
+            ..addAll(profile.preferredGenderIds);
+          selectedLanguageIds
+            ..clear()
+            ..addAll(profile.languageIds);
+        }
+
         loadingOpts = false;
       });
     } catch (_) {
@@ -80,7 +146,6 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
     return RegExp(r'^[a-zA-Z0-9._]{3,30}$').hasMatch(u);
   }
 
-  /// Returns age in full years, or null if DOB invalid / under 18.
   int? _ageFromDob(String raw) {
     final d = DateTime.tryParse(raw.trim());
     if (d == null) return null;
@@ -153,6 +218,18 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
         return;
       }
     } else if (step == 3) {
+      if (languageOpts.isEmpty) {
+        setState(() {
+          error =
+              'Language options failed to load. Reconnect and try again — cannot skip.';
+        });
+        return;
+      }
+      if (selectedLanguageIds.isEmpty) {
+        setState(() => error = 'Select at least one language you speak.');
+        return;
+      }
+    } else if (step == 4) {
       final bio = bioCtrl.text.trim();
       if (bio.isEmpty) {
         setState(() => error = 'Bio is required. Cannot skip.');
@@ -165,7 +242,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
         });
         return;
       }
-    } else if (step == 4) {
+    } else if (step == 5) {
       if (!faceVerified) {
         setState(() {
           error = 'Complete face verification to continue. Cannot skip.';
@@ -179,7 +256,6 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
     setState(() => step++);
   }
 
-  /// Mock live face verification (dev bypass of real liveness).
   Future<void> _runMockFaceVerification() async {
     if (verifying || faceVerified) return;
     setState(() {
@@ -211,8 +287,6 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
         ),
       );
     } on ApiException catch (e) {
-      // If mock is disabled server-side, still allow local mock for UI flow
-      // only when message indicates production lock — surface the error.
       if (!mounted) return;
       setState(() {
         verifying = false;
@@ -235,22 +309,74 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
       return;
     }
     setState(() => submitting = true);
+    final uname = usernameCtrl.text.trim().toLowerCase();
+    final langNames = LanguageLabels.namesForSave(selectedLanguageIds);
+
+    // Never PATCH immutable identity fields once the server has them —
+    // backend rejects with "Gender cannot be changed once set."
+    final payload = <String, dynamic>{
+      'username': uname,
+      'date_of_birth': dobCtrl.text.trim(),
+      'preferred_genders': preferredGenders.toList(),
+      'languages': langNames,
+      'bio': bioCtrl.text.trim(),
+    };
+    if (!genderLocked && gender != null) {
+      payload['gender'] = gender;
+    }
+    if (!sexualityLocked && sexuality != null) {
+      payload['sexuality'] = sexuality;
+    }
+
     try {
-      final uname = usernameCtrl.text.trim().toLowerCase();
-      await ref.read(profileRepositoryProvider).updateMyProfile({
-        'username': uname,
-        'date_of_birth': dobCtrl.text.trim(),
-        'gender': gender,
-        'sexuality': sexuality,
-        'preferred_genders': preferredGenders.toList(),
-        'bio': bioCtrl.text.trim(),
-      });
+      await ref.read(profileRepositoryProvider).updateMyProfile(payload);
       ref
           .read(authControllerProvider.notifier)
           .markOnboardingComplete(username: uname);
       if (!mounted) return;
       context.go('/app/discover');
     } on ApiException catch (e) {
+      final msg = e.message.toLowerCase();
+      final genderImmutable = msg.contains('gender cannot be changed') ||
+          msg.contains('gender cannot be removed');
+      final sexualityImmutable = msg.contains('sexuality cannot be changed') ||
+          msg.contains('sexuality cannot be removed');
+
+      // Retry without immutable fields (returning account mid-signup path).
+      if (genderImmutable || sexualityImmutable) {
+        try {
+          final retry = Map<String, dynamic>.from(payload);
+          if (genderImmutable) {
+            retry.remove('gender');
+            genderLocked = true;
+          }
+          if (sexualityImmutable) {
+            retry.remove('sexuality');
+            sexualityLocked = true;
+          }
+          await ref.read(profileRepositoryProvider).updateMyProfile(retry);
+          ref
+              .read(authControllerProvider.notifier)
+              .markOnboardingComplete(username: uname);
+          if (!mounted) return;
+          context.go('/app/discover');
+          return;
+        } catch (_) {
+          // Fall through: if profile already complete, just enter app
+          try {
+            final profile =
+                await ref.read(profileRepositoryProvider).getMyProfile();
+            if (isProfileOnboarded(profile)) {
+              ref.read(authControllerProvider.notifier).markOnboardingComplete(
+                    username: profile.username ?? uname,
+                  );
+              if (!mounted) return;
+              context.go('/app/discover');
+              return;
+            }
+          } catch (_) {}
+        }
+      }
       setState(() {
         error = e.message;
         submitting = false;
@@ -263,144 +389,332 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
     }
   }
 
+  String get _title => switch (step) {
+        1 => 'Who are you?',
+        2 => 'Identity',
+        3 => 'Languages you speak',
+        4 => 'Your bio',
+        _ => 'Face verification',
+      };
+
+  String get _subtitle => switch (step) {
+        1 => 'Username and age are required — not skippable.',
+        2 => 'Gender, sexuality, and who you want to meet — all required.',
+        3 => 'Pick popular languages, or search if yours isn’t listed.',
+        4 => 'Write a short bio (min $_minBioLen characters). Required.',
+        _ => 'Live face check builds trust. Required to finish signup.',
+      };
+
   @override
   Widget build(BuildContext context) {
-    return SpyceGradientScaffold(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-      child: loadingOpts
-          ? const Center(
-              child: CircularProgressIndicator(color: SpyceColors.pink),
-            )
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const SpyceLogo(size: 28),
-                const SizedBox(height: 16),
-                _Progress(step: step, total: _totalSteps),
-                const SizedBox(height: 8),
-                Text(
-                  'Step $step of $_totalSteps · required',
-                  style: const TextStyle(
-                    color: SpyceColors.dark200,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  switch (step) {
-                    1 => 'Who are you?',
-                    2 => 'Identity',
-                    3 => 'Your bio',
-                    _ => 'Face verification',
-                  },
-                  style: GoogleFonts.syne(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  switch (step) {
-                    1 => 'Username and age are required — not skippable.',
-                    2 =>
-                      'Gender, sexuality, and who you want to meet — all required.',
-                    3 =>
-                      'Write a short bio (min $_minBioLen characters). Required.',
-                    _ =>
-                      'Live face check builds trust. Required to finish signup.',
-                  },
-                  style: const TextStyle(color: SpyceColors.dark100),
-                ),
-                const SizedBox(height: 20),
-                Expanded(
-                  child: SingleChildScrollView(
-                    child: switch (step) {
-                      1 => _IdentityBasics(
-                          usernameCtrl: usernameCtrl,
-                          dobCtrl: dobCtrl,
-                        ),
-                      2 => _IdentityChips(
-                          genderOpts: genderOpts,
-                          sexualityOpts: sexualityOpts,
-                          gender: gender,
-                          sexuality: sexuality,
-                          preferredGenders: preferredGenders,
-                          onGender: (id) => setState(() => gender = id),
-                          onSexuality: (id) => setState(() => sexuality = id),
-                          onPreferredToggle: (id) => setState(() {
-                            if (preferredGenders.contains(id)) {
-                              preferredGenders.remove(id);
-                            } else {
-                              preferredGenders.add(id);
-                            }
-                          }),
-                        ),
-                      3 => _BioStep(
-                          bioCtrl: bioCtrl,
-                          minLen: _minBioLen,
-                          onChanged: () => setState(() {}),
-                        ),
-                      _ => _FaceVerifyStep(
-                          verifying: verifying,
-                          verified: faceVerified,
-                          onVerify: _runMockFaceVerification,
-                        ),
-                    },
-                  ),
-                ),
-                if (error != null) ...[
-                  Text(
-                    error!,
-                    style: const TextStyle(color: Color(0xFFFF6B81)),
-                  ),
-                  const SizedBox(height: 10),
-                ],
-                Row(
-                  children: [
-                    if (step > 1)
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: (submitting || verifying)
-                              ? null
-                              : () => setState(() {
-                                    error = null;
-                                    step--;
-                                  }),
-                          child: const Text('Back'),
-                        ),
-                      ),
-                    if (step > 1) const SizedBox(width: 12),
-                    Expanded(
-                      flex: 2,
-                      child: SpycePrimaryButton(
-                        label: step == _totalSteps
-                            ? (faceVerified
-                                ? 'Enter SPYCE'
-                                : 'Verify face to continue')
-                            : 'Continue',
-                        loading: submitting,
-                        onPressed: (submitting || verifying)
-                            ? null
-                            : () {
-                                if (step == _totalSteps && !faceVerified) {
-                                  _runMockFaceVerification();
-                                } else {
-                                  _next();
-                                }
-                              },
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+    return Scaffold(
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Background pattern + mesh
+          SvgPicture.asset(
+            'assets/backgrounds/HexSplashSpyce.svg',
+            fit: BoxFit.cover,
+            colorFilter: ColorFilter.mode(
+              Colors.black.withValues(alpha: 0.15),
+              BlendMode.dstATop,
             ),
+            errorBuilder: (_, error, stackTrace) => const SizedBox.shrink(),
+          ),
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Color(0xFF1F0A14),
+                  Color(0xFF0D0D0D),
+                  SpyceColors.dark950,
+                ],
+                stops: [0.0, 0.45, 1.0],
+              ),
+            ),
+          ),
+          Positioned(
+            top: -60,
+            left: -40,
+            child: _Orb(
+              size: 260,
+              color: SpyceColors.pink.withValues(alpha: 0.16),
+            ),
+          ),
+          Positioned(
+            bottom: 40,
+            right: -50,
+            child: _Orb(
+              size: 220,
+              color: const Color(0xFFA855F7).withValues(alpha: 0.12),
+            ),
+          ),
+          SafeArea(
+            child: loadingOpts
+                ? const Center(
+                    child: CircularProgressIndicator(color: SpyceColors.pink),
+                  )
+                : Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const SpyceLogo(size: 22),
+                        const SizedBox(height: 16),
+                        _SegmentProgress(step: step, total: _totalSteps),
+                        const SizedBox(height: 14),
+                        Expanded(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF120E16).withValues(alpha: 0.88),
+                              borderRadius: BorderRadius.circular(28),
+                              border: Border.all(
+                                color: SpyceColors.pink.withValues(alpha: 0.18),
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.4),
+                                  blurRadius: 32,
+                                  offset: const Offset(0, 16),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    22, 20, 22, 0,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          'Step $step of $_totalSteps',
+                                          style: GoogleFonts.dmSans(
+                                            color: SpyceColors.dark200,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 5,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: SpyceColors.pink
+                                              .withValues(alpha: 0.12),
+                                          borderRadius:
+                                              BorderRadius.circular(20),
+                                          border: Border.all(
+                                            color: SpyceColors.pink
+                                                .withValues(alpha: 0.28),
+                                          ),
+                                        ),
+                                        child: Text(
+                                          'Required',
+                                          style: GoogleFonts.dmSans(
+                                            color: SpyceColors.pinkSoft,
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    22, 14, 22, 6,
+                                  ),
+                                  child: Text(
+                                    _title,
+                                    style: GoogleFonts.syne(
+                                      fontSize: 26,
+                                      fontWeight: FontWeight.w800,
+                                      height: 1.15,
+                                    ),
+                                  ),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    22, 0, 22, 12,
+                                  ),
+                                  child: Text(
+                                    _subtitle,
+                                    style: GoogleFonts.dmSans(
+                                      color: SpyceColors.dark100,
+                                      fontSize: 13,
+                                      height: 1.45,
+                                    ),
+                                  ),
+                                ),
+                                Expanded(
+                                  child: SingleChildScrollView(
+                                    padding: const EdgeInsets.fromLTRB(
+                                      22, 4, 22, 12,
+                                    ),
+                                    child: switch (step) {
+                                      1 => _IdentityBasics(
+                                          usernameCtrl: usernameCtrl,
+                                          dobCtrl: dobCtrl,
+                                        ),
+                                      2 => _IdentityChips(
+                                          genderOpts: genderOpts,
+                                          sexualityOpts: sexualityOpts,
+                                          gender: gender,
+                                          sexuality: sexuality,
+                                          preferredGenders: preferredGenders,
+                                          onGender: (id) =>
+                                              setState(() => gender = id),
+                                          onSexuality: (id) =>
+                                              setState(() => sexuality = id),
+                                          onPreferredToggle: (id) =>
+                                              setState(() {
+                                            if (preferredGenders
+                                                .contains(id)) {
+                                              preferredGenders.remove(id);
+                                            } else {
+                                              preferredGenders.add(id);
+                                            }
+                                          }),
+                                        ),
+                                      3 => LanguagePicker(
+                                          options: languageOpts,
+                                          selectedIds: selectedLanguageIds,
+                                          onChanged: (ids) => setState(() {
+                                            selectedLanguageIds
+                                              ..clear()
+                                              ..addAll(ids);
+                                          }),
+                                        ),
+                                      4 => _BioStep(
+                                          bioCtrl: bioCtrl,
+                                          minLen: _minBioLen,
+                                          onChanged: () => setState(() {}),
+                                        ),
+                                      _ => _FaceVerifyStep(
+                                          verifying: verifying,
+                                          verified: faceVerified,
+                                          onVerify: _runMockFaceVerification,
+                                        ),
+                                    },
+                                  ),
+                                ),
+                                if (error != null)
+                                  Padding(
+                                    padding: const EdgeInsets.fromLTRB(
+                                      22, 0, 22, 8,
+                                    ),
+                                    child: Text(
+                                      error!,
+                                      style: const TextStyle(
+                                        color: Color(0xFFFF6B81),
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  ),
+                                Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    16, 4, 16, 16,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      if (step > 1)
+                                        Expanded(
+                                          child: OutlinedButton(
+                                            onPressed:
+                                                (submitting || verifying)
+                                                    ? null
+                                                    : () => setState(() {
+                                                          error = null;
+                                                          step--;
+                                                        }),
+                                            style: OutlinedButton.styleFrom(
+                                              foregroundColor:
+                                                  SpyceColors.dark100,
+                                              side: const BorderSide(
+                                                color: SpyceColors.dark500,
+                                              ),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                vertical: 14,
+                                              ),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(14),
+                                              ),
+                                            ),
+                                            child: const Text('Back'),
+                                          ),
+                                        ),
+                                      if (step > 1) const SizedBox(width: 12),
+                                      Expanded(
+                                        flex: 2,
+                                        child: SpycePrimaryButton(
+                                          label: step == _totalSteps
+                                              ? (faceVerified
+                                                  ? 'Enter SPYCE'
+                                                  : 'Verify face to continue')
+                                              : 'Continue',
+                                          loading: submitting,
+                                          onPressed: (submitting || verifying)
+                                              ? null
+                                              : () {
+                                                  if (step == _totalSteps &&
+                                                      !faceVerified) {
+                                                    _runMockFaceVerification();
+                                                  } else {
+                                                    _next();
+                                                  }
+                                                },
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+          ),
+        ],
+      ),
     );
   }
 }
 
-class _Progress extends StatelessWidget {
-  const _Progress({required this.step, required this.total});
+class _Orb extends StatelessWidget {
+  const _Orb({required this.size, required this.color});
+  final double size;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: RadialGradient(
+            colors: [color, color.withValues(alpha: 0)],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SegmentProgress extends StatelessWidget {
+  const _SegmentProgress({required this.step, required this.total});
   final int step;
   final int total;
 
@@ -414,7 +728,12 @@ class _Progress extends StatelessWidget {
             height: 4,
             margin: EdgeInsets.only(right: i == total - 1 ? 0 : 6),
             decoration: BoxDecoration(
-              color: active ? SpyceColors.pink : SpyceColors.dark600,
+              gradient: active
+                  ? const LinearGradient(
+                      colors: [SpyceColors.pink, Color(0xFFC026D3)],
+                    )
+                  : null,
+              color: active ? null : Colors.white.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(4),
             ),
           ),
@@ -587,11 +906,7 @@ class _IdentityChips extends StatelessWidget {
           label: Text(o.emoji != null ? '${o.emoji} ${o.name}' : o.name),
           selected: on,
           onSelected: (_) {
-            if (!multi) {
-              onToggle(o.id);
-            } else {
-              onToggle(o.id);
-            }
+            onToggle(o.id);
           },
           selectedColor: SpyceColors.pinkDim,
           checkmarkColor: SpyceColors.pink,
@@ -673,12 +988,12 @@ class _FaceVerifyStep extends StatelessWidget {
           width: double.infinity,
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
-            color: SpyceColors.dark800,
+            color: Colors.black.withValues(alpha: 0.3),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
               color: verified
                   ? const Color(0xFF34D399).withValues(alpha: 0.5)
-                  : SpyceColors.dark500,
+                  : SpyceColors.pink.withValues(alpha: 0.2),
             ),
           ),
           child: Column(
@@ -699,7 +1014,9 @@ class _FaceVerifyStep extends StatelessWidget {
                   ),
                 ),
                 child: Icon(
-                  verified ? Icons.verified_user : Icons.face_retouching_natural,
+                  verified
+                      ? Icons.verified_user
+                      : Icons.face_retouching_natural,
                   size: 40,
                   color: verified
                       ? const Color(0xFF6EE7B7)
@@ -762,7 +1079,8 @@ class _FaceVerifyStep extends StatelessWidget {
                 const Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.check_circle, color: Color(0xFF34D399), size: 20),
+                    Icon(Icons.check_circle,
+                        color: Color(0xFF34D399), size: 20),
                     SizedBox(width: 8),
                     Text(
                       'Face verified (mock)',

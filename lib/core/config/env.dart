@@ -24,6 +24,24 @@ class Env {
     defaultValue: '',
   );
 
+  /// Cloudflare Turnstile site key (public). Empty = captcha UI off;
+  /// backend also bypasses when TURNSTILE_SECRET_KEY is unset.
+  /// Pass at build: `--dart-define=TURNSTILE_SITE_KEY=0x...`
+  static const String turnstileSiteKey = String.fromEnvironment(
+    'TURNSTILE_SITE_KEY',
+    defaultValue: '',
+  );
+
+  /// Origin used by the Turnstile WebView. Must be an allowed hostname in
+  /// the Turnstile widget settings (e.g. testapi.spycenow.com or spycenow.com).
+  static const String turnstileBaseUrl = String.fromEnvironment(
+    'TURNSTILE_BASE_URL',
+    defaultValue: 'https://testapi.spycenow.com',
+  );
+
+  /// Whether the Flutter auth screens should require a Turnstile token.
+  static bool get turnstileEnabled => turnstileSiteKey.trim().isNotEmpty;
+
   static String chatWs(String conversationId, String ticket) =>
       '$wsBase/chat/$conversationId/?ticket=$ticket';
 

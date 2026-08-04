@@ -17,6 +17,7 @@ import '../../core/utils/language_labels.dart';
 import '../../core/utils/media_url.dart';
 import '../../data/models/user_models.dart';
 import '../../data/repositories/api_repositories.dart';
+import '../../shared/widgets/language_picker.dart';
 import '../../shared/widgets/spyce_widgets.dart';
 import '../../shared/widgets/turn_on_stickers.dart';
 import '../auth/auth_controller.dart';
@@ -821,7 +822,12 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           builder: (ctx, setLocal) {
             return SafeArea(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                padding: EdgeInsets.fromLTRB(
+                  16,
+                  16,
+                  16,
+                  24 + MediaQuery.viewInsetsOf(ctx).bottom,
+                ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -833,31 +839,28 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                         fontWeight: FontWeight.w700,
                       ),
                     ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Popular picks + search for the full catalog',
+                      style: GoogleFonts.dmSans(
+                        color: SpyceColors.dark200,
+                        fontSize: 12,
+                      ),
+                    ),
                     const SizedBox(height: 12),
                     ConstrainedBox(
                       constraints: BoxConstraints(
-                        maxHeight: MediaQuery.of(ctx).size.height * 0.5,
+                        maxHeight: MediaQuery.of(ctx).size.height * 0.55,
                       ),
                       child: SingleChildScrollView(
-                        child: Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: languageOpts.map((o) {
-                            final on = selected.contains(o.id);
-                            return FilterChip(
-                              label: Text(o.name),
-                              selected: on,
-                              onSelected: (v) => setLocal(() {
-                                if (v) {
-                                  selected.add(o.id);
-                                } else {
-                                  selected.remove(o.id);
-                                }
-                              }),
-                              selectedColor: SpyceColors.pinkDim,
-                              checkmarkColor: SpyceColors.pink,
-                            );
-                          }).toList(),
+                        child: LanguagePicker(
+                          options: languageOpts,
+                          selectedIds: selected,
+                          onChanged: (ids) => setLocal(() {
+                            selected
+                              ..clear()
+                              ..addAll(ids);
+                          }),
                         ),
                       ),
                     ),

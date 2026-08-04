@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/network/api_exception.dart';
+import '../../core/utils/onboarding.dart';
 import '../../data/models/user_models.dart';
 import '../../data/repositories/api_repositories.dart';
 
@@ -180,31 +181,57 @@ class AuthController extends StateNotifier<AuthState> {
     state = state.copyWith(user: enriched);
   }
 
+  /// Resolve whether the user already finished first-time signup.
+  /// Prefer session flag + core profile fields; never use only is_discoverable
+  /// (false when paused/hidden → wrongly re-opens signup / gender immutable).
+  Future<bool> _resolveOnboardingComplete({
+    bool? sessionFlag,
+    bool? verifyFlag,
+    UserProfile? profile,
+    bool isNewUser = false,
+  }) async {
+    if (isNewUser) return false;
+    if (verifyFlag == true || sessionFlag == true) return true;
+    if (isProfileOnboarded(profile)) return true;
+
+    UserProfile? p = profile;
+    if (p == null) {
+      try {
+        p = await _profile.getMyProfile();
+      } catch (_) {
+        p = null;
+      }
+    }
+    if (isProfileOnboarded(p)) return true;
+
+    // Explicit false from API only when we have no profile evidence
+    if (verifyFlag == false || sessionFlag == false) {
+      // Still trust core fields if profile loaded mid-check
+      return isProfileOnboarded(p);
+    }
+    return false;
+  }
+
   Future<void> bootstrap() async {
     state = state.copyWith(loading: true);
     try {
       final user = await _auth.getMe();
       if (user != null) {
-        bool? onboarding;
+        bool? sessionFlag;
         UserProfile? profile;
         try {
           final session = await _auth.getSession();
-          onboarding = session?.onboardingComplete;
-          // Always load profile so we get username for media watermarks
-          try {
-            profile = await _profile.getMyProfile();
-            onboarding ??= profile.isDiscoverable;
-          } catch (_) {
-            if (onboarding == null) onboarding = true;
-          }
-        } catch (_) {
-          try {
-            profile = await _profile.getMyProfile();
-            onboarding = profile.isDiscoverable;
-          } catch (_) {
-            onboarding = true;
-          }
-        }
+          sessionFlag = session?.onboardingComplete;
+        } catch (_) {}
+        try {
+          profile = await _profile.getMyProfile();
+        } catch (_) {}
+
+        final onboarding = await _resolveOnboardingComplete(
+          sessionFlag: sessionFlag,
+          profile: profile,
+        );
+
         final enriched = profile != null
             ? user.copyWith(
                 username: (profile.username?.trim().isNotEmpty == true)
@@ -239,7 +266,7 @@ class AuthController extends StateNotifier<AuthState> {
     }
   }
 
-  Future<bool> requestOtp(String email) async {
+  Future<bool> requestOtp(String email, {String? captchaToken}) async {
     final trimmed = email.trim();
     if (trimmed.isEmpty || !trimmed.contains('@')) {
       state = state.copyWith(error: 'Enter a valid email address.');
@@ -253,7 +280,11 @@ class AuthController extends StateNotifier<AuthState> {
     );
     try {
       final intent = state.mode == AuthMode.signUp ? 'signup' : 'login';
-      final data = await _auth.requestOtp(trimmed, intent: intent);
+      final data = await _auth.requestOtp(
+        trimmed,
+        intent: intent,
+        captchaToken: captchaToken,
+      );
       if (data['error'] != null) {
         state = state.copyWith(
           loading: false,
@@ -295,37 +326,51 @@ class AuthController extends StateNotifier<AuthState> {
         );
         return false;
       }
+
+      // Backend: is_new_user (and alias is_new). Never force from UI mode —
+      // choosing "Sign up" with an existing email is blocked server-side;
+      // if login succeeds, treat as returning user regardless of button used.
+      final isNewUser = result.data['is_new_user'] == true ||
+          result.data['is_new'] == true;
+      final verifyOnboarding = result.data['onboarding_complete'] is bool
+          ? result.data['onboarding_complete'] as bool
+          : null;
+
       var user = await _auth.getMe() ??
           AuthUser(
             id: result.data['user_id']?.toString() ?? 'user',
             email: state.email,
-            isNew: result.data['is_new'] == true ||
-                state.mode == AuthMode.signUp,
+            isNew: isNewUser,
           );
+      user = user.copyWith(isNew: isNewUser);
 
-      bool onboarding = false;
+      bool? sessionFlag;
+      UserProfile? profile;
       try {
         final session = await _auth.getSession();
-        onboarding = session?.onboardingComplete ?? false;
-        // Profile has username; /users/me does not
-        user = await _withProfileIdentity(user);
-        if (session == null) {
-          final profile = await _profile.getMyProfile();
-          onboarding = profile.isDiscoverable;
-        }
+        sessionFlag = session?.onboardingComplete;
+      } catch (_) {}
+      try {
+        profile = await _profile.getMyProfile();
+        user = user.copyWith(
+          username: (profile.username?.trim().isNotEmpty == true)
+              ? profile.username!.trim()
+              : user.username,
+          firstName:
+              ((profile.firstName ?? profile.name)?.trim().isNotEmpty == true)
+                  ? (profile.firstName ?? profile.name)!.trim()
+                  : user.firstName,
+        );
       } catch (_) {
-        try {
-          user = await _withProfileIdentity(user);
-          final profile = await _profile.getMyProfile();
-          onboarding = profile.isDiscoverable;
-        } catch (_) {
-          // New sign-ups typically need onboarding
-          onboarding = state.mode == AuthMode.signIn;
-        }
+        user = await _withProfileIdentity(user);
       }
 
-      // Brand-new accounts always go through onboarding when API is silent
-      if (user.isNew) onboarding = false;
+      final onboarding = await _resolveOnboardingComplete(
+        sessionFlag: sessionFlag,
+        verifyFlag: verifyOnboarding,
+        profile: profile,
+        isNewUser: isNewUser,
+      );
 
       state = state.copyWith(
         loading: false,
@@ -345,11 +390,15 @@ class AuthController extends StateNotifier<AuthState> {
     }
   }
 
-  Future<void> resendOtp() async {
+  Future<void> resendOtp({String? captchaToken}) async {
     state = state.copyWith(loading: true, clearError: true);
     try {
       final intent = state.mode == AuthMode.signUp ? 'signup' : 'login';
-      final data = await _auth.resendOtp(state.email.trim(), intent: intent);
+      final data = await _auth.resendOtp(
+        state.email.trim(),
+        intent: intent,
+        captchaToken: captchaToken,
+      );
       state = state.copyWith(
         loading: false,
         message: data['message']?.toString() ?? 'OTP resent',
