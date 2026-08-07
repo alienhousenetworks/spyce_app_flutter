@@ -13,11 +13,16 @@ import '../../data/repositories/api_repositories.dart';
 import '../../shared/widgets/language_picker.dart';
 import '../../shared/widgets/spyce_widgets.dart';
 import '../auth/auth_controller.dart';
+import 'face_liveness_screen.dart';
 
 /// First-time user creation — all core steps are mandatory (no skip).
 ///
 /// 1 Username + age · 2 Gender / sexuality / preferred · 3 Languages ·
-/// 4 Bio · 5 Live face verification (mock bypass for now)
+/// 4 Bio · 5 Live face verification
+///
+/// Face step uses backend `FACE_VERIFICATION`:
+/// - false → mock-complete (dev/staging)
+/// - true  → AWS Rekognition Face Liveness (start → detector → complete)
 ///
 /// Returning users with core fields already set are redirected out immediately
 /// (gender is immutable server-side once set).
@@ -37,6 +42,9 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
   bool submitting = false;
   bool verifying = false;
   bool faceVerified = false;
+  /// null until status is fetched; true = real AWS path
+  bool? faceVerificationEnabled;
+  bool mockMode = true;
   String? error;
 
   final usernameCtrl = TextEditingController();
@@ -77,10 +85,18 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
             return null;
           }
         }(),
+        () async {
+          try {
+            return await ref.read(verificationRepositoryProvider).getConfig();
+          } catch (_) {
+            return null;
+          }
+        }(),
       ]);
       if (!mounted) return;
 
       final profile = results[3] as UserProfile?;
+      final faceCfg = results[4] as FaceVerificationConfig?;
 
       // Existing account already finished signup → enter app, never re-signup
       if (isProfileOnboarded(profile)) {
@@ -97,6 +113,16 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
         sexualityOpts = results[1] as List<CatalogOption>;
         languageOpts = results[2] as List<CatalogOption>;
         LanguageLabels.setCatalog(languageOpts);
+
+        if (faceCfg != null) {
+          faceVerificationEnabled = faceCfg.faceVerification;
+          mockMode = faceCfg.mockMode;
+          if (faceCfg.verified) faceVerified = true;
+        } else {
+          // Safe default: mock until server config is known
+          faceVerificationEnabled = false;
+          mockMode = true;
+        }
 
         // Prefill any partial profile (e.g. username set, gender locked mid-flow)
         if (profile != null) {
@@ -256,6 +282,59 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
     setState(() => step++);
   }
 
+  bool get _useRealFaceLiveness =>
+      faceVerificationEnabled == true && !mockMode;
+
+  Future<void> _runFaceVerification() async {
+    if (verifying || faceVerified) return;
+    if (_useRealFaceLiveness) {
+      await _runRealFaceLiveness();
+    } else {
+      await _runMockFaceVerification();
+    }
+  }
+
+  Future<void> _runRealFaceLiveness() async {
+    if (verifying || faceVerified) return;
+    setState(() {
+      verifying = true;
+      error = null;
+    });
+    try {
+      final ok = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(
+          fullscreenDialog: true,
+          builder: (_) => const FaceLivenessScreen(),
+        ),
+      );
+      if (!mounted) return;
+      if (ok == true) {
+        setState(() {
+          faceVerified = true;
+          verifying = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Face verification complete'),
+            backgroundColor: Color(0xFF059669),
+          ),
+        );
+      } else {
+        setState(() {
+          verifying = false;
+          error = error ??
+              'Face verification was not completed. Please try again.';
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        verifying = false;
+        error = 'Face verification failed: $e';
+      });
+    }
+  }
+
   Future<void> _runMockFaceVerification() async {
     if (verifying || faceVerified) return;
     setState(() {
@@ -266,7 +345,8 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
       final res =
           await ref.read(verificationRepositoryProvider).mockComplete();
       final ok = res['status']?.toString().toUpperCase() == 'SUCCESS' ||
-          res['is_identity_verified'] == true;
+          res['is_identity_verified'] == true ||
+          res['verified'] == true;
       if (!ok && res['error'] != null) {
         setState(() {
           verifying = false;
@@ -282,7 +362,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
       });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Face verification complete (mock)'),
+          content: Text('Face verification complete (dev mock)'),
           backgroundColor: Color(0xFF059669),
         ),
       );
@@ -600,7 +680,8 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
                                       _ => _FaceVerifyStep(
                                           verifying: verifying,
                                           verified: faceVerified,
-                                          onVerify: _runMockFaceVerification,
+                                          realMode: _useRealFaceLiveness,
+                                          onVerify: _runFaceVerification,
                                         ),
                                     },
                                   ),
@@ -667,7 +748,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
                                               : () {
                                                   if (step == _totalSteps &&
                                                       !faceVerified) {
-                                                    _runMockFaceVerification();
+                                                    _runFaceVerification();
                                                   } else {
                                                     _next();
                                                   }
@@ -973,15 +1054,27 @@ class _FaceVerifyStep extends StatelessWidget {
   const _FaceVerifyStep({
     required this.verifying,
     required this.verified,
+    required this.realMode,
     required this.onVerify,
   });
 
   final bool verifying;
   final bool verified;
+  final bool realMode;
   final VoidCallback onVerify;
 
   @override
   Widget build(BuildContext context) {
+    final bodyText = verified
+        ? 'Your identity check passed. Tap Enter SPYCE to finish.'
+        : realMode
+            ? 'Hold your face in frame. We run a short live camera check '
+                '(Amazon Rekognition) so every profile is a real person.'
+            : 'Hold your face in frame. We use a short liveness check so '
+                'profiles stay real.\n\n'
+                '(Dev mock mode — set FACE_VERIFICATION=True on the server '
+                'for real AWS liveness.)';
+
     return Column(
       children: [
         Container(
@@ -1033,9 +1126,7 @@ class _FaceVerifyStep extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                verified
-                    ? 'Your identity check passed. Tap Enter SPYCE to finish.'
-                    : 'Hold your face in frame. We use a short liveness check so profiles stay real.\n\n(Currently running mock verification — real camera liveness will replace this.)',
+                bodyText,
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: SpyceColors.white.withValues(alpha: 0.75),
@@ -1069,22 +1160,22 @@ class _FaceVerifyStep extends StatelessWidget {
                         : const Icon(Icons.camera_front_outlined),
                     label: Text(
                       verifying
-                          ? 'Checking face…'
+                          ? (realMode ? 'Opening camera…' : 'Checking face…')
                           : 'Start face verification',
                       style: const TextStyle(fontWeight: FontWeight.w700),
                     ),
                   ),
                 )
               else
-                const Row(
+                Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.check_circle,
+                    const Icon(Icons.check_circle,
                         color: Color(0xFF34D399), size: 20),
-                    SizedBox(width: 8),
+                    const SizedBox(width: 8),
                     Text(
-                      'Face verified (mock)',
-                      style: TextStyle(
+                      realMode ? 'Face verified' : 'Face verified (mock)',
+                      style: const TextStyle(
                         color: Color(0xFF6EE7B7),
                         fontWeight: FontWeight.w600,
                       ),

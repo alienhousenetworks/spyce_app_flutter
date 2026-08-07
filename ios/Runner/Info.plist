@@ -16,7 +16,7 @@
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>SPYCE uses your location to show nearby profiles and confessions.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>SPYCE needs camera access so you can take profile photos and make video calls.</string>
+	<string>SPYCE needs camera access for face liveness verification, profile photos, and video calls.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>SPYCE needs photo library access so you can choose profile photos from your device.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>

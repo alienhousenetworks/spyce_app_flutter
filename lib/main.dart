@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'core/amplify/amplify_bootstrap.dart';
 import 'core/network/connectivity_banner.dart';
 import 'core/observability/sentry_bootstrap.dart';
 import 'core/router/app_router.dart';
@@ -28,6 +29,10 @@ void main() async {
   ]);
 
   await initSentryFlutter();
+
+  // Optional early Amplify init when COGNITO_* are passed via --dart-define.
+  // Face liveness also configures Amplify from GET /verification/status/.
+  await AmplifyBootstrap.tryConfigureAtStartup();
 
   runApp(const ProviderScope(child: SpyceApp()));
 }

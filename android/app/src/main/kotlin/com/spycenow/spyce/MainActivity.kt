@@ -1,5 +1,6 @@
 package com.spycenow.spyce
 
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 
-class MainActivity : FlutterActivity()
+/// FlutterFragmentActivity is required by AWS Amplify Face Liveness UI.
+class MainActivity : FlutterFragmentActivity()

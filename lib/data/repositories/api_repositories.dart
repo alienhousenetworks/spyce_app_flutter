@@ -911,6 +911,68 @@ class ModerationRepository {
 
 // ── Verification (face / identity) ───────────────────────────
 
+/// Config + status from GET /verification/status/
+class FaceVerificationConfig {
+  const FaceVerificationConfig({
+    required this.verified,
+    required this.faceVerification,
+    required this.mockMode,
+    required this.provider,
+    required this.region,
+    required this.retryLeft,
+    this.status,
+    this.livenessThreshold,
+    this.cognitoRegion,
+    this.cognitoIdentityPoolId,
+    this.cognitoUserPoolId,
+    this.cognitoAppClientId,
+    this.cognitoConfigured = false,
+    this.raw = const {},
+  });
+
+  final bool verified;
+  /// True → real AWS Rekognition Face Liveness
+  final bool faceVerification;
+  /// True → POST /mock-complete/ is allowed
+  final bool mockMode;
+  final String provider;
+  final String region;
+  final int retryLeft;
+  final String? status;
+  final double? livenessThreshold;
+  final String? cognitoRegion;
+  final String? cognitoIdentityPoolId;
+  final String? cognitoUserPoolId;
+  final String? cognitoAppClientId;
+  final bool cognitoConfigured;
+  final Map<String, dynamic> raw;
+
+  bool get useRealAws => faceVerification && !mockMode;
+
+  factory FaceVerificationConfig.fromJson(Map<String, dynamic> json) {
+    return FaceVerificationConfig(
+      verified: json['verified'] == true || json['is_identity_verified'] == true,
+      faceVerification: json['face_verification'] == true,
+      mockMode: json['mock_mode'] != false && json['face_verification'] != true,
+      provider: (json['provider'] ?? 'mock').toString(),
+      region: (json['region'] ?? 'us-east-1').toString(),
+      retryLeft: (json['retry_left'] is num)
+          ? (json['retry_left'] as num).toInt()
+          : 3,
+      status: json['status']?.toString(),
+      livenessThreshold: json['liveness_threshold'] is num
+          ? (json['liveness_threshold'] as num).toDouble()
+          : null,
+      cognitoRegion: json['cognito_region']?.toString(),
+      cognitoIdentityPoolId: json['cognito_identity_pool_id']?.toString(),
+      cognitoUserPoolId: json['cognito_user_pool_id']?.toString(),
+      cognitoAppClientId: json['cognito_app_client_id']?.toString(),
+      cognitoConfigured: json['cognito_configured'] == true,
+      raw: Map<String, dynamic>.from(json),
+    );
+  }
+}
+
 class VerificationRepository {
   VerificationRepository(this._api);
   final ApiClient _api;
@@ -920,7 +982,27 @@ class VerificationRepository {
     return _asMap(data);
   }
 
-  /// Dev / staging mock liveness bypass — POST /verification/mock-complete/
+  Future<FaceVerificationConfig> getConfig() async {
+    final data = await getStatus();
+    return FaceVerificationConfig.fromJson(data);
+  }
+
+  /// Real mode: CreateFaceLivenessSession via backend.
+  Future<Map<String, dynamic>> startSession() async {
+    final data = await _api.post<dynamic>('/verification/start/');
+    return _asMap(data);
+  }
+
+  /// Real mode: after Amplify detector finishes, backend fetches AWS results.
+  Future<Map<String, dynamic>> completeSession(String sessionId) async {
+    final data = await _api.post<dynamic>(
+      '/verification/complete/',
+      data: {'session_id': sessionId},
+    );
+    return _asMap(data);
+  }
+
+  /// Dev / staging mock — only when FACE_VERIFICATION=False on server.
   Future<Map<String, dynamic>> mockComplete() async {
     final data = await _api.post<dynamic>('/verification/mock-complete/');
     return _asMap(data);

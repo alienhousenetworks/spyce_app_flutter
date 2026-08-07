@@ -68,4 +68,41 @@ class Env {
     if (sslFingerprintsRaw.isEmpty) return const [];
     return sslFingerprintsRaw.split(',').map((e) => e.trim().replaceAll(':', '').toLowerCase()).toList();
   }
+
+  // ── Cognito (public IDs only) for native Amplify Face Liveness ───────────
+  // Prefer GET /verification/status/ from backend .env; dart-defines override.
+  // NEVER put REKOGNITION secret access keys here.
+
+  static const String cognitoRegion = String.fromEnvironment(
+    'COGNITO_REGION',
+    defaultValue: 'ap-south-1',
+  );
+
+  /// Production Identity Pool (public). Override with --dart-define if needed.
+  static const String cognitoIdentityPoolId = String.fromEnvironment(
+    'COGNITO_IDENTITY_POOL_ID',
+    defaultValue: 'ap-south-1:9a695b63-71b0-41fc-9e43-35d1d0393df3',
+  );
+
+  static const String cognitoUserPoolId = String.fromEnvironment(
+    'COGNITO_USER_POOL_ID',
+    defaultValue: '',
+  );
+
+  static const String cognitoAppClientId = String.fromEnvironment(
+    'COGNITO_APP_CLIENT_ID',
+    defaultValue: '',
+  );
+
+  /// Optional hosted React page (only if FACE_LIVENESS_CLIENT_MODE=webview).
+  static const String faceLivenessWebUrl = String.fromEnvironment(
+    'FACE_LIVENESS_WEB_URL',
+    defaultValue: '',
+  );
+
+  /// native (default, Amplify SDK in-app) | webview (optional React host)
+  static const String faceLivenessClientMode = String.fromEnvironment(
+    'FACE_LIVENESS_CLIENT_MODE',
+    defaultValue: 'native',
+  );
 }

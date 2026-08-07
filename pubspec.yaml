@@ -36,6 +36,14 @@ dependencies:
   sensors_plus: ^6.1.1
   crypto: ^3.0.6
   webview_flutter: ^4.14.1
+  # Native Face Liveness (no WebView / React required):
+  # - amplify_flutter + amplify_auth_cognito → Cognito Identity Pool guest creds
+  # - face_liveness_detector → official Amplify Face Liveness UI on Android/iOS
+  #   (pub has no package named amplify_liveness_detection)
+  # Cognito IDs: backend /verification/status/ or Env defaults (never REKOGNITION secrets)
+  amplify_flutter: ^2.6.0
+  amplify_auth_cognito: ^2.6.0
+  face_liveness_detector: ^0.2.11
 
 dev_dependencies:
   flutter_test:
