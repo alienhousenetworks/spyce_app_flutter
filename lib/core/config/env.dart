@@ -13,6 +13,12 @@ class Env {
 
   static const String apiV1 = '$apiBaseUrl/api/v1';
 
+  /// FastAPI discovery feed (and future high-scale HTTP endpoints).
+  static const String apiV2 = '$apiBaseUrl/api/v2';
+
+  /// Absolute URL for discover feed — always FastAPI v2 (not Django v1).
+  static String get feedUrl => '$apiV2/feed';
+
   static const String wsBase = String.fromEnvironment(
     'WS_BASE_URL',
     defaultValue: 'wss://testapi.spycenow.com/ws',

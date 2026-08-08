@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/config/env.dart';
 import '../../core/network/api_client.dart';
 import '../../core/storage/token_storage.dart';
 import '../models/user_models.dart';
@@ -235,7 +236,8 @@ class FeedRepository {
       query['gender'] = genders;
     }
 
-    final data = await _api.get<dynamic>('/feed/', query: query);
+    // Discover feed is FastAPI-only (GET /api/v2/feed). Dio accepts absolute URLs.
+    final data = await _api.get<dynamic>(Env.feedUrl, query: query);
     return FeedResponse.fromJson(_asMap(data));
   }
 
