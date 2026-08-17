@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/theme/spyce_colors.dart';
-import '../../shared/widgets/spyce_widgets.dart';
 import 'confession_formatter.dart';
 import 'confession_themes.dart';
 
@@ -20,9 +19,21 @@ class ConfessionComposeResult {
   final String? moodTag;
 }
 
-/// Creative Confession Studio modal sheet
-class ConfessionComposeSheet extends StatefulWidget {
-  const ConfessionComposeSheet({
+/// Creative Confession Studio Launcher
+class ConfessionComposeSheet {
+  static Future<ConfessionComposeResult?> show(BuildContext context) {
+    return Navigator.of(context).push<ConfessionComposeResult>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => const ConfessionComposePage(),
+      ),
+    );
+  }
+}
+
+/// Full-screen Creative Confession Studio
+class ConfessionComposePage extends StatefulWidget {
+  const ConfessionComposePage({
     super.key,
     this.initialStyle = ConfessionStyleType.standard,
     this.initialTheme = 'OBSIDIAN',
@@ -31,20 +42,11 @@ class ConfessionComposeSheet extends StatefulWidget {
   final ConfessionStyleType initialStyle;
   final String initialTheme;
 
-  static Future<ConfessionComposeResult?> show(BuildContext context) {
-    return showModalBottomSheet<ConfessionComposeResult>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => const ConfessionComposeSheet(),
-    );
-  }
-
   @override
-  State<ConfessionComposeSheet> createState() => _ConfessionComposeSheetState();
+  State<ConfessionComposePage> createState() => _ConfessionComposePageState();
 }
 
-class _ConfessionComposeSheetState extends State<ConfessionComposeSheet> {
+class _ConfessionComposePageState extends State<ConfessionComposePage> {
   late final TextEditingController _textCtrl;
   late final FocusNode _focusNode;
 
@@ -86,7 +88,6 @@ class _ConfessionComposeSheetState extends State<ConfessionComposeSheet> {
     setState(() {
       _selectedStyle = newStyle;
       if (_textCtrl.text.isEmpty) {
-        // Set suitable theme default for mood
         if (newStyle == ConfessionStyleType.darkSecret) {
           _selectedTheme = ConfessionThemeConfig.crimson;
           _selectedMood = 'DARK_SECRET';
@@ -104,7 +105,7 @@ class _ConfessionComposeSheetState extends State<ConfessionComposeSheet> {
     final text = _textCtrl.text;
     final selection = _textCtrl.selection;
 
-    if (selection.start >= 0) {
+    if (selection.start >= 0 && selection.end >= 0) {
       final newText = text.replaceRange(selection.start, selection.end, snippet);
       _textCtrl.value = TextEditingValue(
         text: newText,
@@ -279,302 +280,309 @@ class _ConfessionComposeSheetState extends State<ConfessionComposeSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final mediaQuery = MediaQuery.of(context);
-    final bottomInset = mediaQuery.viewInsets.bottom;
-    final screenHeight = mediaQuery.size.height;
     final charCount = _textCtrl.text.length;
 
-    return Container(
-      height: screenHeight * 0.90,
-      decoration: BoxDecoration(
-        color: SpyceColors.dark950,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        border: Border.all(color: SpyceColors.dark700, width: 0.8),
-      ),
-      child: Column(
-        children: [
-          // Header Bar
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-            child: Row(
-              children: [
-                IconButton(
-                  onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.close, color: SpyceColors.dark200),
-                ),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Confession Studio',
-                        style: GoogleFonts.syne(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                          color: SpyceColors.white,
-                        ),
-                      ),
-                      Text(
-                        'Anonymous · 100% encrypted',
-                        style: GoogleFonts.dmSans(
-                          fontSize: 12,
-                          color: SpyceColors.dark200,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                // Live preview toggle
-                TextButton.icon(
-                  onPressed: () => setState(() => _showPreview = !_showPreview),
-                  icon: Icon(
-                    _showPreview
-                        ? Icons.edit_note_rounded
-                        : Icons.visibility_outlined,
-                    size: 18,
-                    color: SpyceColors.pinkSoft,
-                  ),
-                  label: Text(
-                    _showPreview ? 'Edit' : 'Preview',
-                    style: GoogleFonts.dmSans(
-                      color: SpyceColors.pinkSoft,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 4),
-                ElevatedButton(
-                  onPressed: _submit,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: SpyceColors.pink,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 8,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    elevation: 0,
-                  ),
-                  child: Text(
-                    'Post',
-                    style: GoogleFonts.syne(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Style / Category Selector Chips
-          SizedBox(
-            height: 38,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              children: [
-                for (final s in ConfessionStyleType.values) ...[
-                  InkWell(
-                    borderRadius: BorderRadius.circular(20),
-                    onTap: () => _onStyleChanged(s),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: _selectedStyle == s
-                            ? SpyceColors.pinkDim
-                            : SpyceColors.dark800,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: _selectedStyle == s
-                              ? SpyceColors.pink
-                              : SpyceColors.dark600,
-                          width: 1,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            s.icon,
-                            size: 14,
-                            color: _selectedStyle == s
-                                ? SpyceColors.pinkSoft
-                                : SpyceColors.dark200,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            s.label,
-                            style: GoogleFonts.syne(
-                              fontSize: 12,
-                              fontWeight: _selectedStyle == s
-                                  ? FontWeight.w700
-                                  : FontWeight.w500,
-                              color: _selectedStyle == s
-                                  ? SpyceColors.pinkSoft
-                                  : SpyceColors.dark100,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                ],
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 8),
-
-          // Main Editor / Live Preview Viewport
-          Expanded(
-            child: _showPreview ? _buildLivePreview() : _buildEditor(),
-          ),
-
-          // Creative Floating Toolbar
-          Container(
-            padding: EdgeInsets.fromLTRB(12, 6, 12, 6 + bottomInset),
-            decoration: const BoxDecoration(
-              color: SpyceColors.dark900,
-              border: Border(
-                top: BorderSide(color: Color(0xFF1E1E24), width: 0.8),
+    return Scaffold(
+      backgroundColor: SpyceColors.dark950,
+      resizeToAvoidBottomInset: true,
+      appBar: AppBar(
+        backgroundColor: SpyceColors.dark950,
+        elevation: 0,
+        centerTitle: false,
+        leading: IconButton(
+          onPressed: () => Navigator.pop(context),
+          icon: const Icon(Icons.close, color: SpyceColors.white, size: 22),
+        ),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Confession Studio',
+              style: GoogleFonts.syne(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: SpyceColors.white,
               ),
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Quick formatting tools row
-                Row(
-                  children: [
-                    _ToolButton(
-                      icon: Icons.format_list_numbered_rounded,
-                      label: '+ 1.',
-                      tooltip: 'Add Numbered Point',
-                      onTap: _insertNextNumber,
-                    ),
-                    const SizedBox(width: 6),
-                    _ToolButton(
-                      icon: Icons.auto_awesome,
-                      label: 'Divider',
-                      tooltip: 'Ornamental Divider',
-                      onTap: _openDividerSelector,
-                    ),
-                    const SizedBox(width: 6),
-                    _ToolButton(
-                      icon: Icons.format_quote_rounded,
-                      label: 'Quote',
-                      tooltip: 'Quote Block',
-                      onTap: _insertQuote,
-                    ),
-                    const SizedBox(width: 6),
-                    _ToolButton(
-                      icon: Icons.lightbulb_outline_rounded,
-                      label: 'Prompt',
-                      tooltip: 'Inspiration Starter',
-                      onTap: _insertPrompt,
-                    ),
-                    const Spacer(),
-                    // Character Counter
-                    Text(
-                      '$charCount/2000',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: charCount > 2000
-                            ? Colors.red
-                            : SpyceColors.dark200,
-                      ),
-                    ),
-                  ],
+            Text(
+              'Anonymous · encrypted · 24h',
+              style: GoogleFonts.dmSans(
+                fontSize: 11,
+                color: SpyceColors.dark200,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          // Live preview toggle
+          TextButton.icon(
+            onPressed: () => setState(() => _showPreview = !_showPreview),
+            icon: Icon(
+              _showPreview
+                  ? Icons.edit_note_rounded
+                  : Icons.visibility_outlined,
+              size: 18,
+              color: SpyceColors.pinkSoft,
+            ),
+            label: Text(
+              _showPreview ? 'Edit' : 'Preview',
+              style: GoogleFonts.dmSans(
+                color: SpyceColors.pinkSoft,
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
+          // Post Button
+          Padding(
+            padding: const EdgeInsets.only(right: 14, top: 10, bottom: 10),
+            child: ElevatedButton(
+              onPressed: _submit,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: SpyceColors.pink,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                const SizedBox(height: 6),
-
-                // Dark Aesthetics Theme Row
-                SizedBox(
-                  height: 30,
-                  child: ListView(
-                    scrollDirection: Axis.horizontal,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.only(right: 6, top: 4),
-                        child: Text(
-                          'Theme:',
-                          style: GoogleFonts.dmSans(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: SpyceColors.dark200,
-                          ),
-                        ),
-                      ),
-                      for (final t in ConfessionThemeConfig.allThemes) ...[
-                        InkWell(
-                          borderRadius: BorderRadius.circular(14),
-                          onTap: () => setState(() => _selectedTheme = t),
-                          child: Container(
-                            margin: const EdgeInsets.only(right: 6),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 3,
-                            ),
-                            decoration: BoxDecoration(
-                              gradient: t.gradient,
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(
-                                color: _selectedTheme.id == t.id
-                                    ? t.accentColor
-                                    : t.borderColor,
-                                width: _selectedTheme.id == t.id ? 1.5 : 0.8,
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Container(
-                                  width: 8,
-                                  height: 8,
-                                  decoration: BoxDecoration(
-                                    color: t.accentColor,
-                                    shape: BoxShape.circle,
-                                  ),
-                                ),
-                                const SizedBox(width: 5),
-                                Text(
-                                  t.name,
-                                  style: GoogleFonts.syne(
-                                    fontSize: 10,
-                                    fontWeight: _selectedTheme.id == t.id
-                                        ? FontWeight.w700
-                                        : FontWeight.w500,
-                                    color: _selectedTheme.id == t.id
-                                        ? SpyceColors.white
-                                        : SpyceColors.dark100,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
+                elevation: 0,
+              ),
+              child: Text(
+                'Post',
+                style: GoogleFonts.syne(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
                 ),
-              ],
+              ),
             ),
           ),
         ],
+      ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            const SizedBox(height: 4),
+            // Style / Category Selector Chips
+            SizedBox(
+              height: 36,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                children: [
+                  for (final s in ConfessionStyleType.values) ...[
+                    InkWell(
+                      borderRadius: BorderRadius.circular(18),
+                      onTap: () => _onStyleChanged(s),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _selectedStyle == s
+                              ? SpyceColors.pinkDim
+                              : SpyceColors.dark800,
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(
+                            color: _selectedStyle == s
+                                ? SpyceColors.pink
+                                : SpyceColors.dark600,
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              s.icon,
+                              size: 14,
+                              color: _selectedStyle == s
+                                  ? SpyceColors.pinkSoft
+                                  : SpyceColors.dark200,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              s.label,
+                              style: GoogleFonts.syne(
+                                fontSize: 12,
+                                fontWeight: _selectedStyle == s
+                                    ? FontWeight.w700
+                                    : FontWeight.w500,
+                                color: _selectedStyle == s
+                                    ? SpyceColors.pinkSoft
+                                    : SpyceColors.dark100,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 10),
+
+            // Main Editor or Live Preview
+            Expanded(
+              child: _showPreview ? _buildLivePreview() : _buildEditor(),
+            ),
+
+            // Creative Toolbar above Keyboard
+            Container(
+              padding: const EdgeInsets.fromLTRB(14, 8, 14, 10),
+              decoration: const BoxDecoration(
+                color: SpyceColors.dark900,
+                border: Border(
+                  top: BorderSide(color: Color(0xFF1E1E24), width: 0.8),
+                ),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Formatting Tools Row
+                  Row(
+                    children: [
+                      _ToolButton(
+                        icon: Icons.format_list_numbered_rounded,
+                        label: '+ 1.',
+                        tooltip: 'Add Numbered Point',
+                        onTap: _insertNextNumber,
+                      ),
+                      const SizedBox(width: 8),
+                      _ToolButton(
+                        icon: Icons.auto_awesome,
+                        label: 'Divider',
+                        tooltip: 'Ornamental Divider',
+                        onTap: _openDividerSelector,
+                      ),
+                      const SizedBox(width: 8),
+                      _ToolButton(
+                        icon: Icons.format_quote_rounded,
+                        label: 'Quote',
+                        tooltip: 'Quote Block',
+                        onTap: _insertQuote,
+                      ),
+                      const SizedBox(width: 8),
+                      _ToolButton(
+                        icon: Icons.lightbulb_outline_rounded,
+                        label: 'Prompt',
+                        tooltip: 'Inspiration Starter',
+                        onTap: _insertPrompt,
+                      ),
+                      const Spacer(),
+                      // Character Counter
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: SpyceColors.dark800,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          '$charCount/2000',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: charCount > 2000
+                                ? Colors.red
+                                : (charCount < 10
+                                    ? SpyceColors.dark200
+                                    : SpyceColors.pinkSoft),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+
+                  // Dark Aesthetics Theme Carousel
+                  SizedBox(
+                    height: 32,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8, top: 6),
+                          child: Text(
+                            'Theme:',
+                            style: GoogleFonts.dmSans(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: SpyceColors.dark200,
+                            ),
+                          ),
+                        ),
+                        for (final t in ConfessionThemeConfig.allThemes) ...[
+                          InkWell(
+                            borderRadius: BorderRadius.circular(14),
+                            onTap: () => setState(() => _selectedTheme = t),
+                            child: Container(
+                              margin: const EdgeInsets.only(right: 6),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 9,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                gradient: t.gradient,
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: _selectedTheme.id == t.id
+                                      ? t.accentColor
+                                      : t.borderColor,
+                                  width: _selectedTheme.id == t.id ? 1.5 : 0.8,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    width: 8,
+                                    height: 8,
+                                    decoration: BoxDecoration(
+                                      color: t.accentColor,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 5),
+                                  Text(
+                                    t.name,
+                                    style: GoogleFonts.syne(
+                                      fontSize: 11,
+                                      fontWeight: _selectedTheme.id == t.id
+                                          ? FontWeight.w700
+                                          : FontWeight.w500,
+                                      color: _selectedTheme.id == t.id
+                                          ? SpyceColors.white
+                                          : SpyceColors.dark100,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildEditor() {
     return Container(
-      margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(14, 4, 14, 8),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: _selectedTheme.gradient,
@@ -594,7 +602,7 @@ class _ConfessionComposeSheetState extends State<ConfessionComposeSheet> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Header info chip in editor
+          // Top metadata inside card
           Row(
             children: [
               Container(
@@ -627,7 +635,7 @@ class _ConfessionComposeSheetState extends State<ConfessionComposeSheet> {
                 ),
               ),
               const Spacer(),
-              // Mood tag dropdown / picker
+              // Mood Dropdown
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
@@ -685,6 +693,7 @@ class _ConfessionComposeSheetState extends State<ConfessionComposeSheet> {
               focusNode: _focusNode,
               maxLines: null,
               expands: true,
+              textAlignVertical: TextAlignVertical.top,
               style: _selectedStyle == ConfessionStyleType.poetry
                   ? GoogleFonts.cormorantGaramond(
                       fontSize: 19,
@@ -722,12 +731,12 @@ class _ConfessionComposeSheetState extends State<ConfessionComposeSheet> {
   Widget _buildLivePreview() {
     final text = _textCtrl.text.trim();
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      padding: const EdgeInsets.fromLTRB(14, 4, 14, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.only(bottom: 8, left: 2),
             child: Text(
               'LIVE CARD PREVIEW',
               style: GoogleFonts.syne(
@@ -739,6 +748,7 @@ class _ConfessionComposeSheetState extends State<ConfessionComposeSheet> {
             ),
           ),
           Container(
+            width: double.infinity,
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
               gradient: _selectedTheme.gradient,
@@ -758,7 +768,6 @@ class _ConfessionComposeSheetState extends State<ConfessionComposeSheet> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Meta header
                 Row(
                   children: [
                     CircleAvatar(
@@ -818,8 +827,6 @@ class _ConfessionComposeSheetState extends State<ConfessionComposeSheet> {
                   ],
                 ),
                 const SizedBox(height: 14),
-
-                // Formatted body
                 if (text.isEmpty)
                   Text(
                     'Your formatted confession will appear here with styled numbered badges, glowing dividers, and poetic typography…',
@@ -835,10 +842,7 @@ class _ConfessionComposeSheetState extends State<ConfessionComposeSheet> {
                     styleType: _selectedStyle,
                     theme: _selectedTheme,
                   ),
-
                 const SizedBox(height: 16),
-
-                // Interactive bar simulation
                 Row(
                   children: [
                     Icon(
