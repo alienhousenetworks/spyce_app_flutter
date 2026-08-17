@@ -8,7 +8,10 @@ import '../../core/theme/spyce_colors.dart';
 import '../../data/models/user_models.dart';
 import '../../data/repositories/api_repositories.dart';
 import '../../shared/widgets/spyce_widgets.dart';
+import 'confession_compose_sheet.dart';
+import 'confession_formatter.dart';
 import 'confession_notes_inbox.dart';
+import 'confession_themes.dart';
 
 /// Tumblr-style anonymous confessions.
 /// - Feed: others only — like / plain repost (no quote note) / chat note
@@ -470,75 +473,14 @@ class _ConfessionsPageState extends ConsumerState<ConfessionsPage> {
   }
 
   Future<void> _compose() async {
-    final textCtrl = TextEditingController();
-    final ok = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: SpyceColors.dark800,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) {
-        return Padding(
-          padding: EdgeInsets.fromLTRB(
-            20,
-            16,
-            20,
-            20 + MediaQuery.of(ctx).viewInsets.bottom,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                'Write a confession',
-                style: GoogleFonts.syne(
-                    fontSize: 20, fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 6),
-              const Text(
-                'Anonymous · text only · 30–500 characters\nYou won\'t be able to like/repost your own post — stats live in My confessions.',
-                style: TextStyle(color: SpyceColors.dark100, fontSize: 13),
-              ),
-              const SizedBox(height: 14),
-              TextField(
-                controller: textCtrl,
-                maxLines: 8,
-                maxLength: 500,
-                style: GoogleFonts.dmSans(
-                  color: SpyceColors.white,
-                  fontSize: 16,
-                  height: 1.45,
-                ),
-                decoration: const InputDecoration(
-                  hintText: 'Spill something real…',
-                ),
-              ),
-              const SizedBox(height: 12),
-              SpycePrimaryButton(
-                label: 'Post anonymously',
-                onPressed: () {
-                  if (textCtrl.text.trim().length < 30) {
-                    ScaffoldMessenger.of(ctx).showSnackBar(
-                      const SnackBar(
-                          content: Text('Write at least 30 characters')),
-                    );
-                    return;
-                  }
-                  Navigator.pop(ctx, true);
-                },
-              ),
-            ],
-          ),
-        );
-      },
-    );
-
-    if (ok == true) {
-      final text = textCtrl.text.trim();
+    final result = await ConfessionComposeSheet.show(context);
+    if (result != null) {
       try {
         final created = await ref.read(socialRepositoryProvider).post(
-              text: text,
+              text: result.text,
+              moodTag: result.moodTag,
+              stylePreset: result.stylePreset,
+              bgTheme: result.bgTheme,
               lat: lat,
               lon: lon,
             );
@@ -551,7 +493,10 @@ class _ConfessionsPageState extends ConsumerState<ConfessionsPage> {
           mine = [
             ConfessionPost(
               id: 'local-${DateTime.now().millisecondsSinceEpoch}',
-              text: text,
+              text: result.text,
+              moodTag: result.moodTag,
+              stylePreset: result.stylePreset,
+              bgTheme: result.bgTheme,
               isAuthor: true,
               relateCount: 0,
               repostCount: 0,
@@ -563,7 +508,6 @@ class _ConfessionsPageState extends ConsumerState<ConfessionsPage> {
         });
       }
     }
-    textCtrl.dispose();
   }
 
   @override
@@ -813,7 +757,7 @@ class _FeedList extends StatelessWidget {
       );
     }
     return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(0, 4, 0, 100),
+      padding: const EdgeInsets.fromLTRB(14, 8, 14, 100),
       itemCount: posts.length,
       itemBuilder: (context, i) {
         final p = posts[i];
@@ -831,14 +775,30 @@ class _FeedList extends StatelessWidget {
             (headerGender?.isNotEmpty == true ? headerGender![0] : '?')
                 .toUpperCase();
 
+        final theme = ConfessionThemeConfig.fromId(p.effectiveBgTheme);
+        final styleType =
+            ConfessionStyleTypeExt.fromCode(p.effectiveStylePreset);
+        final mood = isRepost && original != null
+            ? original.moodTag
+            : p.moodTag;
+
         return Container(
-          margin: const EdgeInsets.only(bottom: 2),
-          padding: const EdgeInsets.fromLTRB(18, 18, 18, 12),
-          decoration: const BoxDecoration(
-            color: Color(0xFF0D0D0D),
-            border: Border(
-              bottom: BorderSide(color: Color(0xFF1C1C1C), width: 0.5),
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          decoration: BoxDecoration(
+            gradient: theme.gradient,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: theme.borderColor,
+              width: 1.0,
             ),
+            boxShadow: [
+              BoxShadow(
+                color: theme.glowColor,
+                blurRadius: 12,
+                spreadRadius: 0.5,
+              ),
+            ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -872,8 +832,9 @@ class _FeedList extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
               ],
+
               GestureDetector(
                 onTap: () {
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -887,13 +848,14 @@ class _FeedList extends StatelessWidget {
                 child: Row(
                   children: [
                     CircleAvatar(
-                      radius: 18,
-                      backgroundColor: SpyceColors.dark600,
+                      radius: 17,
+                      backgroundColor: theme.badgeColor,
                       child: Text(
                         avatarLetter,
-                        style: const TextStyle(
-                          color: SpyceColors.pinkSoft,
+                        style: TextStyle(
+                          color: theme.accentColor,
                           fontWeight: FontWeight.w700,
+                          fontSize: 13,
                         ),
                       ),
                     ),
@@ -902,40 +864,103 @@ class _FeedList extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            headerMeta,
-                            style: GoogleFonts.dmSans(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14,
-                            ),
+                          Row(
+                            children: [
+                              Text(
+                                headerMeta,
+                                style: GoogleFonts.dmSans(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14,
+                                  color: theme.textColor,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              // Style Badge Chip
+                              if (styleType != ConfessionStyleType.standard)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: theme.badgeColor,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: theme.accentColor
+                                          .withValues(alpha: 0.4),
+                                      width: 0.6,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        styleType.icon,
+                                        size: 10,
+                                        color: theme.accentColor,
+                                      ),
+                                      const SizedBox(width: 3),
+                                      Text(
+                                        styleType.label,
+                                        style: GoogleFonts.syne(
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.w700,
+                                          color: theme.accentColor,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                            ],
                           ),
-                          if (!isRepost)
-                            Text(
-                              when,
-                              style: const TextStyle(
-                                color: SpyceColors.dark200,
-                                fontSize: 11,
-                              ),
-                            )
-                          else if (original?.createdAt != null)
-                            Text(
-                              DateFormat.MMMd()
-                                  .add_jm()
-                                  .format(original!.createdAt!),
-                              style: const TextStyle(
-                                color: SpyceColors.dark200,
-                                fontSize: 11,
-                              ),
-                            ),
+                          Row(
+                            children: [
+                              if (!isRepost)
+                                Text(
+                                  when,
+                                  style: TextStyle(
+                                    color: theme.metaColor,
+                                    fontSize: 11,
+                                  ),
+                                )
+                              else if (original?.createdAt != null)
+                                Text(
+                                  DateFormat.MMMd()
+                                      .add_jm()
+                                      .format(original!.createdAt!),
+                                  style: TextStyle(
+                                    color: theme.metaColor,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              if (mood != null && mood.isNotEmpty) ...[
+                                Text(
+                                  ' · ',
+                                  style: TextStyle(
+                                    color: theme.metaColor,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                                Text(
+                                  mood.replaceAll('_', ' '),
+                                  style: TextStyle(
+                                    color: theme.accentColor,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
                         ],
                       ),
                     ),
                     if (!isRepost)
                       PopupMenuButton<String>(
-                        icon: const Icon(
+                        icon: Icon(
                           Icons.more_horiz,
                           size: 20,
-                          color: SpyceColors.dark200,
+                          color: theme.metaColor,
                         ),
                         color: SpyceColors.dark800,
                         onSelected: (v) {
@@ -956,36 +981,18 @@ class _FeedList extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(height: 14),
-              // Nested original body for reposts
-              if (isRepost)
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-                  decoration: BoxDecoration(
-                    color: SpyceColors.dark800,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: SpyceColors.dark500),
-                  ),
-                  child: Text(
-                    p.displayText,
-                    style: GoogleFonts.dmSans(
-                      fontSize: 16,
-                      height: 1.55,
-                      color: SpyceColors.white,
-                    ),
-                  ),
-                )
-              else
-                Text(
-                  p.text,
-                  style: GoogleFonts.dmSans(
-                    fontSize: 16,
-                    height: 1.55,
-                    color: SpyceColors.white,
-                  ),
-                ),
               const SizedBox(height: 12),
+
+              // Formatted confession body (supports Numbering, Dividers, Poetry, Quotes)
+              ConfessionFormattedBody(
+                text: p.displayText,
+                styleType: styleType,
+                theme: theme,
+              ),
+
+              const SizedBox(height: 12),
+
+              // Action Buttons
               Row(
                 children: [
                   _Action(
@@ -994,8 +1001,8 @@ class _FeedList extends StatelessWidget {
                         : Icons.favorite_border,
                     label: '${p.relateCount}',
                     color: p.hasRelated
-                        ? SpyceColors.pink
-                        : SpyceColors.dark100,
+                        ? theme.accentColor
+                        : theme.metaColor,
                     onTap: () => onRelate(p),
                   ),
                   const SizedBox(width: 18),
@@ -1004,7 +1011,7 @@ class _FeedList extends StatelessWidget {
                     label: '${p.repostCount}',
                     color: p.hasReposted
                         ? SpyceColors.teal
-                        : SpyceColors.dark100,
+                        : theme.metaColor,
                     onTap: () => onRepost(p),
                   ),
                   const SizedBox(width: 18),
@@ -1017,14 +1024,14 @@ class _FeedList extends StatelessWidget {
                       label: p.hasRequestedChat ? 'Sent' : 'Note',
                       color: p.hasRequestedChat
                           ? SpyceColors.teal
-                          : SpyceColors.dark100,
+                          : theme.metaColor,
                       onTap: p.hasRequestedChat ? null : () => onNote(p),
                     ),
                   const Spacer(),
                   _Action(
                     icon: Icons.flag_outlined,
                     label: 'Report',
-                    color: SpyceColors.dark200,
+                    color: theme.metaColor,
                     onTap: () => onReport(p),
                   ),
                 ],
@@ -1061,7 +1068,7 @@ class _MyConfessionsList extends StatelessWidget {
       );
     }
     return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+      padding: const EdgeInsets.fromLTRB(14, 8, 14, 32),
       itemCount: posts.length + 1,
       itemBuilder: (context, i) {
         if (i == 0) {
@@ -1082,13 +1089,25 @@ class _MyConfessionsList extends StatelessWidget {
             ? DateFormat.MMMd().add_jm().format(p.createdAt!)
             : '';
         final isRepost = p.isRepost;
+
+        final theme = ConfessionThemeConfig.fromId(p.effectiveBgTheme);
+        final styleType =
+            ConfessionStyleTypeExt.fromCode(p.effectiveStylePreset);
+
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: SpyceColors.dark800,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: SpyceColors.dark500),
+            gradient: theme.gradient,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: theme.borderColor, width: 1.0),
+            boxShadow: [
+              BoxShadow(
+                color: theme.glowColor,
+                blurRadius: 10,
+                spreadRadius: 0.5,
+              ),
+            ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1101,15 +1120,22 @@ class _MyConfessionsList extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: isRepost
                           ? SpyceColors.teal.withValues(alpha: 0.2)
-                          : SpyceColors.pinkDim,
+                          : theme.badgeColor,
                       borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: (isRepost ? SpyceColors.teal : theme.accentColor)
+                            .withValues(alpha: 0.4),
+                        width: 0.6,
+                      ),
                     ),
                     child: Text(
-                      isRepost ? 'You reposted' : 'Yours · anonymous',
+                      isRepost
+                          ? 'You reposted'
+                          : 'Yours · ${styleType.label}',
                       style: TextStyle(
                         color: isRepost
                             ? SpyceColors.teal
-                            : SpyceColors.pinkSoft,
+                            : theme.accentColor,
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
                       ),
@@ -1118,8 +1144,8 @@ class _MyConfessionsList extends StatelessWidget {
                   const Spacer(),
                   Text(
                     when,
-                    style: const TextStyle(
-                      color: SpyceColors.dark200,
+                    style: TextStyle(
+                      color: theme.metaColor,
                       fontSize: 11,
                     ),
                   ),
@@ -1130,19 +1156,19 @@ class _MyConfessionsList extends StatelessWidget {
                 Text(
                   'Original · ${p.original!.anonMeta}',
                   style: GoogleFonts.dmSans(
-                    color: SpyceColors.dark100,
+                    color: theme.metaColor,
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
               ],
               const SizedBox(height: 12),
-              Text(
-                p.displayText,
-                style: GoogleFonts.dmSans(
-                  fontSize: 15,
-                  height: 1.45,
-                ),
+              // Formatted body
+              ConfessionFormattedBody(
+                text: p.displayText,
+                styleType: styleType,
+                theme: theme,
+                isCompact: true,
               ),
               const SizedBox(height: 14),
               // Stats row — display only
@@ -1150,8 +1176,12 @@ class _MyConfessionsList extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(
                     horizontal: 12, vertical: 10),
                 decoration: BoxDecoration(
-                  color: SpyceColors.dark700,
+                  color: theme.badgeColor,
                   borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: theme.borderColor,
+                    width: 0.6,
+                  ),
                 ),
                 child: Row(
                   children: [
@@ -1159,7 +1189,7 @@ class _MyConfessionsList extends StatelessWidget {
                       icon: Icons.favorite,
                       label: 'Likes',
                       value: '${p.relateCount}',
-                      color: SpyceColors.pinkSoft,
+                      color: theme.accentColor,
                     ),
                     const SizedBox(width: 20),
                     _Stat(

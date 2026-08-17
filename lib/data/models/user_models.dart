@@ -1402,7 +1402,6 @@ class SubscriptionStatus {
           : (num.tryParse(json['price']?.toString() ?? '')),
       currency: json['currency']?.toString(),
       durationDays: (json['subscription_duration_days'] as num?)?.toInt(),
-      planName: json['plan_name']?.toString(),
     );
   }
 }
@@ -1413,6 +1412,8 @@ class OriginalConfessionMeta {
     required this.id,
     required this.text,
     this.moodTag,
+    this.stylePreset,
+    this.bgTheme,
     this.gender,
     this.sexuality,
     this.age,
@@ -1422,6 +1423,8 @@ class OriginalConfessionMeta {
   final String id;
   final String text;
   final String? moodTag;
+  final String? stylePreset;
+  final String? bgTheme;
   final String? gender;
   final String? sexuality;
   final int? age;
@@ -1444,6 +1447,8 @@ class OriginalConfessionMeta {
       id: (json['id'] ?? '').toString(),
       text: (json['text'] ?? json['content'] ?? '').toString(),
       moodTag: (json['mood_tag'] ?? json['mood'])?.toString(),
+      stylePreset: (json['style_preset'] ?? json['style'])?.toString(),
+      bgTheme: (json['bg_theme'] ?? json['theme'])?.toString(),
       gender: (json['user_gender'] ??
               (json['gender'] is Map
                   ? json['gender']['name']
@@ -1461,29 +1466,46 @@ class OriginalConfessionMeta {
   }
 }
 
+class ConfessionSenderMeta {
+  const ConfessionSenderMeta({
+    this.gender,
+    this.sexuality,
+    this.age,
+  });
+  final String? gender;
+  final String? sexuality;
+  final int? age;
+}
+
 /// Incoming anonymous note on one of the author's confessions.
 class ConfessionNoteRequest {
   const ConfessionNoteRequest({
     required this.id,
-    required this.message,
+    required this.senderMeta,
     required this.confessionId,
     required this.confessionText,
-    this.gender,
-    this.sexuality,
-    this.age,
+    required this.message,
+    required this.status,
     this.createdAt,
     this.expiresAt,
   });
 
   final String id;
-  final String message;
+  final ConfessionSenderMeta senderMeta;
   final String confessionId;
   final String confessionText;
-  final String? gender;
-  final String? sexuality;
-  final int? age;
+  final String message;
+  final String status;
   final DateTime? createdAt;
   final DateTime? expiresAt;
+
+  bool get isPending => status == 'PENDING';
+  bool get isAccepted => status == 'ACCEPTED';
+  bool get isRejected => status == 'REJECTED';
+
+  String? get gender => senderMeta.gender;
+  String? get sexuality => senderMeta.sexuality;
+  int? get age => senderMeta.age;
 
   String get anonMeta {
     final parts = <String>[
@@ -1496,10 +1518,11 @@ class ConfessionNoteRequest {
 
   factory ConfessionNoteRequest.fromJson(Map<String, dynamic> json) {
     DateTime? createdAt;
-    DateTime? expiresAt;
     final cRaw = json['created_at'];
-    final eRaw = json['expires_at'];
     if (cRaw != null) createdAt = DateTime.tryParse(cRaw.toString());
+
+    DateTime? expiresAt;
+    final eRaw = json['expires_at'];
     if (eRaw != null) expiresAt = DateTime.tryParse(eRaw.toString());
 
     String confessionId = '';
@@ -1514,31 +1537,22 @@ class ConfessionNoteRequest {
           (json['confession_id'] ?? json['confession'] ?? '').toString();
     }
 
-    String? gender;
-    String? sexuality;
-    int? age;
-    final meta = json['sender_meta'] ?? json['sender'];
-    if (meta is Map) {
-      gender = (meta['gender'] is Map
-              ? meta['gender']['name']
-              : meta['gender'] ?? meta['user_gender'])
-          ?.toString();
-      sexuality = (meta['sexuality'] is Map
-              ? meta['sexuality']['name']
-              : meta['sexuality'] ?? meta['user_sexuality'])
-          ?.toString();
-      age = (meta['age'] as num?)?.toInt() ??
-          (meta['user_age'] as num?)?.toInt();
-    }
+    final senderJson = json['sender_meta'] is Map
+        ? Map<String, dynamic>.from(json['sender_meta'] as Map)
+        : <String, dynamic>{};
+    final senderMeta = ConfessionSenderMeta(
+      gender: senderJson['gender']?.toString(),
+      sexuality: senderJson['sexuality']?.toString(),
+      age: (senderJson['age'] as num?)?.toInt(),
+    );
 
     return ConfessionNoteRequest(
       id: (json['id'] ?? '').toString(),
-      message: (json['message'] ?? '').toString(),
+      senderMeta: senderMeta,
       confessionId: confessionId,
       confessionText: confessionText,
-      gender: gender,
-      sexuality: sexuality,
-      age: age,
+      message: (json['message'] ?? '').toString(),
+      status: (json['status'] ?? 'PENDING').toString().toUpperCase(),
       createdAt: createdAt,
       expiresAt: expiresAt,
     );
@@ -1550,6 +1564,8 @@ class ConfessionPost {
     required this.id,
     required this.text,
     this.moodTag,
+    this.stylePreset,
+    this.bgTheme,
     this.relateCount = 0,
     this.commentCount = 0,
     this.repostCount = 0,
@@ -1571,6 +1587,8 @@ class ConfessionPost {
   final String id;
   final String text;
   final String? moodTag;
+  final String? stylePreset;
+  final String? bgTheme;
   final int relateCount;
   final int commentCount;
   final int repostCount;
@@ -1591,6 +1609,27 @@ class ConfessionPost {
   final OriginalConfessionMeta? original;
   /// Viewer already reposted this root original.
   final bool hasReposted;
+
+  bool get isPoetry =>
+      (effectiveStylePreset).toUpperCase() == 'POETRY';
+  bool get isNumbered =>
+      (effectiveStylePreset).toUpperCase() == 'NUMBERED';
+  bool get isLetter =>
+      (effectiveStylePreset).toUpperCase() == 'LETTER';
+  bool get isDarkSecret =>
+      (effectiveStylePreset).toUpperCase() == 'DARK_SECRET';
+  bool get isMidnight =>
+      (effectiveStylePreset).toUpperCase() == 'MIDNIGHT';
+
+  String get effectiveStylePreset =>
+      (isRepost && original?.stylePreset != null && original!.stylePreset!.isNotEmpty)
+          ? original!.stylePreset!
+          : (stylePreset ?? 'STANDARD');
+
+  String get effectiveBgTheme =>
+      (isRepost && original?.bgTheme != null && original!.bgTheme!.isNotEmpty)
+          ? original!.bgTheme!
+          : (bgTheme ?? 'OBSIDIAN');
 
   String get anonMeta {
     final parts = <String>[
@@ -1657,6 +1696,8 @@ class ConfessionPost {
       id: (json['id'] ?? '').toString(),
       text: (json['text'] ?? json['content'] ?? '').toString(),
       moodTag: (json['mood_tag'] ?? json['mood'])?.toString(),
+      stylePreset: (json['style_preset'] ?? json['style'])?.toString(),
+      bgTheme: (json['bg_theme'] ?? json['theme'])?.toString(),
       relateCount: (json['relate_count'] as num?)?.toInt() ??
           (json['relates'] as num?)?.toInt() ??
           0,
@@ -1691,11 +1732,15 @@ class ConfessionPost {
     String? parentId,
     OriginalConfessionMeta? original,
     bool? hasReposted,
+    String? stylePreset,
+    String? bgTheme,
   }) {
     return ConfessionPost(
       id: id,
       text: text,
       moodTag: moodTag,
+      stylePreset: stylePreset ?? this.stylePreset,
+      bgTheme: bgTheme ?? this.bgTheme,
       relateCount: relateCount ?? this.relateCount,
       commentCount: commentCount,
       repostCount: repostCount ?? this.repostCount,

@@ -682,6 +682,8 @@ class SocialRepository {
   Future<ConfessionPost> post({
     required String text,
     String? moodTag,
+    String? stylePreset,
+    String? bgTheme,
     double? lat,
     double? lon,
   }) async {
@@ -690,6 +692,8 @@ class SocialRepository {
       data: {
         'text': text,
         if (moodTag != null) 'mood_tag': moodTag,
+        if (stylePreset != null) 'style_preset': stylePreset,
+        if (bgTheme != null) 'bg_theme': bgTheme,
         'language': 'en',
         if (lat != null) 'latitude': lat,
         if (lon != null) 'longitude': lon,
