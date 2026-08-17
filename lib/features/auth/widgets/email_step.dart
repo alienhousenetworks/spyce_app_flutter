@@ -95,7 +95,7 @@ class _EmailStepState extends State<EmailStep> {
           child: Column(
             children: [
               Text(
-                'Your Story Starts Here.',
+                isSignUp ? 'Create Your Account' : 'Welcome Back',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.syne(
                   fontSize: 20,
@@ -105,7 +105,7 @@ class _EmailStepState extends State<EmailStep> {
               ),
               const SizedBox(height: 20),
               Text(
-                'Enter Your Email',
+                isSignUp ? 'Enter your email to sign up' : 'Enter your email to sign in',
                 style: GoogleFonts.dmSans(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,

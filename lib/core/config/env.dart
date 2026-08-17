@@ -8,7 +8,7 @@ class Env {
   /// Production test API (same host as web client).
   static const String apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'https://testapi.spycenow.com',
+    defaultValue: 'https://api01.spycenow.com',
   );
 
   static const String apiV1 = '$apiBaseUrl/api/v1';
@@ -21,7 +21,7 @@ class Env {
 
   static const String wsBase = String.fromEnvironment(
     'WS_BASE_URL',
-    defaultValue: 'wss://testapi.spycenow.com/ws',
+    defaultValue: 'wss://api01.spycenow.com/ws',
   );
 
   /// Leave empty / YOUR_* until credentials are ready (next 2 weeks).
@@ -42,7 +42,7 @@ class Env {
   /// the Turnstile widget settings (e.g. testapi.spycenow.com or spycenow.com).
   static const String turnstileBaseUrl = String.fromEnvironment(
     'TURNSTILE_BASE_URL',
-    defaultValue: 'https://testapi.spycenow.com',
+    defaultValue: 'https://api01.spycenow.com',
   );
 
   /// Whether the Flutter auth screens should require a Turnstile token.

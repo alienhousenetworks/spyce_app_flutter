@@ -50,6 +50,11 @@ abstract final class SpyceColors {
     'peach': Color(0xFFFDBA74),
     'lavender': Color(0xFFC084FC),
     'mint': Color(0xFF6EE7B7),
+    'spyce': Color(0xFFFF2E74),
+    'cool': Color(0xFF3B82F6),
+    'warm': Color(0xFFF97316),
+    'dark1': Color(0xFF1E1B4B),
+    'dark2': Color(0xFF312E81),
   };
 
   static Color accentForVariant(String? variantId) {

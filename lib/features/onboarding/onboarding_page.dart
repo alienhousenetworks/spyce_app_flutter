@@ -133,20 +133,30 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
           if (b != null && b.isNotEmpty) bioCtrl.text = b;
 
           if (profile.genderId != null && profile.genderId!.isNotEmpty) {
-            gender = profile.genderId;
-            genderLocked = true;
+            final validGender = genderOpts.any((o) => o.id == profile.genderId);
+            if (validGender) {
+              gender = profile.genderId;
+              genderLocked = true;
+            }
           }
           if (profile.sexualityId != null && profile.sexualityId!.isNotEmpty) {
-            sexuality = profile.sexualityId;
-            sexualityLocked = true;
+            final validSexuality = sexualityOpts.any((o) => o.id == profile.sexualityId);
+            if (validSexuality) {
+              sexuality = profile.sexualityId;
+              sexualityLocked = true;
+            }
           }
           if (profile.intentId != null && profile.intentId!.isNotEmpty) {
-            selectedIntent = profile.intentId;
+            if (intentOpts.any((o) => o.id == profile.intentId)) {
+              selectedIntent = profile.intentId;
+            }
           }
 
+          final validPreferred = profile.preferredGenderIds
+              .where((id) => genderOpts.isEmpty || genderOpts.any((o) => o.id == id));
           preferredGenders
             ..clear()
-            ..addAll(profile.preferredGenderIds);
+            ..addAll(validPreferred);
 
           selectedLanguageIds
             ..clear()
@@ -421,18 +431,26 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
     final uname = usernameCtrl.text.trim().toLowerCase();
     final langNames = LanguageLabels.namesForSave(selectedLanguageIds);
 
+    final validPref = genderOpts.isNotEmpty
+        ? preferredGenders.where((id) => genderOpts.any((o) => o.id == id)).toList()
+        : preferredGenders.toList();
+
     final payload = <String, dynamic>{
       'username': uname,
       'date_of_birth': dobCtrl.text.trim(),
-      'preferred_genders': preferredGenders.toList(),
+      'preferred_genders': validPref,
       'languages': langNames,
       'bio': bioCtrl.text.trim(),
-      if (selectedIntent != null) 'intent': selectedIntent,
+      if (selectedIntent != null &&
+          (intentOpts.isEmpty || intentOpts.any((o) => o.id == selectedIntent)))
+        'intent': selectedIntent,
     };
-    if (!genderLocked && gender != null) {
+    if (!genderLocked && gender != null &&
+        (genderOpts.isEmpty || genderOpts.any((o) => o.id == gender))) {
       payload['gender'] = gender;
     }
-    if (!sexualityLocked && sexuality != null) {
+    if (!sexualityLocked && sexuality != null &&
+        (sexualityOpts.isEmpty || sexualityOpts.any((o) => o.id == sexuality))) {
       payload['sexuality'] = sexuality;
     }
 

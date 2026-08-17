@@ -13,7 +13,7 @@ class AuthPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final step = ref.watch(authControllerProvider.select((s) => s.step));
+    final AuthStep step = ref.watch(authControllerProvider.select((s) => s.step));
     final loading = ref.watch(authControllerProvider.select((s) => s.loading));
     final error = ref.watch(authControllerProvider.select((s) => s.error));
     final message = ref.watch(authControllerProvider.select((s) => s.message));

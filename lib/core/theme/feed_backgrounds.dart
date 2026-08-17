@@ -1,25 +1,20 @@
 /// Maps profile theme / bg_id fields to local SVG assets for feed cards.
 ///
-/// Assets live in `assets/backgrounds/` (copied from SpyceBgs/SVGs).
+/// Assets live in `assets/backgrounds/`.
 ///
-/// ## Background idea catalog (API codes B01–B12)
+/// ## Shipped Background Catalog (7 Families · 23 SVG Variants)
 ///
-/// | Code | Idea              | SVG family                          |
-/// |------|-------------------|-------------------------------------|
-/// | B01  | Flame Wave        | FlameSpyce / Cool / Warm / Dark*    |
-/// | B02  | Puzzle Splash     | PuzzleSplash*                       |
-/// | B03  | Hexagon Splash    | HexSplash*                          |
-/// | B04  | Tri Splash        | TriSplash*                          |
-/// | B05  | Star Splash       | StarSplash*                         |
-/// | B06  | Square Splash     | SquareSplash*                       |
-/// | B07  | Advance Flame     | FlameWarm / DarkFlame (curated)     |
-/// | B08  | Flame Splash      | Flame* (extended)                   |
-/// | B09  | Bi Splash         | falls back to Tri / Hex             |
-/// | B10  | Simple Flame Grid | Flame*                              |
-/// | B11  | Octagon Splash    | Hex / Square fallback               |
-/// | B12  | Spyder Splash     | SpyderSpyce / Cool / Warm           |
+/// | Code | Idea              | Variants & Shipped SVG Files                           |
+/// |------|-------------------|--------------------------------------------------------|
+/// | B01  | Flame Wave        | Spyce, Cool, Warm, DarkFlame1, DarkFlame2 (5 SVGs)     |
+/// | B02  | Puzzle Splash     | Spyce, Cool, Warm (3 SVGs)                             |
+/// | B03  | Hexagon Splash    | Spyce, Cool, Warm (3 SVGs)                             |
+/// | B04  | Tri Splash        | Spyce, Cool, Warm (3 SVGs)                             |
+/// | B05  | Star Splash       | Spyce, Cool, Warm (3 SVGs)                             |
+/// | B06  | Square Splash     | Spyce, Cool, Warm (3 SVGs)                             |
+/// | B12  | Spyder Splash     | Spyce, Cool, Warm (3 SVGs)                             |
 ///
-/// Palette variants use suffixes: `-spyce`, `-cool`, `-warm` (and named colors).
+/// Palette variants use standard suffixes: `-spyce`, `-cool`, `-warm` (plus `-dark1`, `-dark2` for B01).
 abstract final class FeedBackgrounds {
   static const _base = 'assets/backgrounds';
 
@@ -177,11 +172,6 @@ abstract final class FeedBackgrounds {
     'B04': 'Tri Splash',
     'B05': 'Star Splash',
     'B06': 'Square Splash',
-    'B07': 'Advance Flame',
-    'B08': 'Flame Splash',
-    'B09': 'Bi Splash',
-    'B10': 'Simple Flame Grid',
-    'B11': 'Octagon Splash',
     'B12': 'Spyder Splash',
   };
 

@@ -1379,7 +1379,9 @@ class SubscriptionStatus {
   final String? planName;
 
   factory SubscriptionStatus.fromJson(Map<String, dynamic> json) {
-    final hasAccess = json['has_access'] == true ||
+    final isFree = json['is_free'] == true;
+    final hasAccess = isFree ||
+        json['has_access'] == true ||
         json['is_active'] == true ||
         json['subscribed'] == true ||
         (json['status']?.toString().toLowerCase() == 'active') ||
@@ -1387,14 +1389,17 @@ class SubscriptionStatus {
             (json['trial_days_remaining'] as num) > 0);
 
     return SubscriptionStatus(
-      hasAccess: hasAccess || json['has_access'] != false,
-      requiresSubscription: json['requires_subscription'] == true ||
-          json['code'] == 'subscription_required',
+      hasAccess: hasAccess,
+      requiresSubscription: !isFree &&
+          (json['requires_subscription'] == true ||
+              json['code'] == 'subscription_required'),
       isTrial: json['is_trial'] == true ||
           (json['trial_days_remaining'] != null &&
               (json['trial_days_remaining'] as num) > 0),
       trialDaysRemaining: (json['trial_days_remaining'] as num?)?.toInt(),
-      price: json['price'] as num?,
+      price: json['price'] is num
+          ? (json['price'] as num)
+          : (num.tryParse(json['price']?.toString() ?? '')),
       currency: json['currency']?.toString(),
       durationDays: (json['subscription_duration_days'] as num?)?.toInt(),
       planName: json['plan_name']?.toString(),
