@@ -186,11 +186,13 @@ class FeedRepository {
   Future<FeedResponse> getFeed({
     int count = 20,
     int cursor = 0,
+    bool refresh = false,
     Map<String, dynamic>? filters,
   }) async {
     final query = <String, dynamic>{
       'count': count,
       'cursor': cursor,
+      if (refresh) 'refresh': true,
     };
     final f = filters ?? {};
     if (f['min_age'] != null) query['min_age'] = f['min_age'];
@@ -756,8 +758,7 @@ class SocialRepository {
       final map = _asMap(data);
       return (map['count'] as num?)?.toInt() ?? 0;
     } catch (_) {
-      final list = await listConfessionRequests();
-      return list.length;
+      return 0;
     }
   }
 

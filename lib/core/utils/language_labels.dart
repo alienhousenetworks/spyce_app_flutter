@@ -89,6 +89,9 @@ abstract final class LanguageLabels {
     'italian': 'Italian',
   };
 
+  /// Whether the catalog has already been populated in memory.
+  static bool get hasCatalog => _idToName.isNotEmpty;
+
   /// Load `/languages/` catalog so UUIDs resolve to names.
   static void setCatalog(Iterable<CatalogOption> options) {
     _idToName.clear();

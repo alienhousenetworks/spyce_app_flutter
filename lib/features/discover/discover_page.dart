@@ -108,6 +108,7 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
   }
 
   Future<void> _ensureLanguageCatalog() async {
+    if (LanguageLabels.hasCatalog) return;
     try {
       final opts = await ref.read(optionsRepositoryProvider).languages();
       if (opts.isNotEmpty) LanguageLabels.setCatalog(opts);
@@ -178,7 +179,7 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
     return pageIndex - 1;
   }
 
-  Future<void> _load(int cursor, {bool append = false}) async {
+  Future<void> _load(int cursor, {bool append = false, bool refresh = false}) async {
     if (cursor == 0 && !append) {
       setState(() {
         loading = true;
@@ -189,11 +190,13 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
     }
 
     try {
-      // Always ensure catalog before parsing so UUIDs map to names
-      await _ensureLanguageCatalog();
+      if (!LanguageLabels.hasCatalog) {
+        _ensureLanguageCatalog();
+      }
 
       final res = await ref.read(feedRepositoryProvider).getFeed(
             cursor: cursor,
+            refresh: refresh || (cursor == 0 && !append),
             filters: filters,
           );
       if (!mounted) return;
