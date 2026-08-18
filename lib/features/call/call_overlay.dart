@@ -138,21 +138,34 @@ class CallOverlay extends ConsumerWidget {
     }
 
     final canShowVideo = isVideo && call.renderersReady;
+    final d = call.diagnostics;
 
     return Material(
       color: SpyceColors.dark950,
       child: SafeArea(
         child: Stack(
           children: [
-            // Remote video / avatar — never mount RTCVideoView before init
-            if (canShowVideo)
-              Positioned.fill(
-                child: RTCVideoView(
-                  ctrl.remoteRenderer,
-                  objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
-                ),
-              )
-            else
+            // Always attach the remote renderer so flutter_webrtc starts
+            // the audio pipeline — even on voice calls (1×1 offscreen).
+            if (call.renderersReady)
+              canShowVideo
+                  ? Positioned.fill(
+                      child: RTCVideoView(
+                        ctrl.remoteRenderer,
+                        objectFit:
+                            RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+                      ),
+                    )
+                  : Positioned(
+                      left: -2,
+                      top: -2,
+                      width: 2,
+                      height: 2,
+                      child: IgnorePointer(
+                        child: RTCVideoView(ctrl.remoteRenderer),
+                      ),
+                    ),
+            if (!canShowVideo)
               Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -180,11 +193,14 @@ class CallOverlay extends ConsumerWidget {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Text(
-                      call.phase == CallPhase.active
-                          ? _fmt(call.durationSec)
-                          : (call.statusText ?? '…'),
-                      style: const TextStyle(color: SpyceColors.dark100),
+                    GestureDetector(
+                      onTap: ctrl.toggleDiagnostics,
+                      child: Text(
+                        call.phase == CallPhase.active
+                            ? _fmt(call.durationSec)
+                            : (call.statusText ?? '…'),
+                        style: const TextStyle(color: SpyceColors.dark100),
+                      ),
                     ),
                     if (call.phase == CallPhase.connecting) ...[
                       const SizedBox(height: 16),
@@ -197,25 +213,32 @@ class CallOverlay extends ConsumerWidget {
                         ),
                       ),
                     ],
-                    if (call.isP2p != null) ...[
+                    if (call.isP2p != null || d.selectedLocalType != null) ...[
                       const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: call.isP2p!
-                              ? SpyceColors.teal.withValues(alpha: 0.2)
-                              : SpyceColors.gold.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          call.isP2p! ? 'P2P direct' : 'Relay (TURN)',
-                          style: TextStyle(
-                            color: call.isP2p!
-                                ? SpyceColors.teal
-                                : SpyceColors.gold,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
+                      GestureDetector(
+                        onTap: ctrl.toggleDiagnostics,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: call.isP2p == true
+                                ? SpyceColors.teal.withValues(alpha: 0.2)
+                                : SpyceColors.gold.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            d.selectedLocalType != null
+                                ? d.pathLabel
+                                : (call.isP2p == true
+                                    ? 'P2P direct'
+                                    : 'Relay (TURN)'),
+                            style: TextStyle(
+                              color: call.isP2p == true
+                                  ? SpyceColors.teal
+                                  : SpyceColors.gold,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                       ),
@@ -249,26 +272,69 @@ class CallOverlay extends ConsumerWidget {
                 top: 24,
                 left: 0,
                 right: 0,
-                child: Column(
-                  children: [
-                    Text(
-                      call.peerName ?? 'Video call',
-                      style: GoogleFonts.syne(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 18,
-                        shadows: const [Shadow(blurRadius: 8)],
+                child: GestureDetector(
+                  onTap: ctrl.toggleDiagnostics,
+                  child: Column(
+                    children: [
+                      Text(
+                        call.peerName ?? 'Video call',
+                        style: GoogleFonts.syne(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 18,
+                          shadows: const [Shadow(blurRadius: 8)],
+                        ),
                       ),
-                    ),
-                    Text(
-                      call.phase == CallPhase.active
-                          ? _fmt(call.durationSec)
-                          : (call.statusText ?? ''),
+                      Text(
+                        call.phase == CallPhase.active
+                            ? _fmt(call.durationSec)
+                            : (call.statusText ?? ''),
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          shadows: [Shadow(blurRadius: 6)],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+            if (call.showDiagnostics)
+              Positioned(
+                left: 16,
+                right: 16,
+                bottom: 120,
+                child: Material(
+                  color: Colors.black.withValues(alpha: 0.78),
+                  borderRadius: BorderRadius.circular(12),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: DefaultTextStyle(
                       style: const TextStyle(
                         color: Colors.white70,
-                        shadows: [Shadow(blurRadius: 6)],
+                        fontSize: 12,
+                        fontFamily: 'monospace',
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('ICE ${d.iceState}  PC ${d.connectionState}'),
+                          Text('gather ${d.gatheringState}  path ${d.pathLabel}'),
+                          Text(
+                            'cand local=${d.localCandidates} remote=${d.remoteCandidates}',
+                          ),
+                          Text(
+                            'in audio=${d.inboundAudioBytes}B  video=${d.inboundVideoBytes}B',
+                          ),
+                          if (d.lastSignal != null) Text('last ${d.lastSignal}'),
+                          const SizedBox(height: 6),
+                          const Text(
+                            'Tap status again to hide. Same data is sent to Admin → Call metrics / ICE state logs.',
+                            style: TextStyle(fontSize: 11, color: Colors.white54),
+                          ),
+                        ],
                       ),
                     ),
-                  ],
+                  ),
                 ),
               ),
 

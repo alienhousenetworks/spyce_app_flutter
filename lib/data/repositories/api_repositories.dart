@@ -835,11 +835,18 @@ class CallRepository {
     final data = await _api.get<dynamic>(
       '/call/ice-servers/',
       query: {
-        'force_turn': forceTurn,
-        'stun_only': stunOnly,
+        'force_turn': forceTurn ? 'true' : 'false',
+        'stun_only': stunOnly ? 'true' : 'false',
       },
     );
     return IceConfig.fromJson(_asMap(data));
+  }
+
+  Future<Map<String, dynamic>> submitNetworkProfile(
+    Map<String, dynamic> body,
+  ) async {
+    final data = await _api.post<dynamic>('/call/network-profile/', data: body);
+    return _asMap(data);
   }
 
   Future<Map<String, dynamic>> connectionPrediction(String calleeId) async {

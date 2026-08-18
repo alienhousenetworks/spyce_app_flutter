@@ -1,7 +1,9 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 import 'core/amplify/amplify_bootstrap.dart';
 import 'core/network/connectivity_banner.dart';
@@ -13,6 +15,17 @@ import 'features/call/call_overlay.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  try {
+    await WebRTC.initialize(
+      options: {
+        if (defaultTargetPlatform == TargetPlatform.android)
+          'androidAudioConfiguration':
+              AndroidAudioConfiguration.communication.toMap(),
+      },
+    );
+  } catch (e) {
+    debugPrint('[CALL] WebRTC.initialize failed: $e');
+  }
 
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
