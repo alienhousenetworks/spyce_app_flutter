@@ -727,7 +727,7 @@ class SocialRepository {
   }
 
   /// Report a confession: `POST /social/{id}/report/`
-  /// [reason] must be one of SPAM | HARASSMENT | FAKE_PROFILE | OTHER
+  /// [reason] is SPAM | HARASSMENT | FAKE_PROFILE | UNDERAGE_CSE | OTHER
   Future<Map<String, dynamic>> reportConfession(
     String id, {
     required String reason,

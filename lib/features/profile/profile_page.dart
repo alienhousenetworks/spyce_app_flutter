@@ -18,6 +18,7 @@ import '../../core/utils/media_url.dart';
 import '../../data/models/user_models.dart';
 import '../../data/repositories/api_repositories.dart';
 import '../../shared/widgets/language_picker.dart';
+import '../../shared/widgets/photo_guidelines_sheet.dart';
 import '../../shared/widgets/spyce_widgets.dart';
 import '../../shared/widgets/turn_on_stickers.dart';
 import '../auth/auth_controller.dart';
@@ -1102,6 +1103,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     ImageSource source, {
     String? replaceImageId,
   }) async {
+    final agreed = await PhotoGuidelinesSheet.ensureAccepted(context);
+    if (!agreed || !mounted) return;
+
     final allowed = await _ensureImagePermission(source);
     if (!allowed || !mounted) return;
 

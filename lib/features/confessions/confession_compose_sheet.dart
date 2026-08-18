@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/theme/spyce_colors.dart';
+import '../../core/utils/content_safety_validator.dart';
 import 'confession_formatter.dart';
 import 'confession_themes.dart';
 
@@ -89,13 +90,9 @@ class _ConfessionComposePageState extends State<ConfessionComposePage> {
       _selectedStyle = newStyle;
       if (_textCtrl.text.isEmpty) {
         if (newStyle == ConfessionStyleType.darkSecret) {
-          _selectedTheme = ConfessionThemeConfig.crimson;
           _selectedMood = 'DARK_SECRET';
         } else if (newStyle == ConfessionStyleType.midnight) {
-          _selectedTheme = ConfessionThemeConfig.midnight;
           _selectedMood = 'LONELY';
-        } else if (newStyle == ConfessionStyleType.poetry) {
-          _selectedTheme = ConfessionThemeConfig.charcoal;
         }
       }
     });
@@ -267,12 +264,25 @@ class _ConfessionComposePageState extends State<ConfessionComposePage> {
       return;
     }
 
+    final safetyError = ContentSafetyValidator.validate(text);
+    if (safetyError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(safetyError),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+      return;
+    }
+
     Navigator.pop(
       context,
       ConfessionComposeResult(
         text: text,
         stylePreset: _selectedStyle.code,
-        bgTheme: _selectedTheme.id,
+        bgTheme: 'OBSIDIAN',
         moodTag: _selectedMood,
       ),
     );
@@ -288,71 +298,31 @@ class _ConfessionComposePageState extends State<ConfessionComposePage> {
       appBar: AppBar(
         backgroundColor: SpyceColors.dark950,
         elevation: 0,
-        centerTitle: false,
+        centerTitle: true,
         leading: IconButton(
+          tooltip: 'Close',
           onPressed: () => Navigator.pop(context),
           icon: const Icon(Icons.close, color: SpyceColors.white, size: 22),
         ),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Confession Studio',
-              style: GoogleFonts.syne(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                color: SpyceColors.white,
-              ),
-            ),
-            Text(
-              'Anonymous · encrypted · 24h',
-              style: GoogleFonts.dmSans(
-                fontSize: 11,
-                color: SpyceColors.dark200,
-              ),
-            ),
-          ],
+        title: Text(
+          'New confession',
+          style: GoogleFonts.syne(
+            fontSize: 17,
+            fontWeight: FontWeight.w800,
+            color: SpyceColors.white,
+          ),
         ),
         actions: [
-          // Live preview toggle
-          TextButton.icon(
-            onPressed: () => setState(() => _showPreview = !_showPreview),
-            icon: Icon(
-              _showPreview
-                  ? Icons.edit_note_rounded
-                  : Icons.visibility_outlined,
-              size: 18,
-              color: SpyceColors.pinkSoft,
-            ),
-            label: Text(
-              _showPreview ? 'Edit' : 'Preview',
-              style: GoogleFonts.dmSans(
-                color: SpyceColors.pinkSoft,
-                fontWeight: FontWeight.w700,
-                fontSize: 13,
-              ),
-            ),
-          ),
-          const SizedBox(width: 4),
-          // Post Button
           Padding(
-            padding: const EdgeInsets.only(right: 14, top: 10, bottom: 10),
-            child: ElevatedButton(
-              onPressed: _submit,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: SpyceColors.pink,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                elevation: 0,
-              ),
+            padding: const EdgeInsets.only(right: 8),
+            child: TextButton(
+              onPressed: () => setState(() => _showPreview = !_showPreview),
               child: Text(
-                'Post',
-                style: GoogleFonts.syne(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w800,
+                _showPreview ? 'Edit' : 'Preview',
+                style: GoogleFonts.dmSans(
+                  color: SpyceColors.pinkSoft,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
                 ),
               ),
             ),
@@ -499,75 +469,27 @@ class _ConfessionComposePageState extends State<ConfessionComposePage> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
-
-                  // Dark Aesthetics Theme Carousel
+                  const SizedBox(height: 10),
                   SizedBox(
-                    height: 32,
-                    child: ListView(
-                      scrollDirection: Axis.horizontal,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.only(right: 8, top: 6),
-                          child: Text(
-                            'Theme:',
-                            style: GoogleFonts.dmSans(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: SpyceColors.dark200,
-                            ),
-                          ),
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton(
+                      onPressed: _submit,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: SpyceColors.pink,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
                         ),
-                        for (final t in ConfessionThemeConfig.allThemes) ...[
-                          InkWell(
-                            borderRadius: BorderRadius.circular(14),
-                            onTap: () => setState(() => _selectedTheme = t),
-                            child: Container(
-                              margin: const EdgeInsets.only(right: 6),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 9,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                gradient: t.gradient,
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(
-                                  color: _selectedTheme.id == t.id
-                                      ? t.accentColor
-                                      : t.borderColor,
-                                  width: _selectedTheme.id == t.id ? 1.5 : 0.8,
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Container(
-                                    width: 8,
-                                    height: 8,
-                                    decoration: BoxDecoration(
-                                      color: t.accentColor,
-                                      shape: BoxShape.circle,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 5),
-                                  Text(
-                                    t.name,
-                                    style: GoogleFonts.syne(
-                                      fontSize: 11,
-                                      fontWeight: _selectedTheme.id == t.id
-                                          ? FontWeight.w700
-                                          : FontWeight.w500,
-                                      color: _selectedTheme.id == t.id
-                                          ? SpyceColors.white
-                                          : SpyceColors.dark100,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
+                      ),
+                      child: Text(
+                        'Post',
+                        style: GoogleFonts.syne(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
                     ),
                   ),
                 ],
@@ -792,7 +714,7 @@ class _ConfessionComposePageState extends State<ConfessionComposePage> {
                           ),
                         ),
                         Text(
-                          'Just now · ${_selectedTheme.name}',
+                          'Just now · anonymous',
                           style: TextStyle(
                             fontSize: 11,
                             color: _selectedTheme.metaColor,

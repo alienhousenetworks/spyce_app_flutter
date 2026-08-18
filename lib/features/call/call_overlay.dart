@@ -4,6 +4,7 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/theme/spyce_colors.dart';
+import '../../data/repositories/api_repositories.dart';
 import 'call_controller.dart';
 
 /// Full-screen call UI over the app when a call is live / incoming.
@@ -353,6 +354,40 @@ class CallOverlay extends ConsumerWidget {
                 ),
               ),
 
+            // Top Left Safety & Report Button (Always accessible during call)
+            Positioned(
+              top: 16,
+              left: 16,
+              child: SafeArea(
+                child: Material(
+                  color: Colors.black.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(20),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(20),
+                    onTap: () => _showSafetySheet(context, ref, call, ctrl),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: const [
+                          Icon(Icons.shield_outlined, color: Colors.redAccent, size: 18),
+                          SizedBox(width: 6),
+                          Text(
+                            'Report / Block',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
             // Controls
             Positioned(
               left: 0,
@@ -383,6 +418,11 @@ class CallOverlay extends ConsumerWidget {
                     onTap: () => ctrl.hangup(),
                   ),
                   _CircleBtn(
+                    color: Colors.red.shade900.withValues(alpha: 0.7),
+                    icon: Icons.shield_outlined,
+                    onTap: () => _showSafetySheet(context, ref, call, ctrl),
+                  ),
+                  _CircleBtn(
                     color: call.speakerOn
                         ? SpyceColors.teal.withValues(alpha: 0.4)
                         : SpyceColors.dark600,
@@ -397,6 +437,125 @@ class CallOverlay extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+
+  void _showSafetySheet(
+    BuildContext context,
+    WidgetRef ref,
+    CallState call,
+    CallController ctrl,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: SpyceColors.dark900,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: const [
+                    Icon(Icons.shield, color: Colors.redAccent, size: 24),
+                    SizedBox(width: 10),
+                    Text(
+                      'Call Safety & Moderation',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  'If this person is violating community rules or making you uncomfortable, you can instantly end the call, report, and block them.',
+                  style: TextStyle(color: SpyceColors.dark100, fontSize: 13),
+                ),
+                const SizedBox(height: 16),
+                _buildReportOption(
+                  ctx,
+                  ref,
+                  call,
+                  ctrl,
+                  'INAPPROPRIATE_CONTENT',
+                  'Inappropriate or NSFW Video / Behavior',
+                ),
+                _buildReportOption(
+                  ctx,
+                  ref,
+                  call,
+                  ctrl,
+                  'HARASSMENT',
+                  'Harassment, Hate Speech or Threats',
+                ),
+                _buildReportOption(
+                  ctx,
+                  ref,
+                  call,
+                  ctrl,
+                  'UNDERAGE_CSE',
+                  'Underage or Exploitative Behavior',
+                ),
+                _buildReportOption(
+                  ctx,
+                  ref,
+                  call,
+                  ctrl,
+                  'SPAM',
+                  'Spam, Bot or Financial Solicitation',
+                ),
+                const SizedBox(height: 10),
+                OutlinedButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Cancel'),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildReportOption(
+    BuildContext context,
+    WidgetRef ref,
+    CallState call,
+    CallController ctrl,
+    String reason,
+    String label,
+  ) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: const Icon(Icons.block, color: Colors.redAccent, size: 20),
+      title: Text(
+        label,
+        style: const TextStyle(color: Colors.white, fontSize: 14),
+      ),
+      onTap: () async {
+        Navigator.pop(context);
+        final peerId = call.peerId;
+        // 1. Immediately drop the call
+        ctrl.hangup();
+        // 2. Submit report & block
+        if (peerId != null && peerId.isNotEmpty) {
+          try {
+            await ref.read(moderationRepositoryProvider).reportAndBlock(
+                  reportedUserId: peerId,
+                  reason: reason,
+                  description: 'Reported during live call: $label',
+                );
+          } catch (_) {}
+        }
+      },
     );
   }
 }

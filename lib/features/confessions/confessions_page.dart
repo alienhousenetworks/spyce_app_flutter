@@ -190,6 +190,10 @@ class _ConfessionsPageState extends ConsumerState<ConfessionsPage> {
       (value: 'SPAM', label: 'Spam'),
       (value: 'HARASSMENT', label: 'Harassment'),
       (value: 'FAKE_PROFILE', label: 'Fake / misleading'),
+      (
+        value: 'UNDERAGE_CSE',
+        label: 'Underage sexual exploitation',
+      ),
       (value: 'OTHER', label: 'Other'),
     ];
 
@@ -238,7 +242,7 @@ class _ConfessionsPageState extends ConsumerState<ConfessionsPage> {
                   ),
                   const SizedBox(height: 6),
                   const Text(
-                    'Choose a reason. Add details if you want (required for Other).',
+                    'This hides the confession for you only. It stays up for others unless many people report it, or you flag underage sexual exploitation (that goes to staff immediately).',
                     style: TextStyle(color: SpyceColors.dark100, fontSize: 13),
                   ),
                   const SizedBox(height: 16),
@@ -334,15 +338,26 @@ class _ConfessionsPageState extends ConsumerState<ConfessionsPage> {
     if (submitted != true) return;
 
     try {
-      await ref.read(socialRepositoryProvider).reportConfession(
+      final res = await ref.read(socialRepositoryProvider).reportConfession(
             p.id,
             reason: reason,
             description: description,
           );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Report submitted. Thank you.')),
-      );
+      final hideIds = <String>{p.id, if (p.parentId != null) p.parentId!};
+      setState(() {
+        feed = feed
+            .where((x) => !hideIds.contains(x.id) && !hideIds.contains(x.parentId ?? ''))
+            .toList();
+      });
+      final pending = res['pending_admin_review'] == true;
+      final global = res['globally_hidden'] == true;
+      final snack = pending
+          ? 'Hidden and sent to safety review. Staff will verify.'
+          : global
+              ? 'This confession was removed for everyone after multiple reports.'
+              : 'Hidden for you. Others can still see it.';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(snack)));
     } on ApiException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

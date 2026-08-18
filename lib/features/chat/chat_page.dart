@@ -1629,6 +1629,9 @@ class _ChatThreadPageState extends ConsumerState<ChatThreadPage> {
                             child: Text('Inappropriate')),
                         DropdownMenuItem(
                             value: 'FAKE_PROFILE', child: Text('Fake profile')),
+                        DropdownMenuItem(
+                            value: 'UNDERAGE_CSE',
+                            child: Text('Underage sexual exploitation')),
                         DropdownMenuItem(value: 'OTHER', child: Text('Other')),
                       ],
                       onChanged: (v) => setLocal(() => reason = v ?? 'SPAM'),

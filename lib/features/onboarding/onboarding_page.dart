@@ -11,6 +11,7 @@ import '../../core/utils/onboarding.dart';
 import '../../data/models/user_models.dart';
 import '../../data/repositories/api_repositories.dart';
 import '../../shared/widgets/onboarding_widgets.dart';
+import '../../shared/widgets/photo_guidelines_sheet.dart';
 import '../auth/auth_controller.dart';
 import 'face_liveness_screen.dart';
 import 'widgets/bio_photo_step.dart';
@@ -201,6 +202,9 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
   }
 
   Future<void> _addPhoto() async {
+    final agreed = await PhotoGuidelinesSheet.ensureAccepted(context);
+    if (!agreed || !mounted) return;
+
     final picker = ImagePicker();
     final file = await picker.pickImage(
       source: ImageSource.gallery,
