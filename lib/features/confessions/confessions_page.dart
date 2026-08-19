@@ -487,41 +487,147 @@ class _ConfessionsPageState extends ConsumerState<ConfessionsPage> {
     ctrl.dispose();
   }
 
+  Future<bool> _promptUgcEulaAcceptance() async {
+    final accepted = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: SpyceColors.dark900,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: SpyceColors.dark500,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    const Icon(Icons.security, color: SpyceColors.pink, size: 24),
+                    const SizedBox(width: 10),
+                    Text(
+                      'Community Safety & Terms',
+                      style: GoogleFonts.syne(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: SpyceColors.white,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                const Text(
+                  'To post confessions on SPYCE, you must agree to our Safety Guidelines:\n'
+                  '• No harassment, bullying, or hate speech.\n'
+                  '• No explicit non-consensual content or personal contact details.\n'
+                  '• Violations result in immediate content removal and account bans.',
+                  style: TextStyle(
+                    color: SpyceColors.dark100,
+                    fontSize: 13,
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                SpycePrimaryButton(
+                  label: 'I Agree & Continue',
+                  onPressed: () => Navigator.of(ctx).pop(true),
+                ),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(false),
+                  child: const Text('Cancel', style: TextStyle(color: SpyceColors.dark200)),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    return accepted == true;
+  }
+
   Future<void> _compose() async {
     final result = await ConfessionComposeSheet.show(context);
-    if (result != null) {
-      try {
-        final created = await ref.read(socialRepositoryProvider).post(
-              text: result.text,
-              moodTag: result.moodTag,
-              stylePreset: result.stylePreset,
-              bgTheme: result.bgTheme,
-              lat: lat,
-              lon: lon,
+    if (result == null) return;
+
+    try {
+      final created = await ref.read(socialRepositoryProvider).post(
+            text: result.text,
+            moodTag: result.moodTag,
+            stylePreset: result.stylePreset,
+            bgTheme: result.bgTheme,
+            lat: lat,
+            lon: lon,
+          );
+      if (!mounted) return;
+      setState(() {
+        mine = [created.copyWith(isAuthor: true), ...mine];
+        showMine = true;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Confession posted successfully!'),
+          backgroundColor: SpyceColors.teal,
+        ),
+      );
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      if (e.code == 'ugc_eula_required' || e.statusCode == 403) {
+        final accepted = await _promptUgcEulaAcceptance();
+        if (accepted) {
+          try {
+            await ref.read(socialRepositoryProvider).acceptUgcEula();
+            final created = await ref.read(socialRepositoryProvider).post(
+                  text: result.text,
+                  moodTag: result.moodTag,
+                  stylePreset: result.stylePreset,
+                  bgTheme: result.bgTheme,
+                  lat: lat,
+                  lon: lon,
+                  acceptUgcEula: true,
+                );
+            if (!mounted) return;
+            setState(() {
+              mine = [created.copyWith(isAuthor: true), ...mine];
+              showMine = true;
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Confession posted successfully!'),
+                backgroundColor: SpyceColors.teal,
+              ),
             );
-        setState(() {
-          mine = [created.copyWith(isAuthor: true), ...mine];
-          showMine = true;
-        });
-      } catch (_) {
-        setState(() {
-          mine = [
-            ConfessionPost(
-              id: 'local-${DateTime.now().millisecondsSinceEpoch}',
-              text: result.text,
-              moodTag: result.moodTag,
-              stylePreset: result.stylePreset,
-              bgTheme: result.bgTheme,
-              isAuthor: true,
-              relateCount: 0,
-              repostCount: 0,
-              createdAt: DateTime.now(),
-            ),
-            ...mine,
-          ];
-          showMine = true;
-        });
+            return;
+          } catch (retryErr) {
+            if (!mounted) return;
+            final msg = retryErr is ApiException ? retryErr.message : '$retryErr';
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Could not post confession: $msg')),
+            );
+            return;
+          }
+        }
       }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message)),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not post confession: $e')),
+      );
     }
   }
 

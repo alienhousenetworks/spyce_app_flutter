@@ -237,18 +237,6 @@ class _ConfessionComposePageState extends State<ConfessionComposePage> {
     }
   }
 
-  void _insertPrompt() {
-    final prompt = _selectedStyle.defaultPrompt;
-    if (_textCtrl.text.isEmpty) {
-      _textCtrl.text = prompt;
-      _textCtrl.selection = TextSelection.collapsed(offset: prompt.length);
-    } else {
-      final prefix = _textCtrl.text.endsWith('\n') ? '' : '\n\n';
-      _insertText('$prefix$prompt');
-    }
-    setState(() {});
-  }
-
   void _submit() {
     final text = _textCtrl.text.trim();
     if (text.length < 10) {
@@ -435,13 +423,6 @@ class _ConfessionComposePageState extends State<ConfessionComposePage> {
                         label: 'Quote',
                         tooltip: 'Quote Block',
                         onTap: _insertQuote,
-                      ),
-                      const SizedBox(width: 8),
-                      _ToolButton(
-                        icon: Icons.lightbulb_outline_rounded,
-                        label: 'Prompt',
-                        tooltip: 'Inspiration Starter',
-                        onTap: _insertPrompt,
                       ),
                       const Spacer(),
                       // Character Counter

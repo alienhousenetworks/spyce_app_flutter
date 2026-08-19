@@ -239,6 +239,7 @@ class OnboardingTextField extends StatelessWidget {
   const OnboardingTextField({
     super.key,
     required this.controller,
+    this.focusNode,
     this.hintText,
     this.labelText,
     this.keyboardType,
@@ -247,10 +248,13 @@ class OnboardingTextField extends StatelessWidget {
     this.maxLines = 1,
     this.onChanged,
     this.readOnly = false,
+    this.obscureText = false,
+    this.suffixIcon,
     this.onTap,
   });
 
   final TextEditingController controller;
+  final FocusNode? focusNode;
   final String? hintText;
   final String? labelText;
   final TextInputType? keyboardType;
@@ -259,16 +263,20 @@ class OnboardingTextField extends StatelessWidget {
   final int maxLines;
   final ValueChanged<String>? onChanged;
   final bool readOnly;
+  final bool obscureText;
+  final Widget? suffixIcon;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     return TextField(
       controller: controller,
+      focusNode: focusNode,
       keyboardType: keyboardType,
       textAlign: textAlign,
       maxLength: maxLength,
-      maxLines: maxLines,
+      maxLines: obscureText ? 1 : maxLines,
+      obscureText: obscureText,
       readOnly: readOnly,
       onTap: onTap,
       onChanged: onChanged,
@@ -283,6 +291,7 @@ class OnboardingTextField extends StatelessWidget {
           color: OnboardingColors.textPlaceholder,
           fontSize: 14,
         ),
+        suffixIcon: suffixIcon,
         filled: true,
         fillColor: OnboardingColors.inputFill,
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),

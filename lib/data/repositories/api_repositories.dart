@@ -111,6 +111,135 @@ class AuthRepository {
     }
   }
 
+  Future<({bool ok, Map<String, dynamic> data})> firebaseLogin(
+    String idToken, {
+    String? intent,
+  }) async {
+    final deviceId = await _storage.getOrCreateDeviceId();
+    try {
+      final data = await _api.post<dynamic>(
+        '/auth/firebase-login/',
+        data: {
+          'id_token': idToken,
+          'device_id': deviceId,
+          if (intent != null) 'intent': intent,
+        },
+      );
+      final map = _asMap(data);
+      final access = map['access']?.toString();
+      final refresh = map['refresh']?.toString();
+      if (access != null && refresh != null) {
+        await _storage.saveTokens(access: access, refresh: refresh);
+      }
+      return (ok: access != null, data: map);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<({bool ok, Map<String, dynamic> data})> registerWithPassword(
+    String email,
+    String password, {
+    String? captchaToken,
+  }) async {
+    final deviceId = await _storage.getOrCreateDeviceId();
+    final token = captchaToken?.trim();
+    try {
+      final data = await _api.post<dynamic>(
+        '/auth/password/register/',
+        data: {
+          'email': email.trim().toLowerCase(),
+          'password': password,
+          'device_id': deviceId,
+          if (token != null && token.isNotEmpty) 'captcha_token': token,
+        },
+      );
+      final map = _asMap(data);
+      final access = map['access']?.toString();
+      final refresh = map['refresh']?.toString();
+      if (access != null && refresh != null) {
+        await _storage.saveTokens(access: access, refresh: refresh);
+      }
+      return (ok: access != null, data: map);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<({bool ok, Map<String, dynamic> data})> loginWithPassword(
+    String email,
+    String password, {
+    String? captchaToken,
+  }) async {
+    final deviceId = await _storage.getOrCreateDeviceId();
+    final token = captchaToken?.trim();
+    try {
+      final data = await _api.post<dynamic>(
+        '/auth/password/login/',
+        data: {
+          'email': email.trim().toLowerCase(),
+          'password': password,
+          'device_id': deviceId,
+          if (token != null && token.isNotEmpty) 'captcha_token': token,
+        },
+      );
+      final map = _asMap(data);
+      final access = map['access']?.toString();
+      final refresh = map['refresh']?.toString();
+      if (access != null && refresh != null) {
+        await _storage.saveTokens(access: access, refresh: refresh);
+      }
+      return (ok: access != null, data: map);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> requestPasswordReset(
+    String email, {
+    String? captchaToken,
+  }) async {
+    final deviceId = await _storage.getOrCreateDeviceId();
+    final token = captchaToken?.trim();
+    final data = await _api.post<dynamic>(
+      '/auth/password/reset-request/',
+      data: {
+        'email': email.trim().toLowerCase(),
+        'device_id': deviceId,
+        if (token != null && token.isNotEmpty) 'captcha_token': token,
+      },
+    );
+    return _asMap(data);
+  }
+
+  Future<({bool ok, Map<String, dynamic> data})> confirmPasswordReset(
+    String email,
+    String otp,
+    String newPassword,
+  ) async {
+    final deviceId = await _storage.getOrCreateDeviceId();
+    try {
+      final data = await _api.post<dynamic>(
+        '/auth/password/reset-confirm/',
+        data: {
+          'email': email.trim().toLowerCase(),
+          'otp': otp.trim(),
+          'new_password': newPassword,
+          'device_id': deviceId,
+        },
+      );
+      final map = _asMap(data);
+      final access = map['access']?.toString();
+      final refresh = map['refresh']?.toString();
+      if (access != null && refresh != null) {
+        await _storage.saveTokens(access: access, refresh: refresh);
+      }
+      return (ok: access != null, data: map);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
   Future<Map<String, dynamic>> resendOtp(
     String email, {
     String? intent,
@@ -175,6 +304,11 @@ class AuthRepository {
     if (lon != null) body['lon'] = lon;
     await _api.post('/users/last-active/', data: body);
   }
+
+  Future<Map<String, dynamic>> acceptUgcEula() async {
+    final data = await _api.post<dynamic>('/users/accept-ugc-eula/');
+    return _asMap(data);
+  }
 }
 
 // ── Feed ─────────────────────────────────────────────────────
@@ -195,8 +329,12 @@ class FeedRepository {
       if (refresh) 'refresh': true,
     };
     final f = filters ?? {};
-    if (f['min_age'] != null) query['min_age'] = f['min_age'];
-    if (f['max_age'] != null) query['max_age'] = f['max_age'];
+    if (f['min_age'] != null && f['min_age'] != 18) {
+      query['min_age'] = f['min_age'];
+    }
+    if (f['max_age'] != null && f['max_age'] != 100) {
+      query['max_age'] = f['max_age'];
+    }
     if (f['intent'] != null && '${f['intent']}'.isNotEmpty) {
       query['intent'] = f['intent'];
     }
@@ -227,9 +365,10 @@ class FeedRepository {
         query['city_lon'] = clon;
       }
     } else {
-      query['location_mode'] = 'distance';
-      if (f['distance'] != null && f['distance'] != '') {
-        query['distance'] = f['distance'];
+      final dist = f['distance'];
+      if (dist != null && dist != 0 && dist != '0' && dist != '') {
+        query['location_mode'] = 'distance';
+        query['distance'] = dist;
       }
     }
 
@@ -238,7 +377,7 @@ class FeedRepository {
       query['gender'] = genders;
     }
 
-    // Discover feed is FastAPI-only (GET /api/v2/feed). Dio accepts absolute URLs.
+    // Discover feed is FastAPI-only (GET /api/v2/feed).
     final data = await _api.get<dynamic>(Env.feedUrl, query: query);
     return FeedResponse.fromJson(_asMap(data));
   }
@@ -688,6 +827,7 @@ class SocialRepository {
     String? bgTheme,
     double? lat,
     double? lon,
+    bool acceptUgcEula = false,
   }) async {
     final data = await _api.post<dynamic>(
       '/social/',
@@ -699,9 +839,15 @@ class SocialRepository {
         'language': 'en',
         if (lat != null) 'latitude': lat,
         if (lon != null) 'longitude': lon,
+        if (acceptUgcEula) 'accept_ugc_eula': true,
       },
     );
     return ConfessionPost.fromJson(_asMap(data));
+  }
+
+  Future<Map<String, dynamic>> acceptUgcEula() async {
+    final data = await _api.post<dynamic>('/users/accept-ugc-eula/');
+    return _asMap(data);
   }
 
   Future<Map<String, dynamic>> relate(String id) async {

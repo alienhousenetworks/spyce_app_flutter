@@ -1,7 +1,7 @@
 name: spyce
 description: SPYCE — Intent-First Dating. Premium Flutter client.
 publish_to: 'none'
-version: 1.0.2+3
+version: 1.0.3+4
 
 environment:
   sdk: ^3.11.1
@@ -44,6 +44,9 @@ dependencies:
   amplify_flutter: ^2.6.0
   amplify_auth_cognito: ^2.6.0
   face_liveness_detector: ^0.2.11
+  firebase_core: ^4.13.0
+  firebase_auth: ^6.5.7
+  google_sign_in: ^7.2.0
 
 dev_dependencies:
   flutter_test:

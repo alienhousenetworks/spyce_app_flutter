@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/auth/firebase_auth_service.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/utils/onboarding.dart';
 import '../../data/models/user_models.dart';
@@ -9,10 +10,23 @@ import '../../data/repositories/api_repositories.dart';
 enum AuthStep {
   /// Choose Sign in or Sign up.
   welcome,
-  /// Enter email.
+
+  /// Enter email (or password / OTP).
   email,
-  /// Enter OTP.
+
+  /// Enter OTP for email verification.
   otp,
+
+  /// Request password reset OTP.
+  forgotPassword,
+
+  /// Enter OTP and new password.
+  resetPassword,
+}
+
+enum AuthMethod {
+  otp,
+  password,
 }
 
 enum AuthMode { signIn, signUp }
@@ -29,6 +43,7 @@ class AuthState {
   const AuthState({
     this.step = AuthStep.welcome,
     this.mode = AuthMode.signIn,
+    this.method = AuthMethod.otp,
     this.email = '',
     this.user,
     this.loading = false,
@@ -40,6 +55,7 @@ class AuthState {
 
   final AuthStep step;
   final AuthMode mode;
+  final AuthMethod method;
   final String email;
   final AuthUser? user;
   final bool loading;
@@ -51,14 +67,15 @@ class AuthState {
   bool get isLoggedIn => user != null;
 
   AuthNavSnapshot get navSnapshot => (
-        bootstrapped: bootstrapped,
-        isLoggedIn: isLoggedIn,
-        onboardingComplete: onboardingComplete == true,
-      );
+    bootstrapped: bootstrapped,
+    isLoggedIn: isLoggedIn,
+    onboardingComplete: onboardingComplete == true,
+  );
 
   AuthState copyWith({
     AuthStep? step,
     AuthMode? mode,
+    AuthMethod? method,
     String? email,
     AuthUser? user,
     bool clearUser = false,
@@ -74,6 +91,7 @@ class AuthState {
     return AuthState(
       step: step ?? this.step,
       mode: mode ?? this.mode,
+      method: method ?? this.method,
       email: email ?? this.email,
       user: clearUser ? null : (user ?? this.user),
       loading: loading ?? this.loading,
@@ -113,6 +131,14 @@ class AuthController extends StateNotifier<AuthState> {
     );
   }
 
+  void setAuthMethod(AuthMethod method) {
+    state = state.copyWith(
+      method: method,
+      clearError: true,
+      clearMessage: true,
+    );
+  }
+
   void goBackToWelcome() {
     state = state.copyWith(
       step: AuthStep.welcome,
@@ -139,6 +165,14 @@ class AuthController extends StateNotifier<AuthState> {
     );
   }
 
+  void goToForgotPassword() {
+    state = state.copyWith(
+      step: AuthStep.forgotPassword,
+      clearError: true,
+      clearMessage: true,
+    );
+  }
+
   /// Commit email only when sending OTP / verifying — not on every keystroke.
   void setEmail(String email) {
     state = state.copyWith(email: email.trim(), clearError: true);
@@ -149,8 +183,7 @@ class AuthController extends StateNotifier<AuthState> {
     try {
       final profile = await _profile.getMyProfile();
       final uname = profile.username?.trim();
-      final fname =
-          (profile.firstName ?? profile.name)?.trim();
+      final fname = (profile.firstName ?? profile.name)?.trim();
       if ((uname == null || uname.isEmpty) &&
           (fname == null || fname.isEmpty) &&
           (user.username == null || user.username!.isEmpty) &&
@@ -159,8 +192,7 @@ class AuthController extends StateNotifier<AuthState> {
       }
       return user.copyWith(
         username: (uname != null && uname.isNotEmpty) ? uname : user.username,
-        firstName:
-            (fname != null && fname.isNotEmpty) ? fname : user.firstName,
+        firstName: (fname != null && fname.isNotEmpty) ? fname : user.firstName,
       );
     } catch (_) {
       return user;
@@ -172,9 +204,7 @@ class AuthController extends StateNotifier<AuthState> {
     final current = state.user;
     if (current == null) return;
     if (username != null && username.trim().isNotEmpty) {
-      state = state.copyWith(
-        user: current.copyWith(username: username.trim()),
-      );
+      state = state.copyWith(user: current.copyWith(username: username.trim()));
       return;
     }
     final enriched = await _withProfileIdentity(current);
@@ -182,8 +212,6 @@ class AuthController extends StateNotifier<AuthState> {
   }
 
   /// Resolve whether the user already finished first-time signup.
-  /// Prefer session flag + core profile fields; never use only is_discoverable
-  /// (false when paused/hidden → wrongly re-opens signup / gender immutable).
   Future<bool> _resolveOnboardingComplete({
     bool? sessionFlag,
     bool? verifyFlag,
@@ -204,12 +232,63 @@ class AuthController extends StateNotifier<AuthState> {
     }
     if (isProfileOnboarded(p)) return true;
 
-    // Explicit false from API only when we have no profile evidence
     if (verifyFlag == false || sessionFlag == false) {
-      // Still trust core fields if profile loaded mid-check
       return isProfileOnboarded(p);
     }
     return false;
+  }
+
+  Future<bool> _handleAuthSuccess(Map<String, dynamic> data) async {
+    final isNewUser =
+        data['is_new_user'] == true || data['is_new'] == true;
+    final verifyOnboarding = data['onboarding_complete'] is bool
+        ? data['onboarding_complete'] as bool
+        : null;
+
+    var user =
+        await _auth.getMe() ??
+        AuthUser(
+          id: data['user_id']?.toString() ?? 'user',
+          email: state.email,
+          isNew: isNewUser,
+        );
+    user = user.copyWith(isNew: isNewUser);
+
+    bool? sessionFlag;
+    UserProfile? profile;
+    try {
+      final session = await _auth.getSession();
+      sessionFlag = session?.onboardingComplete;
+    } catch (_) {}
+    try {
+      profile = await _profile.getMyProfile();
+      user = user.copyWith(
+        username: (profile.username?.trim().isNotEmpty == true)
+            ? profile.username!.trim()
+            : user.username,
+        firstName:
+            ((profile.firstName ?? profile.name)?.trim().isNotEmpty == true)
+            ? (profile.firstName ?? profile.name)!.trim()
+            : user.firstName,
+      );
+    } catch (_) {
+      user = await _withProfileIdentity(user);
+    }
+
+    final onboarding = await _resolveOnboardingComplete(
+      sessionFlag: sessionFlag,
+      verifyFlag: verifyOnboarding,
+      profile: profile,
+      isNewUser: isNewUser,
+    );
+
+    state = state.copyWith(
+      loading: false,
+      user: user,
+      onboardingComplete: onboarding,
+      clearError: true,
+    );
+    return true;
   }
 
   Future<void> bootstrap() async {
@@ -237,7 +316,8 @@ class AuthController extends StateNotifier<AuthState> {
                 username: (profile.username?.trim().isNotEmpty == true)
                     ? profile.username!.trim()
                     : user.username,
-                firstName: ((profile.firstName ?? profile.name)?.trim().isNotEmpty ==
+                firstName:
+                    ((profile.firstName ?? profile.name)?.trim().isNotEmpty ==
                         true)
                     ? (profile.firstName ?? profile.name)!.trim()
                     : user.firstName,
@@ -286,10 +366,7 @@ class AuthController extends StateNotifier<AuthState> {
         captchaToken: captchaToken,
       );
       if (data['error'] != null) {
-        state = state.copyWith(
-          loading: false,
-          error: data['error'].toString(),
-        );
+        state = state.copyWith(loading: false, error: data['error'].toString());
         return false;
       }
       state = state.copyWith(
@@ -326,56 +403,139 @@ class AuthController extends StateNotifier<AuthState> {
         );
         return false;
       }
-
-      // Backend: is_new_user (and alias is_new). Never force from UI mode —
-      // choosing "Sign up" with an existing email is blocked server-side;
-      // if login succeeds, treat as returning user regardless of button used.
-      final isNewUser = result.data['is_new_user'] == true ||
-          result.data['is_new'] == true;
-      final verifyOnboarding = result.data['onboarding_complete'] is bool
-          ? result.data['onboarding_complete'] as bool
-          : null;
-
-      var user = await _auth.getMe() ??
-          AuthUser(
-            id: result.data['user_id']?.toString() ?? 'user',
-            email: state.email,
-            isNew: isNewUser,
-          );
-      user = user.copyWith(isNew: isNewUser);
-
-      bool? sessionFlag;
-      UserProfile? profile;
-      try {
-        final session = await _auth.getSession();
-        sessionFlag = session?.onboardingComplete;
-      } catch (_) {}
-      try {
-        profile = await _profile.getMyProfile();
-        user = user.copyWith(
-          username: (profile.username?.trim().isNotEmpty == true)
-              ? profile.username!.trim()
-              : user.username,
-          firstName:
-              ((profile.firstName ?? profile.name)?.trim().isNotEmpty == true)
-                  ? (profile.firstName ?? profile.name)!.trim()
-                  : user.firstName,
-        );
-      } catch (_) {
-        user = await _withProfileIdentity(user);
-      }
-
-      final onboarding = await _resolveOnboardingComplete(
-        sessionFlag: sessionFlag,
-        verifyFlag: verifyOnboarding,
-        profile: profile,
-        isNewUser: isNewUser,
-      );
-
+      return _handleAuthSuccess(result.data);
+    } on ApiException catch (e) {
+      state = state.copyWith(loading: false, error: e.message);
+      return false;
+    } catch (_) {
       state = state.copyWith(
         loading: false,
-        user: user,
-        onboardingComplete: onboarding,
+        error: 'Could not verify OTP. Check your connection and try again.',
+      );
+      return false;
+    }
+  }
+
+  Future<bool> registerWithPassword(
+    String email,
+    String password, {
+    String? captchaToken,
+  }) async {
+    final trimmedEmail = email.trim();
+    if (trimmedEmail.isEmpty || !trimmedEmail.contains('@')) {
+      state = state.copyWith(error: 'Enter a valid email address.');
+      return false;
+    }
+    if (password.length < 8) {
+      state = state.copyWith(error: 'Password must be at least 8 characters.');
+      return false;
+    }
+    state = state.copyWith(
+      email: trimmedEmail,
+      loading: true,
+      clearError: true,
+      clearMessage: true,
+    );
+    try {
+      final result = await _auth.registerWithPassword(
+        trimmedEmail,
+        password,
+        captchaToken: captchaToken,
+      );
+      if (!result.ok) {
+        state = state.copyWith(
+          loading: false,
+          error: result.data['error']?.toString() ?? 'Registration failed.',
+        );
+        return false;
+      }
+      return _handleAuthSuccess(result.data);
+    } on ApiException catch (e) {
+      state = state.copyWith(loading: false, error: e.message);
+      return false;
+    } catch (_) {
+      state = state.copyWith(
+        loading: false,
+        error: 'Could not complete registration. Check your connection.',
+      );
+      return false;
+    }
+  }
+
+  Future<bool> loginWithPassword(
+    String email,
+    String password, {
+    String? captchaToken,
+  }) async {
+    final trimmedEmail = email.trim();
+    if (trimmedEmail.isEmpty || !trimmedEmail.contains('@')) {
+      state = state.copyWith(error: 'Enter a valid email address.');
+      return false;
+    }
+    if (password.isEmpty) {
+      state = state.copyWith(error: 'Enter your password.');
+      return false;
+    }
+    state = state.copyWith(
+      email: trimmedEmail,
+      loading: true,
+      clearError: true,
+      clearMessage: true,
+    );
+    try {
+      final result = await _auth.loginWithPassword(
+        trimmedEmail,
+        password,
+        captchaToken: captchaToken,
+      );
+      if (!result.ok) {
+        state = state.copyWith(
+          loading: false,
+          error: result.data['error']?.toString() ?? 'Invalid email or password.',
+        );
+        return false;
+      }
+      return _handleAuthSuccess(result.data);
+    } on ApiException catch (e) {
+      state = state.copyWith(loading: false, error: e.message);
+      return false;
+    } catch (_) {
+      state = state.copyWith(
+        loading: false,
+        error: 'Could not sign in. Check your connection.',
+      );
+      return false;
+    }
+  }
+
+  Future<bool> requestPasswordReset(
+    String email, {
+    String? captchaToken,
+  }) async {
+    final trimmed = email.trim();
+    if (trimmed.isEmpty || !trimmed.contains('@')) {
+      state = state.copyWith(error: 'Enter a valid email address.');
+      return false;
+    }
+    state = state.copyWith(
+      email: trimmed,
+      loading: true,
+      clearError: true,
+      clearMessage: true,
+    );
+    try {
+      final data = await _auth.requestPasswordReset(
+        trimmed,
+        captchaToken: captchaToken,
+      );
+      if (data['error'] != null) {
+        state = state.copyWith(loading: false, error: data['error'].toString());
+        return false;
+      }
+      state = state.copyWith(
+        loading: false,
+        step: AuthStep.resetPassword,
+        message: data['message']?.toString() ?? 'Reset code sent to $trimmed',
       );
       return true;
     } on ApiException catch (e) {
@@ -384,7 +544,95 @@ class AuthController extends StateNotifier<AuthState> {
     } catch (_) {
       state = state.copyWith(
         loading: false,
-        error: 'Could not verify OTP. Check your connection and try again.',
+        error: 'Could not send reset code. Check your connection.',
+      );
+      return false;
+    }
+  }
+
+  Future<bool> confirmPasswordReset(String otp, String newPassword) async {
+    final code = otp.trim();
+    if (code.length < 4) {
+      state = state.copyWith(error: 'Enter the reset code.');
+      return false;
+    }
+    if (newPassword.length < 8) {
+      state = state.copyWith(error: 'Password must be at least 8 characters.');
+      return false;
+    }
+    state = state.copyWith(loading: true, clearError: true);
+    try {
+      final result = await _auth.confirmPasswordReset(
+        state.email,
+        code,
+        newPassword,
+      );
+      if (!result.ok) {
+        state = state.copyWith(
+          loading: false,
+          error: result.data['error']?.toString() ?? 'Password reset failed.',
+        );
+        return false;
+      }
+      return _handleAuthSuccess(result.data);
+    } on ApiException catch (e) {
+      state = state.copyWith(loading: false, error: e.message);
+      return false;
+    } catch (_) {
+      state = state.copyWith(
+        loading: false,
+        error: 'Could not reset password. Check your connection.',
+      );
+      return false;
+    }
+  }
+
+  Future<bool> signInWithGoogle() async {
+    state = state.copyWith(loading: true, clearError: true, clearMessage: true);
+    try {
+      final session = await FirebaseAuthService.signInWithGoogle();
+      if (session == null) {
+        state = state.copyWith(loading: false);
+        return false;
+      }
+      if (session.email.isNotEmpty) {
+        state = state.copyWith(email: session.email);
+      }
+      return signInWithFirebaseToken(session.idToken);
+    } on ApiException catch (e) {
+      state = state.copyWith(loading: false, error: e.message);
+      return false;
+    } catch (e) {
+      state = state.copyWith(
+        loading: false,
+        error: e.toString().contains('Google')
+            ? e.toString().replaceFirst('Exception: ', '')
+            : 'Google Sign-In failed. You can still use Email OTP or Password.',
+      );
+      return false;
+    }
+  }
+
+  Future<bool> signInWithFirebaseToken(String idToken) async {
+    state = state.copyWith(loading: true, clearError: true);
+    try {
+      final intent = state.mode == AuthMode.signUp ? 'signup' : 'login';
+      final result = await _auth.firebaseLogin(idToken, intent: intent);
+      if (!result.ok) {
+        state = state.copyWith(
+          loading: false,
+          error: result.data['error']?.toString() ?? 'Firebase login failed.',
+        );
+        return false;
+      }
+      return _handleAuthSuccess(result.data);
+    } on ApiException catch (e) {
+      state = state.copyWith(loading: false, error: e.message);
+      return false;
+    } catch (_) {
+      state = state.copyWith(
+        loading: false,
+        error: 'Could not complete Firebase login. Check your connection.',
       );
       return false;
     }
@@ -417,6 +665,9 @@ class AuthController extends StateNotifier<AuthState> {
     try {
       await _auth.logout();
     } catch (_) {}
+    try {
+      await FirebaseAuthService.signOut();
+    } catch (_) {}
     state = const AuthState(bootstrapped: true);
   }
 
@@ -424,25 +675,22 @@ class AuthController extends StateNotifier<AuthState> {
     final u = state.user;
     state = state.copyWith(
       onboardingComplete: true,
-      user: (username != null &&
-              username.trim().isNotEmpty &&
-              u != null)
+      user: (username != null && username.trim().isNotEmpty && u != null)
           ? u.copyWith(username: username.trim())
           : u,
     );
   }
 }
 
-final authControllerProvider =
-    StateNotifierProvider<AuthController, AuthState>((ref) {
-  return AuthController(ref);
-});
+final authControllerProvider = StateNotifierProvider<AuthController, AuthState>(
+  (ref) {
+    return AuthController(ref);
+  },
+);
 
 /// Navigation-only slice — router should listen to this, not full auth state.
 final authNavProvider = Provider<AuthNavSnapshot>((ref) {
-  return ref.watch(
-    authControllerProvider.select((s) => s.navSnapshot),
-  );
+  return ref.watch(authControllerProvider.select((s) => s.navSnapshot));
 });
 
 /// Logged-in viewer's username for media watermarks (never UUID).

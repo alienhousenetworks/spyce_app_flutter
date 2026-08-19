@@ -120,9 +120,13 @@ class _OtpStepState extends State<OtpStep> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: List.generate(6, (index) {
-                        final char = index < codeText.length ? codeText[index] : '';
-                        final isFocused = _focusNode.hasFocus &&
-                            (index == codeText.length || (index == 5 && codeText.length == 6));
+                        final char = index < codeText.length
+                            ? codeText[index]
+                            : '';
+                        final isFocused =
+                            _focusNode.hasFocus &&
+                            (index == codeText.length ||
+                                (index == 5 && codeText.length == 6));
                         return AnimatedContainer(
                           duration: const Duration(milliseconds: 150),
                           width: 44,
@@ -161,7 +165,9 @@ class _OtpStepState extends State<OtpStep> {
                           textInputAction: TextInputAction.done,
                           maxLength: 6,
                           autofillHints: const [AutofillHints.oneTimeCode],
-                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                          ],
                           onChanged: (_) => setState(() {}),
                           onSubmitted: (_) => _submit(),
                         ),
@@ -172,6 +178,18 @@ class _OtpStepState extends State<OtpStep> {
               ),
 
               const SizedBox(height: 16),
+              if (Env.showMagicOtpHint) ...[
+                Text(
+                  'Testing: use magic OTP ${Env.magicOtp}',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.dmSans(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.tealAccent,
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
               Text(
                 'Didn\'t receive the code?',
                 style: GoogleFonts.dmSans(
@@ -191,7 +209,9 @@ class _OtpStepState extends State<OtpStep> {
                     padding: const EdgeInsets.symmetric(horizontal: 24),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(20),
-                      side: const BorderSide(color: OnboardingColors.inputBorder),
+                      side: const BorderSide(
+                        color: OnboardingColors.inputBorder,
+                      ),
                     ),
                   ),
                   child: Text(
@@ -217,7 +237,8 @@ class _OtpStepState extends State<OtpStep> {
                   onExpired: () {
                     setState(() {
                       _captchaToken = null;
-                      _localError = 'Captcha expired — complete it again to resend.';
+                      _localError =
+                          'Captcha expired — complete it again to resend.';
                     });
                   },
                   onError: () {
@@ -230,7 +251,10 @@ class _OtpStepState extends State<OtpStep> {
                 Text(
                   showError,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: Color(0xFFFF6B81), fontSize: 12),
+                  style: const TextStyle(
+                    color: Color(0xFFFF6B81),
+                    fontSize: 12,
+                  ),
                 ),
               ],
               if (widget.message != null) ...[
@@ -238,7 +262,10 @@ class _OtpStepState extends State<OtpStep> {
                 Text(
                   widget.message!,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.tealAccent, fontSize: 12),
+                  style: const TextStyle(
+                    color: Colors.tealAccent,
+                    fontSize: 12,
+                  ),
                 ),
               ],
               const SizedBox(height: 24),

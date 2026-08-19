@@ -98,28 +98,45 @@ class ApiClient {
   final TokenStorage _tokenStorage;
   final OnSessionExpired? _onSessionExpired;
   Future<bool>? _refreshInFlight;
+  String? _cachedToken;
+  int? _cachedExpSeconds;
 
   Dio get raw => _dio;
 
   Future<String?> _validAccessToken() async {
     final token = await _tokenStorage.getAccessToken();
-    if (token == null) return null;
-    try {
-      final parts = token.split('.');
-      if (parts.length != 3) return token;
-      final payload = _decodeJwtPayload(parts[1]);
-      final exp = payload['exp'];
-      if (exp is int) {
-        final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-        if (exp - now < 60) {
-          final refreshed = await refreshAccessToken();
-          if (refreshed) return _tokenStorage.getAccessToken();
-          if (exp <= now) return null;
-        }
-      }
-    } catch (_) {
-      /* use token as-is */
+    if (token == null) {
+      _cachedToken = null;
+      _cachedExpSeconds = null;
+      return null;
     }
+
+    if (_cachedToken != token) {
+      _cachedToken = token;
+      _cachedExpSeconds = null;
+      try {
+        final parts = token.split('.');
+        if (parts.length == 3) {
+          final payload = _decodeJwtPayload(parts[1]);
+          final exp = payload['exp'];
+          if (exp is int) {
+            _cachedExpSeconds = exp;
+          }
+        }
+      } catch (_) {
+        /* use token as-is */
+      }
+    }
+
+    if (_cachedExpSeconds != null) {
+      final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      if (_cachedExpSeconds! - now < 60) {
+        final refreshed = await refreshAccessToken();
+        if (refreshed) return _tokenStorage.getAccessToken();
+        if (_cachedExpSeconds! <= now) return null;
+      }
+    }
+
     return token;
   }
 

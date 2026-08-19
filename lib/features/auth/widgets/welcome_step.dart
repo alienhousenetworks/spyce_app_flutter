@@ -3,16 +3,23 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../../core/theme/onboarding_theme.dart';
 import '../../../shared/widgets/onboarding_widgets.dart';
+import 'social_auth_buttons.dart';
 
 class WelcomeStep extends StatelessWidget {
   const WelcomeStep({
     super.key,
     required this.onSignIn,
     required this.onSignUp,
+    required this.onGoogle,
+    this.loading = false,
+    this.error,
   });
 
   final VoidCallback onSignIn;
   final VoidCallback onSignUp;
+  final VoidCallback onGoogle;
+  final bool loading;
+  final String? error;
 
   @override
   Widget build(BuildContext context) {
@@ -59,7 +66,7 @@ class WelcomeStep extends StatelessWidget {
               const SizedBox(height: 8),
               OnboardingPrimaryButton(
                 label: 'Create an account',
-                onPressed: onSignUp,
+                onPressed: loading ? null : onSignUp,
               ),
               const SizedBox(height: 20),
               Text(
@@ -72,8 +79,26 @@ class WelcomeStep extends StatelessWidget {
               const SizedBox(height: 8),
               OnboardingPrimaryButton(
                 label: 'Sign in',
-                onPressed: onSignIn,
+                onPressed: loading ? null : onSignIn,
               ),
+              const SizedBox(height: 20),
+              const AuthDivider(label: 'or'),
+              const SizedBox(height: 16),
+              GoogleSignInButton(
+                loading: loading,
+                onPressed: loading ? null : onGoogle,
+              ),
+              if (error != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  error!,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Color(0xFFFF6B81),
+                    fontSize: 12,
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -81,7 +106,7 @@ class WelcomeStep extends StatelessWidget {
 
         // Footer Text
         Text(
-          'Instant Login and Sign Up with Email & OTP.',
+          'Google Sign-In, Email OTP, or Password Authentication.',
           textAlign: TextAlign.center,
           style: GoogleFonts.dmSans(
             color: OnboardingColors.textSecondary,

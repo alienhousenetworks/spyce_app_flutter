@@ -16,6 +16,7 @@ abstract final class OnboardingColors {
   static const inputFillFocused = Color(0xFF346B7C);
   static const inputBorder = Color(0x40FFFFFF);
   static const buttonDisabled = Color(0xFF475569);
+  static const Color primary = inputFillFocused;
 
   // Brand Red/Coral Accents (Section titles & Face verification CTA)
   static const sectionRed = Color(0xFFEF4444);

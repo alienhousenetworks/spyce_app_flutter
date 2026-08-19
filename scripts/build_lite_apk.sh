@@ -42,7 +42,8 @@ flutter build apk \
   --split-debug-info="$OUTPUT_DIR" \
   --dart-define=ENABLE_SSL_PINNING="${ENABLE_SSL_PINNING:-true}" \
   --dart-define=SSL_FINGERPRINTS="${SSL_FINGERPRINTS:-}" \
-  --dart-define=API_BASE_URL="${API_BASE_URL:-https://api01.spycenow.com}"
+  --dart-define=API_BASE_URL="${API_BASE_URL:-https://api01.spycenow.com}" \
+  --dart-define=MAGIC_OTP="${MAGIC_OTP:-}"
 
 APK_SRC="build/app/outputs/flutter-apk/app-release.apk"
 APK_OUT="spyce-lite.apk"

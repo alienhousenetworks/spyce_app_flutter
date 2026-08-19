@@ -1,5 +1,6 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:uuid/uuid.dart';
 
 class TokenStorage {
   TokenStorage({
@@ -38,7 +39,7 @@ class TokenStorage {
     final prefs = await _p;
     var id = prefs.getString(_deviceIdKey);
     if (id == null || id.isEmpty) {
-      id = 'flutter-${DateTime.now().millisecondsSinceEpoch}';
+      id = 'flutter-${const Uuid().v4()}';
       await prefs.setString(_deviceIdKey, id);
     }
     return id;

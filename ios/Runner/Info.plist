@@ -8,6 +8,21 @@
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
 	<string>SPYCE</string>
+	<key>GIDClientID</key>
+	<string>909899990478-1inq93pspd55u9egmfajcicg69flrhlb.apps.googleusercontent.com</string>
+	<key>GIDServerClientID</key>
+	<string>909899990478-r83k10qdh8ij07f0mtqej3c8li5b539e.apps.googleusercontent.com</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.909899990478-1inq93pspd55u9egmfajcicg69flrhlb</string>
+			</array>
+		</dict>
+	</array>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>

@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 import 'core/amplify/amplify_bootstrap.dart';
+import 'core/auth/firebase_auth_service.dart';
 import 'core/network/connectivity_banner.dart';
 import 'core/observability/sentry_bootstrap.dart';
 import 'core/router/app_router.dart';
@@ -19,8 +20,8 @@ void main() async {
     await WebRTC.initialize(
       options: {
         if (defaultTargetPlatform == TargetPlatform.android)
-          'androidAudioConfiguration':
-              AndroidAudioConfiguration.communication.toMap(),
+          'androidAudioConfiguration': AndroidAudioConfiguration.communication
+              .toMap(),
       },
     );
   } catch (e) {
@@ -43,6 +44,12 @@ void main() async {
 
   await initSentryFlutter();
 
+  try {
+    await FirebaseAuthService.ensureInitialized();
+  } catch (e) {
+    debugPrint('[AUTH] Firebase init failed: $e');
+  }
+
   // Optional early Amplify init when COGNITO_* are passed via --dart-define.
   // Face liveness also configures Amplify from GET /verification/status/.
   await AmplifyBootstrap.tryConfigureAtStartup();
@@ -64,9 +71,7 @@ class SpyceApp extends ConsumerWidget {
       routerConfig: router,
       // Production i18n baseline (English first; add arb locales next)
       locale: const Locale('en'),
-      supportedLocales: const [
-        Locale('en'),
-      ],
+      supportedLocales: const [Locale('en')],
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,

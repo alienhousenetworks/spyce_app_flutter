@@ -23,8 +23,11 @@ Override at build time:
 ```bash
 flutter run \
   --dart-define=API_BASE_URL=https://testapi.spycenow.com \
-  --dart-define=WS_BASE_URL=wss://testapi.spycenow.com/ws
+  --dart-define=WS_BASE_URL=wss://testapi.spycenow.com/ws \
+  --dart-define=MAGIC_OTP=123456
 ```
+
+`MAGIC_OTP` only shows a QA hint on the OTP screen. The backend still decides whether `123456` is accepted (`USE_TEST_OTP=True` + `ENABLE_LEGACY_OTP_AUTH=True`).
 
 ## Run
 
@@ -36,7 +39,7 @@ flutter run
 ## App flow
 
 1. **Splash** → session bootstrap  
-2. **Auth** → email OTP (`/auth/register/`, `/auth/otp/verify/`)  
+2. **Auth** → Google (Firebase `/auth/firebase-login/`) **or** email OTP (`/auth/register/`, `/auth/otp/verify/`). Magic OTP stays available when backend `USE_TEST_OTP=True`.  
 3. **Onboarding** → username, DOB, identity taxonomies, intent  
 4. **Shell** tabs: Discover · Matches · Chat · Confessions · Profile  
 5. **Discover** → vertical `PageView`, SVG card BGs via `bg_id` / `bg_variant_id`  

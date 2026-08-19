@@ -648,6 +648,7 @@ class FeedResponse {
     this.nextCursor,
     this.emptyReason,
     this.profileIncomplete = false,
+    this.message,
     this.locationContext,
   });
 
@@ -655,6 +656,7 @@ class FeedResponse {
   final int? nextCursor;
   final String? emptyReason;
   final bool profileIncomplete;
+  final String? message;
   /// City search polish: exact | nearby | empty
   final Map<String, dynamic>? locationContext;
 
@@ -681,6 +683,7 @@ class FeedResponse {
       nextCursor: next == null ? null : int.tryParse(next.toString()),
       emptyReason: json['empty_reason']?.toString(),
       profileIncomplete: json['profile_incomplete'] == true,
+      message: json['message']?.toString(),
       locationContext: locCtx,
     );
   }
@@ -1798,6 +1801,7 @@ class UserProfile {
     this.hideOnlineStatus = false,
     this.hideDistance = false,
     this.isDiscoverable = false,
+    this.hasAcceptedUgcEula = false,
     this.images = const [],
     this.layoutId,
     this.bgId,
@@ -1849,6 +1853,7 @@ class UserProfile {
   final bool hideOnlineStatus;
   final bool hideDistance;
   final bool isDiscoverable;
+  final bool hasAcceptedUgcEula;
   final List<ProfileImage> images;
   final String? layoutId;
   final String? bgId;
@@ -1861,6 +1866,40 @@ class UserProfile {
   final bool isOnline;
   final String? lastSeen;
   final Map<String, dynamic> raw;
+
+  /// Returns list of missing mandatory fields required to appear in the Discover feed.
+  List<String> get missingFields {
+    final list = <String>[];
+    if (username == null || username!.trim().isEmpty) {
+      list.add('Username');
+    }
+    if ((dateOfBirth == null || dateOfBirth!.trim().isEmpty) && age == null) {
+      list.add('Date of Birth / Age (18+)');
+    }
+    if (genderId == null || genderId!.trim().isEmpty) {
+      list.add('Gender');
+    }
+    if (sexualityId == null || sexualityId!.trim().isEmpty) {
+      list.add('Sexuality');
+    }
+    if (preferredGenderIds.isEmpty) {
+      list.add('Preferred Genders (Looking for)');
+    }
+    final bioText = bio?.trim() ?? '';
+    if (bioText.length < 20) {
+      list.add(
+        bioText.isEmpty
+            ? 'Bio (at least 20 characters)'
+            : 'Bio (${bioText.length}/20 chars)',
+      );
+    }
+    if (!hasUserPhotos && (avatarUrl == null || avatarUrl!.trim().isEmpty)) {
+      list.add('Profile Photo or Avatar');
+    }
+    return list;
+  }
+
+  bool get isProfileComplete => missingFields.isEmpty;
 
   String get displayName =>
       username ?? name ?? firstName ?? 'you';
@@ -2087,6 +2126,7 @@ class UserProfile {
       hideOnlineStatus: json['hide_online_status'] == true,
       hideDistance: json['hide_distance'] == true,
       isDiscoverable: json['is_discoverable'] == true,
+      hasAcceptedUgcEula: json['has_accepted_ugc_eula'] == true,
       images: images,
       layoutId: (json['layout_id'] ?? themeMap['layout_id'])?.toString(),
       bgId: (json['bg_id'] ?? themeMap['bg_id'])?.toString(),

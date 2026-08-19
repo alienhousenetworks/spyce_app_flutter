@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "909899990478",
+    "project_id": "spyce-95b0d",
+    "storage_bucket": "spyce-95b0d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:909899990478:android:2d8637fa0f9b64b0a1579f",
+        "android_client_info": {
+          "package_name": "com.spycenow.spyce"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "909899990478-1s5bgkjdggl4g9g8f5ldojab2iavi76p.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.spycenow.spyce",
+            "certificate_hash": "9e9d0c694e865fdac2e3fcfa4e0ecba95cb82dad"
+          }
+        },
+        {
+          "client_id": "909899990478-r83k10qdh8ij07f0mtqej3c8li5b539e.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDNUqzN2IeIgz7dWsumUOAAWV4fohBmddA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "909899990478-r83k10qdh8ij07f0mtqej3c8li5b539e.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "909899990478-1inq93pspd55u9egmfajcicg69flrhlb.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.spycenow.spyce"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

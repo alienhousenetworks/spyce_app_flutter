@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:uuid/uuid.dart';
 
@@ -36,6 +37,9 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
   String? locationBanner;
   bool showPaywall = false;
   SubscriptionStatus? paywallStatus;
+  UserProfile? _myProfile;
+  bool _isProfileIncomplete = false;
+  String? _profileIncompleteMessage;
   /// True after we auto-relaxed filters to keep showing people.
   bool _varietyMode = false;
   bool _enteringVariety = false;
@@ -75,6 +79,7 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
     try {
       final p = await ref.read(profileRepositoryProvider).getMyProfile();
       if (!mounted) return;
+      _myProfile = p;
       final minAge = p.agePreferenceMin ?? 18;
       final maxAge = p.agePreferenceMax ?? 100;
       setState(() {
@@ -200,6 +205,25 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
             filters: filters,
           );
       if (!mounted) return;
+
+      if (res.profileIncomplete) {
+        if (_myProfile == null) {
+          try {
+            _myProfile = await ref.read(profileRepositoryProvider).getMyProfile();
+          } catch (_) {}
+        }
+        setState(() {
+          _isProfileIncomplete = true;
+          _profileIncompleteMessage = res.message;
+          loading = false;
+          loadingMore = false;
+          profiles = [];
+        });
+        return;
+      } else {
+        _isProfileIncomplete = false;
+      }
+
       final resolved = _withResolvedLanguages(res.results);
       setState(() {
         showPaywall = false;
@@ -1089,88 +1113,101 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                       child:
                           CircularProgressIndicator(color: SpyceColors.pink),
                     )
-                  : profiles.isEmpty && !_showVarietyBridge
-                      ? EmptyState(
-                          icon: Icons.explore_outlined,
-                          title: (filters['city']?.toString().isNotEmpty == true)
-                              ? 'No one in ${filters['city']} yet'
-                              : 'No more people right now',
-                          subtitle: error ??
-                              locationBanner ??
-                              'Pull to refresh or adjust filters — new people show up as they come online.',
-                          action: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              TextButton(
-                                onPressed: () {
-                                  setState(() {
-                                    _varietyMode = false;
-                                    _showVarietyBridge = false;
-                                    filters.remove('include_liked');
-                                  });
-                                  _load(0);
-                                },
-                                child: const Text('Refresh',
-                                    style: TextStyle(
-                                        color: SpyceColors.pinkSoft)),
-                              ),
-                              TextButton(
-                                onPressed: _openFilters,
-                                child: const Text('Adjust filters',
-                                    style: TextStyle(
-                                        color: SpyceColors.pinkSoft)),
-                              ),
-                            ],
-                          ),
+                  : (_isProfileIncomplete && profiles.isEmpty)
+                      ? _ProfileIncompleteView(
+                          profile: _myProfile,
+                          message: _profileIncompleteMessage,
+                          onRefresh: () {
+                            setState(() {
+                              _isProfileIncomplete = false;
+                              loading = true;
+                            });
+                            _seedFiltersFromProfile();
+                            _load(0, refresh: true);
+                          },
                         )
-                      : PageView.builder(
-                          controller: _pageCtrl,
-                          scrollDirection: Axis.vertical,
-                          itemCount: _pageCount,
-                          onPageChanged: (i) {
-                            final profIdx = _profileIndexForPage(i);
-                            final nearEnd = profIdx != null &&
-                                profIdx >= profiles.length - 3;
-                            if (hasMore &&
-                                !loadingMore &&
-                                nearEnd &&
-                                nextCursor != null) {
-                              _load(nextCursor!, append: true);
-                            } else if (!hasMore &&
-                                !_varietyMode &&
-                                !_enteringVariety &&
-                                profiles.isNotEmpty &&
-                                (profIdx == null
-                                    ? false
-                                    : profIdx >= profiles.length - 2)) {
-                              // Near the end of filtered results → relax & keep going
-                              _enterVarietyAndContinue(keepProfiles: true);
-                            }
-                          },
-                          itemBuilder: (context, index) {
-                            final profIdx = _profileIndexForPage(index);
-                            if (profIdx == null) {
-                              // Compact two-line bridge — not a full empty screen
-                              return const _VarietyBridgePage();
-                            }
-                            if (profIdx < 0 || profIdx >= profiles.length) {
-                              return const SizedBox.shrink();
-                            }
-                            final p = profiles[profIdx];
-                            return Padding(
-                              padding:
-                                  const EdgeInsets.fromLTRB(10, 0, 10, 8),
-                              child: FeedProfileCard(
-                                profile: p,
-                                liked: _isLiked(p),
-                                onLike: () => _like(p),
-                                onMessage: p.canDirectMessage
-                                    ? () => _message(p)
-                                    : null,
+                      : profiles.isEmpty && !_showVarietyBridge
+                          ? EmptyState(
+                              icon: Icons.explore_outlined,
+                              title: (filters['city']?.toString().isNotEmpty == true)
+                                  ? 'No one in ${filters['city']} yet'
+                                  : 'No more people right now',
+                              subtitle: error ??
+                                  locationBanner ??
+                                  'Pull to refresh or adjust filters — new people show up as they come online.',
+                              action: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  TextButton(
+                                    onPressed: () {
+                                      setState(() {
+                                        _varietyMode = false;
+                                        _showVarietyBridge = false;
+                                        filters.remove('include_liked');
+                                      });
+                                      _load(0);
+                                    },
+                                    child: const Text('Refresh',
+                                        style: TextStyle(
+                                            color: SpyceColors.pinkSoft)),
+                                  ),
+                                  TextButton(
+                                    onPressed: _openFilters,
+                                    child: const Text('Adjust filters',
+                                        style: TextStyle(
+                                            color: SpyceColors.pinkSoft)),
+                                  ),
+                                ],
                               ),
-                            );
-                          },
-                        ),
+                            )
+                          : PageView.builder(
+                              controller: _pageCtrl,
+                              scrollDirection: Axis.vertical,
+                              itemCount: _pageCount,
+                              onPageChanged: (i) {
+                                final profIdx = _profileIndexForPage(i);
+                                final nearEnd = profIdx != null &&
+                                    profIdx >= profiles.length - 3;
+                                if (hasMore &&
+                                    !loadingMore &&
+                                    nearEnd &&
+                                    nextCursor != null) {
+                                  _load(nextCursor!, append: true);
+                                } else if (!hasMore &&
+                                    !_varietyMode &&
+                                    !_enteringVariety &&
+                                    profiles.isNotEmpty &&
+                                    (profIdx == null
+                                        ? false
+                                        : profIdx >= profiles.length - 2)) {
+                                  // Near the end of filtered results → relax & keep going
+                                  _enterVarietyAndContinue(keepProfiles: true);
+                                }
+                              },
+                              itemBuilder: (context, index) {
+                                final profIdx = _profileIndexForPage(index);
+                                if (profIdx == null) {
+                                  // Compact two-line bridge — not a full empty screen
+                                  return const _VarietyBridgePage();
+                                }
+                                if (profIdx < 0 || profIdx >= profiles.length) {
+                                  return const SizedBox.shrink();
+                                }
+                                final p = profiles[profIdx];
+                                return Padding(
+                                  padding:
+                                      const EdgeInsets.fromLTRB(10, 0, 10, 8),
+                                  child: FeedProfileCard(
+                                    profile: p,
+                                    liked: _isLiked(p),
+                                    onLike: () => _like(p),
+                                    onMessage: p.canDirectMessage
+                                        ? () => _message(p)
+                                        : null,
+                                  ),
+                                );
+                              },
+                            ),
             ),
           ],
         ),
@@ -1184,7 +1221,138 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
       ],
     );
   }
+}
 
+/// Dedicated profile incomplete warning showing required missing fields.
+class _ProfileIncompleteView extends StatelessWidget {
+  const _ProfileIncompleteView({
+    this.profile,
+    this.message,
+    required this.onRefresh,
+  });
+
+  final UserProfile? profile;
+  final String? message;
+  final VoidCallback onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    final missing = profile?.missingFields ?? [
+      'Username',
+      'Date of Birth / Age (18+)',
+      'Gender',
+      'Sexuality',
+      'Preferred Genders (Looking for)',
+      'Bio (at least 20 characters)',
+      'Profile Photo or Avatar',
+    ];
+
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: SpyceColors.pink.withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.assignment_late_outlined,
+                color: SpyceColors.pinkSoft,
+                size: 40,
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'Profile Incomplete',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.syne(
+                fontSize: 22,
+                fontWeight: FontWeight.w700,
+                color: SpyceColors.white,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              message ??
+                  'Complete your profile setup to unlock the discovery feed and start matching.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: SpyceColors.white.withValues(alpha: 0.7),
+                fontSize: 14,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 24),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: SpyceColors.dark900,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Required Fields (${missing.length} missing):',
+                    style: const TextStyle(
+                      color: SpyceColors.pinkSoft,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  for (final item in missing)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.error_outline,
+                            color: Colors.amberAccent,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              item,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 28),
+            SpycePrimaryButton(
+              label: 'Complete Profile',
+              onPressed: () {
+                context.go('/app/profile');
+              },
+            ),
+            const SizedBox(height: 10),
+            TextButton(
+              onPressed: onRefresh,
+              child: const Text(
+                'Check Again / Refresh',
+                style: TextStyle(color: SpyceColors.dark100),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 /// Thin interstitial: two playful lines, then swipe to next profile.

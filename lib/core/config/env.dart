@@ -3,7 +3,7 @@ class Env {
   Env._();
 
   static const String appName = 'SPYCE';
-  static const String appVersion = '1.0.1';
+  static const String appVersion = '1.0.3';
 
   /// Production test API (same host as web client).
   static const String apiBaseUrl = String.fromEnvironment(
@@ -48,6 +48,15 @@ class Env {
   /// Whether the Flutter auth screens should require a Turnstile token.
   static bool get turnstileEnabled => turnstileSiteKey.trim().isNotEmpty;
 
+  /// Optional QA hint on the OTP screen. Empty in production builds.
+  /// Pass `--dart-define=MAGIC_OTP=123456` when backend USE_TEST_OTP is on.
+  static const String magicOtp = String.fromEnvironment(
+    'MAGIC_OTP',
+    defaultValue: '',
+  );
+
+  static bool get showMagicOtpHint => magicOtp.trim().isNotEmpty;
+
   static String chatWs(String conversationId, String ticket) =>
       '$wsBase/chat/$conversationId/?ticket=$ticket';
 
@@ -72,7 +81,10 @@ class Env {
 
   static List<String> get sslFingerprints {
     if (sslFingerprintsRaw.isEmpty) return const [];
-    return sslFingerprintsRaw.split(',').map((e) => e.trim().replaceAll(':', '').toLowerCase()).toList();
+    return sslFingerprintsRaw
+        .split(',')
+        .map((e) => e.trim().replaceAll(':', '').toLowerCase())
+        .toList();
   }
 
   // ── Cognito (public IDs only) for native Amplify Face Liveness ───────────

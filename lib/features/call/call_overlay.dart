@@ -443,7 +443,7 @@ class CallOverlay extends ConsumerWidget {
   void _showSafetySheet(
     BuildContext context,
     WidgetRef ref,
-    CallState call,
+    CallUiState call,
     CallController ctrl,
   ) {
     showModalBottomSheet(
@@ -528,7 +528,7 @@ class CallOverlay extends ConsumerWidget {
   Widget _buildReportOption(
     BuildContext context,
     WidgetRef ref,
-    CallState call,
+    CallUiState call,
     CallController ctrl,
     String reason,
     String label,
