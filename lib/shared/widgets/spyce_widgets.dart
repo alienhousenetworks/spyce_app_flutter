@@ -269,7 +269,7 @@ class SectionHeader extends StatelessWidget {
             ),
           ),
           const Spacer(),
-          if (action != null) action!,
+          action?,
         ],
       ),
     );
@@ -341,7 +341,7 @@ class ShimmerList extends StatelessWidget {
       child: ListView.builder(
         padding: const EdgeInsets.all(16),
         itemCount: count,
-        itemBuilder: (_, __) => Container(
+        itemBuilder: (_, _) => Container(
           height: 88,
           margin: const EdgeInsets.only(bottom: 12),
           decoration: BoxDecoration(
