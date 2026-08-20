@@ -649,6 +649,7 @@ class FeedResponse {
     this.emptyReason,
     this.profileIncomplete = false,
     this.message,
+    this.missingFields = const [],
     this.locationContext,
   });
 
@@ -657,6 +658,7 @@ class FeedResponse {
   final String? emptyReason;
   final bool profileIncomplete;
   final String? message;
+  final List<String> missingFields;
   /// City search polish: exact | nearby | empty
   final Map<String, dynamic>? locationContext;
 
@@ -678,12 +680,22 @@ class FeedResponse {
     if (rawLoc is Map) {
       locCtx = Map<String, dynamic>.from(rawLoc);
     }
+    final rawMissing = json['missing_fields'];
+    final missingList = <String>[];
+    if (rawMissing is List) {
+      for (final m in rawMissing) {
+        if (m != null && m.toString().isNotEmpty) {
+          missingList.add(m.toString());
+        }
+      }
+    }
     return FeedResponse(
       results: results,
       nextCursor: next == null ? null : int.tryParse(next.toString()),
       emptyReason: json['empty_reason']?.toString(),
       profileIncomplete: json['profile_incomplete'] == true,
       message: json['message']?.toString(),
+      missingFields: missingList,
       locationContext: locCtx,
     );
   }
@@ -1893,8 +1905,14 @@ class UserProfile {
             : 'Bio (${bioText.length}/20 chars)',
       );
     }
-    if (!hasUserPhotos && (avatarUrl == null || avatarUrl!.trim().isEmpty)) {
-      list.add('Profile Photo or Avatar');
+    if (raw['is_identity_verified'] == false) {
+      list.add('Face Verification');
+    }
+    if (isPaused) {
+      list.add('Profile is Paused (Unpause in settings)');
+    }
+    if (isHidden) {
+      list.add('Profile is Hidden (Unhide in settings)');
     }
     return list;
   }

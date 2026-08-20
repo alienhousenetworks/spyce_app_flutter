@@ -40,6 +40,7 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
   UserProfile? _myProfile;
   bool _isProfileIncomplete = false;
   String? _profileIncompleteMessage;
+  List<String> _missingFields = [];
   /// True after we auto-relaxed filters to keep showing people.
   bool _varietyMode = false;
   bool _enteringVariety = false;
@@ -215,6 +216,7 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
         setState(() {
           _isProfileIncomplete = true;
           _profileIncompleteMessage = res.message;
+          _missingFields = res.missingFields;
           loading = false;
           loadingMore = false;
           profiles = [];
@@ -222,6 +224,7 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
         return;
       } else {
         _isProfileIncomplete = false;
+        _missingFields = [];
       }
 
       final resolved = _withResolvedLanguages(res.results);
@@ -1117,6 +1120,7 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                       ? _ProfileIncompleteView(
                           profile: _myProfile,
                           message: _profileIncompleteMessage,
+                          missingFields: _missingFields,
                           onRefresh: () {
                             setState(() {
                               _isProfileIncomplete = false;
@@ -1228,24 +1232,29 @@ class _ProfileIncompleteView extends StatelessWidget {
   const _ProfileIncompleteView({
     this.profile,
     this.message,
+    this.missingFields = const [],
     required this.onRefresh,
   });
 
   final UserProfile? profile;
   final String? message;
+  final List<String> missingFields;
   final VoidCallback onRefresh;
 
   @override
   Widget build(BuildContext context) {
-    final missing = profile?.missingFields ?? [
-      'Username',
-      'Date of Birth / Age (18+)',
-      'Gender',
-      'Sexuality',
-      'Preferred Genders (Looking for)',
-      'Bio (at least 20 characters)',
-      'Profile Photo or Avatar',
-    ];
+    final missing = missingFields.isNotEmpty
+        ? missingFields
+        : (profile?.missingFields.isNotEmpty == true
+            ? profile!.missingFields
+            : [
+                'Username',
+                'Date of Birth / Age (18+)',
+                'Gender',
+                'Sexuality',
+                'Preferred Genders (Looking for)',
+                'Bio (at least 20 characters)',
+              ]);
 
     return Center(
       child: SingleChildScrollView(

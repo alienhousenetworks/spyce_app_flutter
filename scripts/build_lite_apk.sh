@@ -19,13 +19,20 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 cd "$PROJECT_DIR"
 
-# Prefer Android Studio JBR when system java is missing (common on macOS).
+# Prefer a real JDK 17+ when system java is missing (common on macOS).
 if ! command -v java >/dev/null 2>&1 || ! java -version >/dev/null 2>&1; then
-  AS_JBR="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
-  if [[ -x "$AS_JBR/bin/java" ]]; then
-    export JAVA_HOME="$AS_JBR"
-    export PATH="$JAVA_HOME/bin:$PATH"
-  fi
+  for candidate in \
+    "${JAVA_HOME:-}" \
+    "/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home" \
+    "/opt/homebrew/opt/openjdk@17" \
+    "/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+  do
+    if [[ -n "$candidate" && -x "$candidate/bin/java" ]]; then
+      export JAVA_HOME="$candidate"
+      export PATH="$JAVA_HOME/bin:$PATH"
+      break
+    fi
+  done
 fi
 
 OUTPUT_DIR="build/app/outputs/symbols"
@@ -46,10 +53,12 @@ flutter build apk \
   --dart-define=MAGIC_OTP="${MAGIC_OTP:-}"
 
 APK_SRC="build/app/outputs/flutter-apk/app-release.apk"
-APK_OUT="spyce-lite.apk"
+APK_OUT="spyce.apk"
+APK_LITE="spyce-lite.apk"
 cp -f "$APK_SRC" "$APK_OUT"
+cp -f "$APK_SRC" "$APK_LITE"
 
 echo "=== Build complete ==="
-ls -lh "$APK_SRC" "$APK_OUT"
+ls -lh "$APK_SRC" "$APK_OUT" "$APK_LITE"
 echo "Symbols: $OUTPUT_DIR"
 echo "Install: adb install -r $APK_OUT"
