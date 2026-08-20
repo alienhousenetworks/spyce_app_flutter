@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/auth/firebase_auth_service.dart';
 import '../../core/network/api_exception.dart';
+import '../../core/notifications/push_notification_service.dart';
 import '../../core/utils/onboarding.dart';
 import '../../data/models/user_models.dart';
 import '../../data/repositories/api_repositories.dart';
@@ -288,6 +289,12 @@ class AuthController extends StateNotifier<AuthState> {
       onboardingComplete: onboarding,
       clearError: true,
     );
+
+    // Register/sync FCM push notification token with backend
+    try {
+      _ref.read(pushNotificationServiceProvider).initialize();
+    } catch (_) {}
+
     return true;
   }
 
@@ -329,6 +336,11 @@ class AuthController extends StateNotifier<AuthState> {
           loading: false,
           bootstrapped: true,
         );
+
+        // Initialize and sync push notification token
+        try {
+          _ref.read(pushNotificationServiceProvider).initialize();
+        } catch (_) {}
       } else {
         state = state.copyWith(
           clearUser: true,

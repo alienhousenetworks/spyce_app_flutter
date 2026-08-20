@@ -38,6 +38,27 @@ class Env {
     defaultValue: '',
   );
 
+  /// reCAPTCHA Enterprise configuration
+  static const bool captchaVerificationActive = bool.fromEnvironment(
+    'CAPTCHA_VERIFICATION_ACTIVE',
+    defaultValue: false,
+  );
+
+  static const String recaptchaAndroidSiteKey = String.fromEnvironment(
+    'RECAPTCHA_ANDROID_SITE_KEY',
+    defaultValue: '',
+  );
+
+  static const String recaptchaIosSiteKey = String.fromEnvironment(
+    'RECAPTCHA_IOS_SITE_KEY',
+    defaultValue: '',
+  );
+
+  static const String recaptchaAction = String.fromEnvironment(
+    'RECAPTCHA_ACTION',
+    defaultValue: 'login',
+  );
+
   /// Origin used by the Turnstile WebView. Must be an allowed hostname in
   /// the Turnstile widget settings (e.g. testapi.spycenow.com or spycenow.com).
   static const String turnstileBaseUrl = String.fromEnvironment(

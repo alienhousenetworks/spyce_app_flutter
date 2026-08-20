@@ -240,6 +240,21 @@ class AuthRepository {
     }
   }
 
+  Future<bool> registerPushToken(String fcmToken, {String deviceType = 'ANDROID'}) async {
+    try {
+      await _api.post<dynamic>(
+        '/notifications/devices/',
+        data: {
+          'fcm_token': fcmToken.trim(),
+          'device_type': deviceType,
+        },
+      );
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<Map<String, dynamic>> resendOtp(
     String email, {
     String? intent,
