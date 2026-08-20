@@ -437,28 +437,46 @@ class AuthController extends StateNotifier<AuthState> {
       clearMessage: true,
     );
     try {
-      final result = await _auth.registerWithPassword(
-        trimmedEmail,
-        password,
-        captchaToken: captchaToken,
+      // 1. Try Firebase Auth (sends verification email)
+      final msg = await FirebaseAuthService.signUpWithEmailPassword(
+        email: trimmedEmail,
+        password: password,
       );
-      if (!result.ok) {
-        state = state.copyWith(
-          loading: false,
-          error: result.data['error']?.toString() ?? 'Registration failed.',
-        );
-        return false;
-      }
-      return _handleAuthSuccess(result.data);
-    } on ApiException catch (e) {
+      state = state.copyWith(
+        loading: false,
+        mode: AuthMode.signIn,
+        message: msg,
+      );
+      return false; // Return false so user verifies before navigating
+    } on StateError catch (e) {
       state = state.copyWith(loading: false, error: e.message);
       return false;
     } catch (_) {
-      state = state.copyWith(
-        loading: false,
-        error: 'Could not complete registration. Check your connection.',
-      );
-      return false;
+      // Fallback to direct backend registration
+      try {
+        final result = await _auth.registerWithPassword(
+          trimmedEmail,
+          password,
+          captchaToken: captchaToken,
+        );
+        if (!result.ok) {
+          state = state.copyWith(
+            loading: false,
+            error: result.data['error']?.toString() ?? 'Registration failed.',
+          );
+          return false;
+        }
+        return _handleAuthSuccess(result.data);
+      } on ApiException catch (e) {
+        state = state.copyWith(loading: false, error: e.message);
+        return false;
+      } catch (_) {
+        state = state.copyWith(
+          loading: false,
+          error: 'Could not complete registration. Check your connection.',
+        );
+        return false;
+      }
     }
   }
 
@@ -483,28 +501,41 @@ class AuthController extends StateNotifier<AuthState> {
       clearMessage: true,
     );
     try {
-      final result = await _auth.loginWithPassword(
-        trimmedEmail,
-        password,
-        captchaToken: captchaToken,
+      // 1. Sign in with Firebase & verify email ownership
+      final session = await FirebaseAuthService.signInWithEmailPassword(
+        email: trimmedEmail,
+        password: password,
       );
-      if (!result.ok) {
-        state = state.copyWith(
-          loading: false,
-          error: result.data['error']?.toString() ?? 'Invalid email or password.',
-        );
-        return false;
-      }
-      return _handleAuthSuccess(result.data);
-    } on ApiException catch (e) {
+      return signInWithFirebaseToken(session.idToken);
+    } on StateError catch (e) {
       state = state.copyWith(loading: false, error: e.message);
       return false;
     } catch (_) {
-      state = state.copyWith(
-        loading: false,
-        error: 'Could not sign in. Check your connection.',
-      );
-      return false;
+      // Fallback to direct backend password login
+      try {
+        final result = await _auth.loginWithPassword(
+          trimmedEmail,
+          password,
+          captchaToken: captchaToken,
+        );
+        if (!result.ok) {
+          state = state.copyWith(
+            loading: false,
+            error: result.data['error']?.toString() ?? 'Invalid email or password.',
+          );
+          return false;
+        }
+        return _handleAuthSuccess(result.data);
+      } on ApiException catch (e) {
+        state = state.copyWith(loading: false, error: e.message);
+        return false;
+      } catch (_) {
+        state = state.copyWith(
+          loading: false,
+          error: 'Could not sign in. Check your connection.',
+        );
+        return false;
+      }
     }
   }
 
@@ -524,29 +555,41 @@ class AuthController extends StateNotifier<AuthState> {
       clearMessage: true,
     );
     try {
-      final data = await _auth.requestPasswordReset(
-        trimmed,
-        captchaToken: captchaToken,
-      );
-      if (data['error'] != null) {
-        state = state.copyWith(loading: false, error: data['error'].toString());
-        return false;
-      }
+      // Try Firebase password reset email first
+      await FirebaseAuthService.sendPasswordResetEmail(trimmed);
       state = state.copyWith(
         loading: false,
-        step: AuthStep.resetPassword,
-        message: data['message']?.toString() ?? 'Reset code sent to $trimmed',
+        step: AuthStep.email,
+        message: 'Password reset link sent to $trimmed. Check your inbox.',
       );
       return true;
-    } on ApiException catch (e) {
-      state = state.copyWith(loading: false, error: e.message);
-      return false;
     } catch (_) {
-      state = state.copyWith(
-        loading: false,
-        error: 'Could not send reset code. Check your connection.',
-      );
-      return false;
+      // Fallback to direct backend OTP reset
+      try {
+        final data = await _auth.requestPasswordReset(
+          trimmed,
+          captchaToken: captchaToken,
+        );
+        if (data['error'] != null) {
+          state = state.copyWith(loading: false, error: data['error'].toString());
+          return false;
+        }
+        state = state.copyWith(
+          loading: false,
+          step: AuthStep.resetPassword,
+          message: data['message']?.toString() ?? 'Reset code sent to $trimmed',
+        );
+        return true;
+      } on ApiException catch (e) {
+        state = state.copyWith(loading: false, error: e.message);
+        return false;
+      } catch (_) {
+        state = state.copyWith(
+          loading: false,
+          error: 'Could not send reset code. Check your connection.',
+        );
+        return false;
+      }
     }
   }
 
