@@ -134,18 +134,22 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
           if (b != null && b.isNotEmpty) bioCtrl.text = b;
 
           if (profile.genderId != null && profile.genderId!.isNotEmpty) {
-            final validGender = genderOpts.any((o) => o.id == profile.genderId);
-            if (validGender) {
+            final valid = genderOpts.where((o) => o.id == profile.genderId || o.name.toLowerCase() == profile.genderLabel?.toLowerCase());
+            if (valid.isNotEmpty) {
+              gender = valid.first.id;
+            } else {
               gender = profile.genderId;
-              genderLocked = true;
             }
+            genderLocked = true;
           }
           if (profile.sexualityId != null && profile.sexualityId!.isNotEmpty) {
-            final validSexuality = sexualityOpts.any((o) => o.id == profile.sexualityId);
-            if (validSexuality) {
+            final valid = sexualityOpts.where((o) => o.id == profile.sexualityId || o.name.toLowerCase() == profile.sexualityLabel?.toLowerCase());
+            if (valid.isNotEmpty) {
+              sexuality = valid.first.id;
+            } else {
               sexuality = profile.sexualityId;
-              sexualityLocked = true;
             }
+            sexualityLocked = true;
           }
           if (profile.intentId != null && profile.intentId!.isNotEmpty) {
             if (intentOpts.any((o) => o.id == profile.intentId)) {
@@ -201,6 +205,37 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
     return age;
   }
 
+  Future<void> _ensureIdentitySaved() async {
+    if (gender == null || sexuality == null) return;
+    final langNames = LanguageLabels.namesForSave(selectedLanguageIds);
+    final payload = <String, dynamic>{
+      'username': usernameCtrl.text.trim().toLowerCase(),
+      'date_of_birth': dobCtrl.text.trim(),
+      'languages': langNames,
+    };
+    if (!genderLocked && gender != null &&
+        (genderOpts.isEmpty || genderOpts.any((o) => o.id == gender))) {
+      payload['gender'] = gender;
+    }
+    if (!sexualityLocked && sexuality != null &&
+        (sexualityOpts.isEmpty || sexualityOpts.any((o) => o.id == sexuality))) {
+      payload['sexuality'] = sexuality;
+    }
+    try {
+      await ref.read(profileRepositoryProvider).updateMyProfile(payload);
+      genderLocked = true;
+      sexualityLocked = true;
+    } on ApiException catch (e) {
+      final msg = e.message.toLowerCase();
+      if (msg.contains('gender cannot be changed') || msg.contains('gender cannot be removed')) {
+        genderLocked = true;
+      }
+      if (msg.contains('sexuality cannot be changed') || msg.contains('sexuality cannot be removed')) {
+        sexualityLocked = true;
+      }
+    } catch (_) {}
+  }
+
   Future<void> _addPhoto() async {
     final agreed = await PhotoGuidelinesSheet.ensureAccepted(context);
     if (!agreed || !mounted) return;
@@ -214,6 +249,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
 
     setState(() => isUploadingPhoto = true);
     try {
+      await _ensureIdentitySaved();
       final res = await ref.read(profileRepositoryProvider).uploadImage(file.path);
       final imgUrl = res['image_url']?.toString() ?? res['url']?.toString() ?? file.path;
       final imgId = res['id']?.toString() ?? DateTime.now().millisecondsSinceEpoch.toString();
@@ -289,6 +325,62 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
         setState(() => error = 'Select at least one language you speak.');
         return;
       }
+
+      setState(() => submitting = true);
+      try {
+        final langNames = LanguageLabels.namesForSave(selectedLanguageIds);
+        final payload = <String, dynamic>{
+          'username': username,
+          'date_of_birth': dob,
+          'languages': langNames,
+        };
+        if (!genderLocked && gender != null &&
+            (genderOpts.isEmpty || genderOpts.any((o) => o.id == gender))) {
+          payload['gender'] = gender;
+        }
+        if (!sexualityLocked && sexuality != null &&
+            (sexualityOpts.isEmpty || sexualityOpts.any((o) => o.id == sexuality))) {
+          payload['sexuality'] = sexuality;
+        }
+        await ref.read(profileRepositoryProvider).updateMyProfile(payload);
+        genderLocked = true;
+        sexualityLocked = true;
+      } on ApiException catch (e) {
+        final msg = e.message.toLowerCase();
+        final genderImmutable = msg.contains('gender cannot be changed') ||
+            msg.contains('gender cannot be removed');
+        final sexualityImmutable = msg.contains('sexuality cannot be changed') ||
+            msg.contains('sexuality cannot be removed');
+
+        if (genderImmutable || sexualityImmutable) {
+          try {
+            final retry = <String, dynamic>{
+              'username': username,
+              'date_of_birth': dob,
+              'languages': LanguageLabels.namesForSave(selectedLanguageIds),
+            };
+            if (genderImmutable) genderLocked = true;
+            if (sexualityImmutable) sexualityLocked = true;
+            if (!genderLocked && gender != null) retry['gender'] = gender;
+            if (!sexualityLocked && sexuality != null) retry['sexuality'] = sexuality;
+            await ref.read(profileRepositoryProvider).updateMyProfile(retry);
+          } catch (_) {}
+        } else {
+          setState(() {
+            error = e.message;
+            submitting = false;
+          });
+          return;
+        }
+      } catch (e) {
+        setState(() {
+          error = 'Could not save profile. Check your connection and try again.';
+          submitting = false;
+        });
+        return;
+      } finally {
+        if (mounted) setState(() => submitting = false);
+      }
     } else if (step == 2) {
       if (selectedIntent == null || selectedIntent!.isEmpty) {
         setState(() => error = 'Choose your dating intent to continue.');
@@ -297,6 +389,34 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
       if (preferredGenders.isEmpty) {
         setState(() => error = 'Select at least one match preference gender.');
         return;
+      }
+
+      setState(() => submitting = true);
+      try {
+        final validPref = genderOpts.isNotEmpty
+            ? preferredGenders.where((id) => genderOpts.any((o) => o.id == id)).toList()
+            : preferredGenders.toList();
+        final payload = <String, dynamic>{
+          'preferred_genders': validPref,
+          if (selectedIntent != null &&
+              (intentOpts.isEmpty || intentOpts.any((o) => o.id == selectedIntent)))
+            'intent': selectedIntent,
+        };
+        await ref.read(profileRepositoryProvider).updateMyProfile(payload);
+      } on ApiException catch (e) {
+        setState(() {
+          error = e.message;
+          submitting = false;
+        });
+        return;
+      } catch (e) {
+        setState(() {
+          error = 'Could not save preferences. Check your connection and try again.';
+          submitting = false;
+        });
+        return;
+      } finally {
+        if (mounted) setState(() => submitting = false);
       }
     } else if (step == 3) {
       final bio = bioCtrl.text.trim();
@@ -309,6 +429,25 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
           error = 'Bio must be at least $_minBioLen characters (${bio.length}/$_minBioLen).';
         });
         return;
+      }
+
+      setState(() => submitting = true);
+      try {
+        await ref.read(profileRepositoryProvider).updateMyProfile({'bio': bio});
+      } on ApiException catch (e) {
+        setState(() {
+          error = e.message;
+          submitting = false;
+        });
+        return;
+      } catch (e) {
+        setState(() {
+          error = 'Could not save bio. Check your connection and try again.';
+          submitting = false;
+        });
+        return;
+      } finally {
+        if (mounted) setState(() => submitting = false);
       }
     } else if (step == 4) {
       if (!faceVerified) {
@@ -330,6 +469,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
 
   Future<void> _runFaceVerification() async {
     if (verifying || faceVerified) return;
+    await _ensureIdentitySaved();
     if (_useRealFaceLiveness) {
       await _runRealFaceLiveness();
     } else {
