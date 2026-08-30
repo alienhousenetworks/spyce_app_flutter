@@ -1,17 +1,21 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:image_picker/image_picker.dart';
 
+import '../../core/location/location_bootstrap.dart';
 import '../../core/network/api_exception.dart';
-import '../../core/theme/onboarding_theme.dart';
+import '../../core/theme/spyce_colors.dart';
+import '../../core/utils/image_compressor.dart';
+import '../../core/utils/image_pick.dart';
 import '../../core/utils/language_labels.dart';
 import '../../core/utils/onboarding.dart';
 import '../../data/models/user_models.dart';
 import '../../data/repositories/api_repositories.dart';
 import '../../shared/widgets/onboarding_widgets.dart';
 import '../../shared/widgets/photo_guidelines_sheet.dart';
+import '../../shared/widgets/spyce_loaders.dart';
 import '../auth/auth_controller.dart';
 import 'face_liveness_screen.dart';
 import 'widgets/bio_photo_step.dart';
@@ -30,6 +34,9 @@ class OnboardingPage extends ConsumerStatefulWidget {
 class _OnboardingPageState extends ConsumerState<OnboardingPage> {
   static const _totalSteps = 5;
   static const _minBioLen = 20;
+  static const _minTurnOns = 3;
+  static const _maxHotTakes = 3;
+  static const _maxPhotos = 5;
 
   int step = 1;
   bool loadingOpts = true;
@@ -45,21 +52,31 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
   final usernameCtrl = TextEditingController();
   final dobCtrl = TextEditingController();
   final bioCtrl = TextEditingController();
+  final hotTakeCtrls = List.generate(3, (_) => TextEditingController());
 
   String? gender;
   String? sexuality;
   String? selectedIntent;
   final preferredGenders = <String>{};
   final selectedLanguageIds = <String>{};
+  final selectedTurnOns = <String>{};
   final List<ProfileImage> uploadedPhotos = [];
 
   bool genderLocked = false;
   bool sexualityLocked = false;
 
+  double? locLat;
+  double? locLon;
+  String? locCity;
+  bool locLoading = false;
+  String? locHint;
+  Future<bool>? _locInFlight;
+
   List<CatalogOption> genderOpts = [];
   List<CatalogOption> sexualityOpts = [];
   List<CatalogOption> languageOpts = [];
   List<CatalogOption> intentOpts = [];
+  List<CatalogOption> turnOnOpts = [];
 
   @override
   void initState() {
@@ -76,6 +93,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
         opts.sexualities(),
         opts.languages(),
         opts.intents(),
+        opts.turnOns(),
         () async {
           try {
             return await profileRepo.getMyProfile();
@@ -93,13 +111,13 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
       ]);
       if (!mounted) return;
 
-      final profile = results[4] as UserProfile?;
-      final faceCfg = results[5] as FaceVerificationConfig?;
+      final profile = results[5] as UserProfile?;
+      final faceCfg = results[6] as FaceVerificationConfig?;
 
       if (isProfileOnboarded(profile)) {
-        ref.read(authControllerProvider.notifier).markOnboardingComplete(
-              username: profile?.username,
-            );
+        ref
+            .read(authControllerProvider.notifier)
+            .markOnboardingComplete(username: profile?.username);
         if (!mounted) return;
         context.go('/app/discover');
         return;
@@ -110,6 +128,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
         sexualityOpts = results[1] as List<CatalogOption>;
         languageOpts = results[2] as List<CatalogOption>;
         intentOpts = results[3] as List<CatalogOption>;
+        turnOnOpts = results[4] as List<CatalogOption>;
         LanguageLabels.setCatalog(languageOpts);
 
         if (faceCfg != null) {
@@ -127,14 +146,18 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
 
           final dob = profile.dateOfBirth?.trim();
           if (dob != null && dob.isNotEmpty) {
-            dobCtrl.text = dob.length >= 10 ? dob.substring(0, 10) : dob;
+            dobCtrl.text = dobApiToDisplay(dob);
           }
 
           final b = profile.bio?.trim();
           if (b != null && b.isNotEmpty) bioCtrl.text = b;
 
           if (profile.genderId != null && profile.genderId!.isNotEmpty) {
-            final valid = genderOpts.where((o) => o.id == profile.genderId || o.name.toLowerCase() == profile.genderLabel?.toLowerCase());
+            final valid = genderOpts.where(
+              (o) =>
+                  o.id == profile.genderId ||
+                  o.name.toLowerCase() == profile.genderLabel?.toLowerCase(),
+            );
             if (valid.isNotEmpty) {
               gender = valid.first.id;
             } else {
@@ -143,7 +166,11 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
             genderLocked = true;
           }
           if (profile.sexualityId != null && profile.sexualityId!.isNotEmpty) {
-            final valid = sexualityOpts.where((o) => o.id == profile.sexualityId || o.name.toLowerCase() == profile.sexualityLabel?.toLowerCase());
+            final valid = sexualityOpts.where(
+              (o) =>
+                  o.id == profile.sexualityId ||
+                  o.name.toLowerCase() == profile.sexualityLabel?.toLowerCase(),
+            );
             if (valid.isNotEmpty) {
               sexuality = valid.first.id;
             } else {
@@ -157,8 +184,9 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
             }
           }
 
-          final validPreferred = profile.preferredGenderIds
-              .where((id) => genderOpts.isEmpty || genderOpts.any((o) => o.id == id));
+          final validPreferred = profile.preferredGenderIds.where(
+            (id) => genderOpts.isEmpty || genderOpts.any((o) => o.id == id),
+          );
           preferredGenders
             ..clear()
             ..addAll(validPreferred);
@@ -171,6 +199,21 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
             uploadedPhotos
               ..clear()
               ..addAll(profile.images);
+          }
+
+          selectedTurnOns
+            ..clear()
+            ..addAll(profile.turnOnIds);
+          final existingTakes = FeedProfile.parseHotTakeTexts(profile.hottakes);
+          for (var i = 0; i < hotTakeCtrls.length; i++) {
+            hotTakeCtrls[i].text =
+                i < existingTakes.length ? existingTakes[i] : '';
+          }
+
+          if (profile.latitude != null && profile.longitude != null) {
+            locLat = profile.latitude;
+            locLon = profile.longitude;
+            locCity = profile.city;
           }
         }
 
@@ -187,6 +230,9 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
     usernameCtrl.dispose();
     dobCtrl.dispose();
     bioCtrl.dispose();
+    for (final c in hotTakeCtrls) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -195,14 +241,22 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
   }
 
   int? _ageFromDob(String raw) {
-    final d = DateTime.tryParse(raw.trim());
+    final d = parseDob(raw);
     if (d == null) return null;
-    final now = DateTime.now();
-    var age = now.year - d.year;
-    if (now.month < d.month || (now.month == d.month && now.day < d.day)) {
-      age--;
-    }
-    return age;
+    return ageFromDob(d);
+  }
+
+  String? _isoDob() {
+    final d = parseDob(dobCtrl.text);
+    return d == null ? null : formatDobIso(d);
+  }
+
+  List<String> _hotTakesPayload() {
+    return hotTakeCtrls
+        .map((c) => c.text.trim())
+        .where((t) => t.isNotEmpty)
+        .take(_maxHotTakes)
+        .toList();
   }
 
   Future<void> _ensureIdentitySaved() async {
@@ -210,15 +264,18 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
     final langNames = LanguageLabels.namesForSave(selectedLanguageIds);
     final payload = <String, dynamic>{
       'username': usernameCtrl.text.trim().toLowerCase(),
-      'date_of_birth': dobCtrl.text.trim(),
+      if (_isoDob() != null) 'date_of_birth': _isoDob(),
       'languages': langNames,
     };
-    if (!genderLocked && gender != null &&
+    if (!genderLocked &&
+        gender != null &&
         (genderOpts.isEmpty || genderOpts.any((o) => o.id == gender))) {
       payload['gender'] = gender;
     }
-    if (!sexualityLocked && sexuality != null &&
-        (sexualityOpts.isEmpty || sexualityOpts.any((o) => o.id == sexuality))) {
+    if (!sexualityLocked &&
+        sexuality != null &&
+        (sexualityOpts.isEmpty ||
+            sexualityOpts.any((o) => o.id == sexuality))) {
       payload['sexuality'] = sexuality;
     }
     try {
@@ -227,41 +284,71 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
       sexualityLocked = true;
     } on ApiException catch (e) {
       final msg = e.message.toLowerCase();
-      if (msg.contains('gender cannot be changed') || msg.contains('gender cannot be removed')) {
+      if (msg.contains('gender cannot be changed') ||
+          msg.contains('gender cannot be removed')) {
         genderLocked = true;
       }
-      if (msg.contains('sexuality cannot be changed') || msg.contains('sexuality cannot be removed')) {
+      if (msg.contains('sexuality cannot be changed') ||
+          msg.contains('sexuality cannot be removed')) {
         sexualityLocked = true;
       }
     } catch (_) {}
   }
 
   Future<void> _addPhoto() async {
+    if (uploadedPhotos.length >= _maxPhotos) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('You can upload up to $_maxPhotos photos.')),
+      );
+      return;
+    }
     final agreed = await PhotoGuidelinesSheet.ensureAccepted(context);
     if (!agreed || !mounted) return;
 
-    final picker = ImagePicker();
-    final file = await picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 85,
-    );
-    if (file == null) return;
+    final file = await pickProfileImage(context);
+    if (file == null || !mounted) return;
 
     setState(() => isUploadingPhoto = true);
     try {
+      final compressedFile = await ImageCompressor.compressToWebp(
+        File(file.path),
+        targetMaxKb: 200,
+      );
+      if (!mounted) return;
+
       await _ensureIdentitySaved();
-      final res = await ref.read(profileRepositoryProvider).uploadImage(file.path);
-      final imgUrl = res['image_url']?.toString() ?? res['url']?.toString() ?? file.path;
-      final imgId = res['id']?.toString() ?? DateTime.now().millisecondsSinceEpoch.toString();
+      final res = await ref
+          .read(profileRepositoryProvider)
+          .uploadImage(compressedFile.path);
+      final status = (res['status'] ?? '').toString().toLowerCase();
+      final imgUrl =
+          res['image_url']?.toString() ?? res['url']?.toString() ?? '';
+      final imgId = res['id']?.toString() ?? '';
+      if (imgId.isEmpty &&
+          imgUrl.isEmpty &&
+          status != 'ok' &&
+          status != 'success') {
+        throw Exception(
+          res['error'] ?? 'Photo is still processing. Try again in a moment.',
+        );
+      }
       setState(() {
-        uploadedPhotos.add(ProfileImage(id: imgId, imageUrl: imgUrl));
+        uploadedPhotos.add(
+          ProfileImage(
+            id: imgId.isEmpty
+                ? DateTime.now().millisecondsSinceEpoch.toString()
+                : imgId,
+            imageUrl: imgUrl.isEmpty ? file.path : imgUrl,
+          ),
+        );
         isUploadingPhoto = false;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() => isUploadingPhoto = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not upload photo: $e')),
+        SnackBar(content: Text('Could not upload photo: ${ApiException.describe(e)}')),
       );
     }
   }
@@ -293,11 +380,13 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
       }
       final age = _ageFromDob(dob);
       if (age == null) {
-        setState(() => error = 'Enter a valid date of birth (YYYY-MM-DD).');
+        setState(() => error = 'Enter a valid date of birth (DD/MM/YYYY).');
         return;
       }
       if (age < 18) {
-        setState(() => error = 'You must be at least 18 years old to join SPYCE.');
+        setState(
+          () => error = 'You must be at least 18 years old to join SPYCE.',
+        );
         return;
       }
       try {
@@ -326,20 +415,29 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
         return;
       }
 
+      final isoDob = _isoDob();
+      if (isoDob == null) {
+        setState(() => error = 'Enter a valid date of birth (DD/MM/YYYY).');
+        return;
+      }
+
       setState(() => submitting = true);
       try {
         final langNames = LanguageLabels.namesForSave(selectedLanguageIds);
         final payload = <String, dynamic>{
           'username': username,
-          'date_of_birth': dob,
+          'date_of_birth': isoDob,
           'languages': langNames,
         };
-        if (!genderLocked && gender != null &&
+        if (!genderLocked &&
+            gender != null &&
             (genderOpts.isEmpty || genderOpts.any((o) => o.id == gender))) {
           payload['gender'] = gender;
         }
-        if (!sexualityLocked && sexuality != null &&
-            (sexualityOpts.isEmpty || sexualityOpts.any((o) => o.id == sexuality))) {
+        if (!sexualityLocked &&
+            sexuality != null &&
+            (sexualityOpts.isEmpty ||
+                sexualityOpts.any((o) => o.id == sexuality))) {
           payload['sexuality'] = sexuality;
         }
         await ref.read(profileRepositoryProvider).updateMyProfile(payload);
@@ -347,22 +445,25 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
         sexualityLocked = true;
       } on ApiException catch (e) {
         final msg = e.message.toLowerCase();
-        final genderImmutable = msg.contains('gender cannot be changed') ||
+        final genderImmutable =
+            msg.contains('gender cannot be changed') ||
             msg.contains('gender cannot be removed');
-        final sexualityImmutable = msg.contains('sexuality cannot be changed') ||
+        final sexualityImmutable =
+            msg.contains('sexuality cannot be changed') ||
             msg.contains('sexuality cannot be removed');
 
         if (genderImmutable || sexualityImmutable) {
           try {
             final retry = <String, dynamic>{
               'username': username,
-              'date_of_birth': dob,
+              'date_of_birth': isoDob,
               'languages': LanguageLabels.namesForSave(selectedLanguageIds),
             };
             if (genderImmutable) genderLocked = true;
             if (sexualityImmutable) sexualityLocked = true;
             if (!genderLocked && gender != null) retry['gender'] = gender;
-            if (!sexualityLocked && sexuality != null) retry['sexuality'] = sexuality;
+            if (!sexualityLocked && sexuality != null)
+              retry['sexuality'] = sexuality;
             await ref.read(profileRepositoryProvider).updateMyProfile(retry);
           } catch (_) {}
         } else {
@@ -374,7 +475,8 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
         }
       } catch (e) {
         setState(() {
-          error = 'Could not save profile. Check your connection and try again.';
+          error =
+              'Could not save profile. Check your connection and try again.';
           submitting = false;
         });
         return;
@@ -394,12 +496,15 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
       setState(() => submitting = true);
       try {
         final validPref = genderOpts.isNotEmpty
-            ? preferredGenders.where((id) => genderOpts.any((o) => o.id == id)).toList()
+            ? preferredGenders
+                  .where((id) => genderOpts.any((o) => o.id == id))
+                  .toList()
             : preferredGenders.toList();
         final payload = <String, dynamic>{
           'preferred_genders': validPref,
           if (selectedIntent != null &&
-              (intentOpts.isEmpty || intentOpts.any((o) => o.id == selectedIntent)))
+              (intentOpts.isEmpty ||
+                  intentOpts.any((o) => o.id == selectedIntent)))
             'intent': selectedIntent,
         };
         await ref.read(profileRepositoryProvider).updateMyProfile(payload);
@@ -411,7 +516,8 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
         return;
       } catch (e) {
         setState(() {
-          error = 'Could not save preferences. Check your connection and try again.';
+          error =
+              'Could not save preferences. Check your connection and try again.';
           submitting = false;
         });
         return;
@@ -426,14 +532,41 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
       }
       if (bio.length < _minBioLen) {
         setState(() {
-          error = 'Bio must be at least $_minBioLen characters (${bio.length}/$_minBioLen).';
+          error =
+              'Bio must be at least $_minBioLen characters (${bio.length}/$_minBioLen).';
+        });
+        return;
+      }
+      if (turnOnOpts.isNotEmpty && selectedTurnOns.length < _minTurnOns) {
+        setState(() {
+          error = 'Pick at least $_minTurnOns turn-ons to continue.';
         });
         return;
       }
 
       setState(() => submitting = true);
       try {
-        await ref.read(profileRepositoryProvider).updateMyProfile({'bio': bio});
+        final locOk = await _ensureLocation(
+          fromUser: locLat == null || locLon == null,
+        );
+        if (!locOk || locLat == null || locLon == null) {
+          if (mounted) {
+            setState(() {
+              submitting = false;
+              error =
+                  locHint ??
+                  'Location is required. Allow location access to continue.';
+            });
+          }
+          return;
+        }
+        final takes = _hotTakesPayload();
+        await ref.read(profileRepositoryProvider).updateMyProfile({
+          'bio': bio,
+          'turn_ons': selectedTurnOns.toList(),
+          'hottakes': takes,
+          ..._locationPayload(),
+        });
       } on ApiException catch (e) {
         setState(() {
           error = e.message;
@@ -462,10 +595,85 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
     }
 
     setState(() => step++);
+    if (step == 3) {
+      _ensureLocation();
+    }
   }
 
-  bool get _useRealFaceLiveness =>
-      faceVerificationEnabled == true && !mockMode;
+  Map<String, dynamic> _locationPayload() {
+    return {
+      if (locLat != null) 'latitude': locLat,
+      if (locLon != null) 'longitude': locLon,
+      if (locCity != null && locCity!.isNotEmpty && locCity != 'Unknown')
+        'city': locCity,
+    };
+  }
+
+  Future<bool> _ensureLocation({bool fromUser = false}) async {
+    if (!fromUser && locLat != null && locLon != null) return true;
+    if (_locInFlight != null) return _locInFlight!;
+
+    final future = _runLocationDetect(fromUser: fromUser);
+    _locInFlight = future;
+    try {
+      return await future;
+    } finally {
+      if (identical(_locInFlight, future)) _locInFlight = null;
+    }
+  }
+
+  Future<bool> _runLocationDetect({required bool fromUser}) async {
+    setState(() {
+      locLoading = true;
+      locHint = null;
+      error = null;
+    });
+
+    final result = await ref
+        .read(locationBootstrapProvider)
+        .detect(openSettingsIfNeeded: fromUser);
+
+    if (!mounted) return false;
+
+    if (result.ok) {
+      try {
+        await ref
+            .read(profileRepositoryProvider)
+            .updateMyProfile(result.toProfilePayload());
+      } catch (_) {
+        // Still keep coords locally so the bio PATCH can include them.
+      }
+      if (!mounted) return false;
+      setState(() {
+        locLat = result.lat;
+        locLon = result.lon;
+        locCity = result.city;
+        locLoading = false;
+        locHint = null;
+      });
+      return true;
+    }
+
+    final hint = switch (result.status) {
+      LocationDetectStatus.servicesOff =>
+        'Turn on Location Services, then tap Enable.',
+      LocationDetectStatus.deniedForever =>
+        'Location is blocked. Open Settings and allow it for SPYCE.',
+      LocationDetectStatus.denied =>
+        'Allow location when prompted — it is required to continue.',
+      LocationDetectStatus.timeout =>
+        'Could not get a GPS fix. Move near a window and try again.',
+      _ => 'Could not detect location. Tap Enable to try again.',
+    };
+
+    setState(() {
+      locLoading = false;
+      locHint = hint;
+    });
+    return false;
+  }
+
+  bool get _useRealFaceLiveness => faceVerificationEnabled == true && !mockMode;
 
   Future<void> _runFaceVerification() async {
     if (verifying || faceVerified) return;
@@ -500,7 +708,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Face verification complete!'),
-            backgroundColor: Color(0xFF059669),
+            backgroundColor: SpyceColors.success,
           ),
         );
       } else {
@@ -525,9 +733,9 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
       error = null;
     });
     try {
-      final res =
-          await ref.read(verificationRepositoryProvider).mockComplete();
-      final ok = res['status']?.toString().toUpperCase() == 'SUCCESS' ||
+      final res = await ref.read(verificationRepositoryProvider).mockComplete();
+      final ok =
+          res['status']?.toString().toUpperCase() == 'SUCCESS' ||
           res['is_identity_verified'] == true ||
           res['verified'] == true;
       if (!ok && res['error'] != null) {
@@ -546,7 +754,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Face verification complete (mock)'),
-          backgroundColor: Color(0xFF059669),
+          backgroundColor: SpyceColors.success,
         ),
       );
     } on ApiException catch (e) {
@@ -576,27 +784,35 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
     final langNames = LanguageLabels.namesForSave(selectedLanguageIds);
 
     final validPref = genderOpts.isNotEmpty
-        ? preferredGenders.where((id) => genderOpts.any((o) => o.id == id)).toList()
+        ? preferredGenders
+              .where((id) => genderOpts.any((o) => o.id == id))
+              .toList()
         : preferredGenders.toList();
 
     final payload = <String, dynamic>{
       'username': uname,
-      'date_of_birth': dobCtrl.text.trim(),
+      if (_isoDob() != null) 'date_of_birth': _isoDob(),
       'preferred_genders': validPref,
       'languages': langNames,
       'bio': bioCtrl.text.trim(),
+      if (selectedTurnOns.isNotEmpty) 'turn_ons': selectedTurnOns.toList(),
+      'hottakes': _hotTakesPayload(),
       if (selectedIntent != null &&
           (intentOpts.isEmpty || intentOpts.any((o) => o.id == selectedIntent)))
         'intent': selectedIntent,
     };
-    if (!genderLocked && gender != null &&
+    if (!genderLocked &&
+        gender != null &&
         (genderOpts.isEmpty || genderOpts.any((o) => o.id == gender))) {
       payload['gender'] = gender;
     }
-    if (!sexualityLocked && sexuality != null &&
-        (sexualityOpts.isEmpty || sexualityOpts.any((o) => o.id == sexuality))) {
+    if (!sexualityLocked &&
+        sexuality != null &&
+        (sexualityOpts.isEmpty ||
+            sexualityOpts.any((o) => o.id == sexuality))) {
       payload['sexuality'] = sexuality;
     }
+    payload.addAll(_locationPayload());
 
     try {
       await ref.read(profileRepositoryProvider).updateMyProfile(payload);
@@ -607,9 +823,11 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
       context.go('/app/discover');
     } on ApiException catch (e) {
       final msg = e.message.toLowerCase();
-      final genderImmutable = msg.contains('gender cannot be changed') ||
+      final genderImmutable =
+          msg.contains('gender cannot be changed') ||
           msg.contains('gender cannot be removed');
-      final sexualityImmutable = msg.contains('sexuality cannot be changed') ||
+      final sexualityImmutable =
+          msg.contains('sexuality cannot be changed') ||
           msg.contains('sexuality cannot be removed');
 
       if (genderImmutable || sexualityImmutable) {
@@ -632,12 +850,13 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
           return;
         } catch (_) {
           try {
-            final profile =
-                await ref.read(profileRepositoryProvider).getMyProfile();
+            final profile = await ref
+                .read(profileRepositoryProvider)
+                .getMyProfile();
             if (isProfileOnboarded(profile)) {
-              ref.read(authControllerProvider.notifier).markOnboardingComplete(
-                    username: profile.username ?? uname,
-                  );
+              ref
+                  .read(authControllerProvider.notifier)
+                  .markOnboardingComplete(username: profile.username ?? uname);
               if (!mounted) return;
               context.go('/app/discover');
               return;
@@ -657,171 +876,154 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
     }
   }
 
+  String get _title => switch (step) {
+    1 => "Let's get to know you",
+    2 => 'What are you here for?',
+    3 => 'Show a little personality',
+    4 => "Prove you're real",
+    _ => "You're in",
+  };
+
+  String get _subtitle => switch (step) {
+    1 => "This is how you'll appear on SPYCE.",
+    2 => "We'll use this to find better matches.",
+    3 => 'Bio, at least 3 turn-ons, and location. Photos and hot takes can wait.',
+    4 => 'A quick live check keeps SPYCE genuine.',
+    _ => 'Thanks for helping keep this a real space.',
+  };
+
+  String get _primaryLabel {
+    if (step == 5) return 'Enter SPYCE';
+    if (step == 4 && !faceVerified) return 'Start face verification';
+    return 'Continue';
+  }
+
   @override
   Widget build(BuildContext context) {
-    final isFaceStep = step == 4 || step == 5;
+    if (loadingOpts) {
+      return const Scaffold(
+        backgroundColor: SpyceColors.dark950,
+        body: OnboardingWaveBackground(
+          child: SpyceLoadingView(message: 'Setting things up…'),
+        ),
+      );
+    }
 
-    return Scaffold(
-      body: OnboardingWaveBackground(
-        child: SafeArea(
-          child: loadingOpts
-              ? const Center(
-                  child: CircularProgressIndicator(color: Colors.white),
-                )
-              : Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // Header Progress Bar with Back Action
-                      OnboardingProgressHeader(
-                        step: step,
-                        totalSteps: _totalSteps,
-                        onBack: (step > 1 && !submitting && !verifying)
-                            ? () => setState(() {
-                                  error = null;
-                                  step--;
-                                })
-                            : null,
-                      ),
-                      const SizedBox(height: 14),
-
-                      // Glass Content Container
-                      Expanded(
-                        child: OnboardingGlassCard(
-                          padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Expanded(
-                                child: SingleChildScrollView(
-                                  padding: const EdgeInsets.only(bottom: 12),
-                                  child: switch (step) {
-                                    1 => IdentityStep(
-                                        usernameCtrl: usernameCtrl,
-                                        dobCtrl: dobCtrl,
-                                        genderOpts: genderOpts,
-                                        sexualityOpts: sexualityOpts,
-                                        languageOpts: languageOpts,
-                                        gender: gender,
-                                        sexuality: sexuality,
-                                        selectedLanguageIds: selectedLanguageIds,
-                                        genderLocked: genderLocked,
-                                        sexualityLocked: sexualityLocked,
-                                        onGenderChanged: (id) =>
-                                            setState(() => gender = id),
-                                        onSexualityChanged: (id) =>
-                                            setState(() => sexuality = id),
-                                        onLanguagesChanged: (ids) =>
-                                            setState(() {
-                                          selectedLanguageIds
-                                            ..clear()
-                                            ..addAll(ids);
-                                        }),
-                                      ),
-                                    2 => IntentMatchStep(
-                                        intentOpts: intentOpts,
-                                        genderOpts: genderOpts,
-                                        selectedIntent: selectedIntent,
-                                        preferredGenders: preferredGenders,
-                                        onIntentChanged: (id) =>
-                                            setState(() => selectedIntent = id),
-                                        onPreferredToggle: (id) =>
-                                            setState(() {
-                                          if (preferredGenders.contains(id)) {
-                                            preferredGenders.remove(id);
-                                          } else {
-                                            preferredGenders.add(id);
-                                          }
-                                        }),
-                                      ),
-                                    3 => BioPhotoStep(
-                                        bioCtrl: bioCtrl,
-                                        minBioLen: _minBioLen,
-                                        photos: uploadedPhotos,
-                                        isUploadingPhoto: isUploadingPhoto,
-                                        onBioChanged: () => setState(() {}),
-                                        onAddPhoto: _addPhoto,
-                                        onRemovePhoto: _removePhoto,
-                                      ),
-                                    4 => FaceVerifyStep(
-                                        verifying: verifying,
-                                        verified: faceVerified,
-                                        realMode: _useRealFaceLiveness,
-                                        onVerify: _runFaceVerification,
-                                      ),
-                                    _ => CompleteStep(
-                                        submitting: submitting,
-                                        onSubmit: _submit,
-                                      ),
-                                  },
-                                ),
-                              ),
-                              if (error != null)
-                                Padding(
-                                  padding: const EdgeInsets.only(bottom: 8),
-                                  child: Text(
-                                    error!,
-                                    textAlign: TextAlign.center,
-                                    style: const TextStyle(
-                                      color: Color(0xFFFF6B81),
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ),
-
-                              // Primary Button Action
-                              OnboardingPrimaryButton(
-                                label: step == 5
-                                    ? 'Apply & finish scanning'
-                                    : (step == 4 && !faceVerified)
-                                        ? 'Start face verification'
-                                        : 'Continue',
-                                loading: submitting,
-                                isRedAccent: isFaceStep,
-                                onPressed: (submitting || verifying)
-                                    ? null
-                                    : () {
-                                        if (step == 4 && !faceVerified) {
-                                          _runFaceVerification();
-                                        } else {
-                                          _next();
-                                        }
-                                      },
-                              ),
-
-                              // Secondary "Skip for now" Action (Step 3 & Step 4)
-                              if (step == 3 || step == 4) ...[
-                                const SizedBox(height: 6),
-                                Center(
-                                  child: TextButton(
-                                    onPressed: (submitting || verifying)
-                                        ? null
-                                        : () {
-                                            if (step == 4 && !faceVerified) {
-                                              // Dev bypass to complete step if skipped
-                                              setState(() => step = 5);
-                                            } else {
-                                              _next();
-                                            }
-                                          },
-                                    child: Text(
-                                      'Skip for now',
-                                      style: GoogleFonts.dmSans(
-                                        color: OnboardingColors.textSecondary,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+    return OnboardingScaffold(
+      showProgress: true,
+      step: step,
+      totalSteps: _totalSteps,
+      onBack: (step > 1 && !submitting && !verifying)
+          ? () => setState(() {
+              error = null;
+              step--;
+            })
+          : null,
+      title: _title,
+      subtitle: _subtitle,
+      error: error,
+      primaryLabel: _primaryLabel,
+      primaryLoading: submitting || verifying,
+      secondaryLabel: step == 3 ? 'Skip for now' : null,
+      onSecondary: (submitting || verifying)
+          ? null
+          : () {
+              _next();
+            },
+      onPrimary: (submitting || verifying)
+          ? null
+          : () {
+              if (step == 4 && !faceVerified) {
+                _runFaceVerification();
+              } else {
+                _next();
+              }
+            },
+      body: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 280),
+        switchInCurve: Curves.easeOutCubic,
+        switchOutCurve: Curves.easeInCubic,
+        transitionBuilder: (child, anim) {
+          return FadeTransition(
+            opacity: anim,
+            child: SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0.04, 0),
+                end: Offset.zero,
+              ).animate(anim),
+              child: child,
+            ),
+          );
+        },
+        child: KeyedSubtree(
+          key: ValueKey(step),
+          child: switch (step) {
+            1 => IdentityStep(
+              usernameCtrl: usernameCtrl,
+              dobCtrl: dobCtrl,
+              genderOpts: genderOpts,
+              sexualityOpts: sexualityOpts,
+              languageOpts: languageOpts,
+              gender: gender,
+              sexuality: sexuality,
+              selectedLanguageIds: selectedLanguageIds,
+              genderLocked: genderLocked,
+              sexualityLocked: sexualityLocked,
+              onGenderChanged: (id) => setState(() => gender = id),
+              onSexualityChanged: (id) => setState(() => sexuality = id),
+              onLanguagesChanged: (ids) => setState(() {
+                selectedLanguageIds
+                  ..clear()
+                  ..addAll(ids);
+              }),
+              onDobChanged: () => setState(() {}),
+            ),
+            2 => IntentMatchStep(
+              intentOpts: intentOpts,
+              genderOpts: genderOpts,
+              selectedIntent: selectedIntent,
+              preferredGenders: preferredGenders,
+              onIntentChanged: (id) => setState(() => selectedIntent = id),
+              onPreferredToggle: (id) => setState(() {
+                if (preferredGenders.contains(id)) {
+                  preferredGenders.remove(id);
+                } else {
+                  preferredGenders.add(id);
+                }
+              }),
+            ),
+            3 => BioPhotoStep(
+              bioCtrl: bioCtrl,
+              minBioLen: _minBioLen,
+              photos: uploadedPhotos,
+              isUploadingPhoto: isUploadingPhoto,
+              onBioChanged: () => setState(() {}),
+              onAddPhoto: _addPhoto,
+              onRemovePhoto: _removePhoto,
+              locationLoading: locLoading,
+              locationReady: locLat != null && locLon != null,
+              locationCity: locCity,
+              locationHint: locHint,
+              onDetectLocation: () => _ensureLocation(fromUser: true),
+              turnOnOpts: turnOnOpts,
+              selectedTurnOns: selectedTurnOns,
+              onTurnOnsChanged: (ids) => setState(() {
+                selectedTurnOns
+                  ..clear()
+                  ..addAll(ids);
+              }),
+              minTurnOns: _minTurnOns,
+              hotTakeCtrls: hotTakeCtrls,
+              onHotTakesChanged: () => setState(() {}),
+            ),
+            4 => FaceVerifyStep(
+              verifying: verifying,
+              verified: faceVerified,
+              realMode: _useRealFaceLiveness,
+              onVerify: _runFaceVerification,
+            ),
+            _ => CompleteStep(submitting: submitting, onSubmit: _submit),
+          },
         ),
       ),
     );

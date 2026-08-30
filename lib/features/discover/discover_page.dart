@@ -6,11 +6,13 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../core/bootstrap/app_preload.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/theme/spyce_colors.dart';
 import '../../core/utils/language_labels.dart';
 import '../../data/models/user_models.dart';
 import '../../data/repositories/api_repositories.dart';
+import '../../shared/widgets/spyce_loaders.dart';
 import '../../shared/widgets/spyce_widgets.dart';
 import '../auth/auth_controller.dart';
 import '../premium/subscription_paywall.dart';
@@ -41,11 +43,14 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
   bool _isProfileIncomplete = false;
   String? _profileIncompleteMessage;
   List<String> _missingFields = [];
+
   /// True after we auto-relaxed filters to keep showing people.
   bool _varietyMode = false;
   bool _enteringVariety = false;
+
   /// One thin interstitial page (2 playful lines) before variety profiles.
   bool _showVarietyBridge = false;
+
   /// PageView index where the bridge sits (profiles after it are offset by 1).
   int _bridgePageIndex = 0;
 
@@ -126,9 +131,7 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
   List<FeedProfile> _withResolvedLanguages(List<FeedProfile> list) {
     return list
         .map(
-          (p) => p.copyWith(
-            languages: LanguageLabels.resolveAll(p.languages),
-          ),
+          (p) => p.copyWith(languages: LanguageLabels.resolveAll(p.languages)),
         )
         .toList();
   }
@@ -170,11 +173,13 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
     }
   }
 
+  bool get _showEndLoader => loadingMore || _enteringVariety;
+
   int get _pageCount {
-    final n = profiles.length;
-    if (!_showVarietyBridge) return n;
-    // Bridge is an extra page; still show it even if variety load is empty
-    return n + 1;
+    var n = profiles.length;
+    if (_showVarietyBridge) n += 1;
+    if (_showEndLoader) n += 1;
+    return n;
   }
 
   /// Map PageView index → profile index (null = bridge page).
@@ -185,7 +190,75 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
     return pageIndex - 1;
   }
 
-  Future<void> _load(int cursor, {bool append = false, bool refresh = false}) async {
+  void _ingestFeed(FeedResponse res, {required bool append}) {
+    if (res.profileIncomplete) {
+      _isProfileIncomplete = true;
+      _profileIncompleteMessage = res.message;
+      _missingFields = res.missingFields;
+      loading = false;
+      loadingMore = false;
+      profiles = [];
+      return;
+    }
+    _isProfileIncomplete = false;
+    _missingFields = [];
+
+    final resolved = _withResolvedLanguages(res.results);
+    showPaywall = false;
+    if (!append) {
+      _liked.clear();
+      profiles = resolved;
+    } else {
+      final existing = profiles.map((p) => p.id).toSet();
+      profiles = [
+        ...profiles,
+        ...resolved.where((p) => !existing.contains(p.id)),
+      ];
+    }
+    for (final p in resolved) {
+      if (p.isLiked) {
+        _liked.add(p.id);
+        final key = p.userId ?? p.id;
+        if (key.isNotEmpty) _liked.add(key);
+      }
+    }
+    nextCursor = res.nextCursor;
+    hasMore = res.nextCursor != null;
+    loading = false;
+    loadingMore = false;
+    locationBanner = res.locationMessage;
+    if (profiles.isEmpty && res.emptyReason != null) {
+      error = res.emptyReason;
+    } else {
+      error = null;
+    }
+  }
+
+  Future<void> _load(
+    int cursor, {
+    bool append = false,
+    bool refresh = false,
+  }) async {
+    if (cursor == 0 && !append && !refresh) {
+      final pre = ref.read(appPreloadProvider);
+      if (pre?.feed != null) {
+        ref.read(appPreloadProvider.notifier).state = null;
+        if (pre!.profile != null) _myProfile = pre.profile;
+        setState(() => _ingestFeed(pre.feed!, append: false));
+        if (!mounted) return;
+        if (_isProfileIncomplete) return;
+        if (profiles.isEmpty && !_varietyMode && !_enteringVariety) {
+          await _enterVarietyAndContinue(keepProfiles: false);
+        } else if (!hasMore &&
+            profiles.isNotEmpty &&
+            !_varietyMode &&
+            !_enteringVariety) {
+          await _enterVarietyAndContinue(keepProfiles: true);
+        }
+        return;
+      }
+    }
+
     if (cursor == 0 && !append) {
       setState(() {
         loading = true;
@@ -200,68 +273,23 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
         _ensureLanguageCatalog();
       }
 
-      final res = await ref.read(feedRepositoryProvider).getFeed(
+      final res = await ref
+          .read(feedRepositoryProvider)
+          .getFeed(
             cursor: cursor,
             refresh: refresh || (cursor == 0 && !append),
             filters: filters,
           );
       if (!mounted) return;
 
-      if (res.profileIncomplete) {
-        if (_myProfile == null) {
-          try {
-            _myProfile = await ref.read(profileRepositoryProvider).getMyProfile();
-          } catch (_) {}
-        }
-        setState(() {
-          _isProfileIncomplete = true;
-          _profileIncompleteMessage = res.message;
-          _missingFields = res.missingFields;
-          loading = false;
-          loadingMore = false;
-          profiles = [];
-        });
-        return;
-      } else {
-        _isProfileIncomplete = false;
-        _missingFields = [];
+      if (res.profileIncomplete && _myProfile == null) {
+        try {
+          _myProfile = await ref.read(profileRepositoryProvider).getMyProfile();
+        } catch (_) {}
       }
 
-      final resolved = _withResolvedLanguages(res.results);
-      setState(() {
-        showPaywall = false;
-        if (!append) {
-          _liked.clear();
-          profiles = resolved;
-        } else {
-          // Dedupe when appending; keep already-liked cards in the stack
-          final existing = profiles.map((p) => p.id).toSet();
-          profiles = [
-            ...profiles,
-            ...resolved.where((p) => !existing.contains(p.id)),
-          ];
-        }
-        // Seed liked set from API so already-liked stays visible until TTL
-        for (final p in resolved) {
-          if (p.isLiked) {
-            _liked.add(p.id);
-            final key = p.userId ?? p.id;
-            if (key.isNotEmpty) _liked.add(key);
-          }
-        }
-        nextCursor = res.nextCursor;
-        hasMore = res.nextCursor != null;
-        loading = false;
-        loadingMore = false;
-        locationBanner = res.locationMessage;
-        if (profiles.isEmpty && res.emptyReason != null) {
-          error = res.emptyReason;
-        } else if (profiles.isEmpty) {
-          error = null;
-        } else {
-          error = null;
-        }
-      });
+      setState(() => _ingestFeed(res, append: append));
+      if (_isProfileIncomplete) return;
 
       // Empty under current filters → relax once and keep the feed going
       if (profiles.isEmpty && !_varietyMode && !_enteringVariety) {
@@ -286,8 +314,8 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
             requiresSubscription: true,
             price: e.data?['price'] as num?,
             currency: e.data?['currency']?.toString(),
-            durationDays:
-                (e.data?['subscription_duration_days'] as num?)?.toInt(),
+            durationDays: (e.data?['subscription_duration_days'] as num?)
+                ?.toInt(),
           );
           loading = false;
           loadingMore = false;
@@ -496,7 +524,9 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
 
   Future<void> _purchase() async {
     try {
-      await ref.read(subscriptionRepositoryProvider).purchase(const Uuid().v4());
+      await ref
+          .read(subscriptionRepositoryProvider)
+          .purchase(const Uuid().v4());
       setState(() => showPaywall = false);
       await _load(0);
     } on ApiException catch (e) {
@@ -550,7 +580,10 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                 ].join(', '),
         );
 
-        Future<void> runCitySearch(String raw, void Function(void Function()) setModal) async {
+        Future<void> runCitySearch(
+          String raw,
+          void Function(void Function()) setModal,
+        ) async {
           final q = raw.trim();
           // If user is editing free text, strip display "City, State, Country" to first segment for API
           final queryForApi = q.contains(',') ? q.split(',').first.trim() : q;
@@ -587,8 +620,9 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
         void onCityTyped(String v, void Function(void Function()) setModal) {
           // Free-type: store first token as city until user picks a suggestion
           final trimmed = v.trim();
-          final freeCity =
-              trimmed.contains(',') ? trimmed.split(',').first.trim() : trimmed;
+          final freeCity = trimmed.contains(',')
+              ? trimmed.split(',').first.trim()
+              : trimmed;
           setModal(() {
             selectedCity = freeCity;
             // Clear structured region / coords until a suggestion is picked
@@ -611,7 +645,10 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
           });
         }
 
-        void pickCity(CitySuggestion s, void Function(void Function()) setModal) {
+        void pickCity(
+          CitySuggestion s,
+          void Function(void Function()) setModal,
+        ) {
           cityDebounce?.cancel();
           cityCtrl.text = s.label;
           setModal(() {
@@ -635,8 +672,8 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
             final String distLabel = anywhere
                 ? 'Distance: Anywhere · Worldwide'
                 : (distance >= screenMaxDist
-                    ? 'Distance: Up to 1000 km'
-                    : 'Distance: Up to ${distance.round()} km');
+                      ? 'Distance: Up to 1000 km'
+                      : 'Distance: Up to ${distance.round()} km');
 
             return Padding(
               padding: EdgeInsets.fromLTRB(
@@ -650,12 +687,22 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text('Discovery Filters',
-                        style: GoogleFonts.syne(
-                            fontSize: 22, fontWeight: FontWeight.w700, color: Colors.white)),
+                    Text(
+                      'Discovery Filters',
+                      style: GoogleFonts.syne(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
                     const SizedBox(height: 16),
-                    Text('Age Range: ${minAge.round()} – ${maxAge.round()} yrs',
-                        style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
+                    Text(
+                      'Age Range: ${minAge.round()} – ${maxAge.round()} yrs',
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                     RangeSlider(
                       values: RangeValues(minAge, maxAge),
                       min: 18,
@@ -667,7 +714,13 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                       }),
                     ),
                     const SizedBox(height: 10),
-                    Text(distLabel, style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
+                    Text(
+                      distLabel,
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                     const SizedBox(height: 8),
                     Wrap(
                       spacing: 8,
@@ -747,20 +800,31 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text('1 km',
-                              style: TextStyle(
-                                  color: Colors.white.withValues(alpha: 0.4),
-                                  fontSize: 11)),
-                          Text('1000 km',
-                              style: TextStyle(
-                                  color: Colors.white.withValues(alpha: 0.4),
-                                  fontSize: 11)),
+                          Text(
+                            '1 km',
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.4),
+                              fontSize: 11,
+                            ),
+                          ),
+                          Text(
+                            '1000 km',
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.4),
+                              fontSize: 11,
+                            ),
+                          ),
                         ],
                       ),
                     ],
                     const SizedBox(height: 10),
-                    Text('Filter by City',
-                        style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
+                    Text(
+                      'Filter by City',
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                     const SizedBox(height: 4),
                     Text(
                       'Type a city — pick from suggestions (city, state, country)',
@@ -775,10 +839,15 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                       style: const TextStyle(color: Colors.white),
                       decoration: InputDecoration(
                         hintText: 'Search city…',
-                        hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
+                        hintStyle: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.3),
+                        ),
                         filled: true,
                         fillColor: Colors.black26,
-                        prefixIcon: const Icon(Icons.location_city, color: SpyceColors.pinkSoft),
+                        prefixIcon: const Icon(
+                          Icons.location_city,
+                          color: SpyceColors.pinkSoft,
+                        ),
                         suffixIcon: cityLoading
                             ? const Padding(
                                 padding: EdgeInsets.all(12),
@@ -792,24 +861,27 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                                 ),
                               )
                             : (cityCtrl.text.isNotEmpty
-                                ? IconButton(
-                                    icon: const Icon(Icons.clear, color: Colors.white54),
-                                    onPressed: () {
-                                      cityDebounce?.cancel();
-                                      cityCtrl.clear();
-                                      setModal(() {
-                                        selectedCity = '';
-                                        selectedState = '';
-                                        selectedCountry = '';
-                                        selectedCityLat = null;
-                                        selectedCityLon = null;
-                                        citySuggestions = [];
-                                        showCitySuggest = false;
-                                        cityLoading = false;
-                                      });
-                                    },
-                                  )
-                                : null),
+                                  ? IconButton(
+                                      icon: const Icon(
+                                        Icons.clear,
+                                        color: Colors.white54,
+                                      ),
+                                      onPressed: () {
+                                        cityDebounce?.cancel();
+                                        cityCtrl.clear();
+                                        setModal(() {
+                                          selectedCity = '';
+                                          selectedState = '';
+                                          selectedCountry = '';
+                                          selectedCityLat = null;
+                                          selectedCityLon = null;
+                                          citySuggestions = [];
+                                          showCitySuggest = false;
+                                          cityLoading = false;
+                                        });
+                                      },
+                                    )
+                                  : null),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                           borderSide: BorderSide.none,
@@ -862,8 +934,10 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                               ),
                               subtitle: Text(
                                 [
-                                  if (s.state != null && s.state!.isNotEmpty) s.state!,
-                                  if (s.country != null && s.country!.isNotEmpty)
+                                  if (s.state != null && s.state!.isNotEmpty)
+                                    s.state!,
+                                  if (s.country != null &&
+                                      s.country!.isNotEmpty)
                                     s.country!,
                                 ].join(', '),
                                 style: TextStyle(
@@ -875,7 +949,9 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                                   ? Text(
                                       '${s.profileCount}',
                                       style: TextStyle(
-                                        color: Colors.white.withValues(alpha: 0.35),
+                                        color: Colors.white.withValues(
+                                          alpha: 0.35,
+                                        ),
                                         fontSize: 11,
                                       ),
                                     )
@@ -903,23 +979,37 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                       // After a failed search we leave showCitySuggest false; optional quiet hint
                     ],
                     if (selectedCity.isNotEmpty &&
-                        (selectedState.isNotEmpty || selectedCountry.isNotEmpty)) ...[
+                        (selectedState.isNotEmpty ||
+                            selectedCountry.isNotEmpty)) ...[
                       const SizedBox(height: 8),
                       Align(
                         alignment: Alignment.centerLeft,
                         child: Chip(
-                          avatar: const Icon(Icons.check_circle, size: 16, color: Colors.white),
+                          avatar: const Icon(
+                            Icons.check_circle,
+                            size: 16,
+                            color: Colors.white,
+                          ),
                           label: Text(
                             [
                               selectedCity,
                               if (selectedState.isNotEmpty) selectedState,
                               if (selectedCountry.isNotEmpty) selectedCountry,
                             ].join(', '),
-                            style: const TextStyle(color: Colors.white, fontSize: 12),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                            ),
                           ),
-                          backgroundColor: SpyceColors.pink.withValues(alpha: 0.35),
+                          backgroundColor: SpyceColors.pink.withValues(
+                            alpha: 0.35,
+                          ),
                           side: BorderSide.none,
-                          deleteIcon: const Icon(Icons.close, size: 16, color: Colors.white70),
+                          deleteIcon: const Icon(
+                            Icons.close,
+                            size: 16,
+                            color: Colors.white70,
+                          ),
                           onDeleted: () {
                             cityCtrl.clear();
                             setModal(() {
@@ -935,8 +1025,13 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                     ],
                     const SizedBox(height: 16),
                     if (intentOptions.isNotEmpty) ...[
-                      Text('Filter by Intent',
-                          style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
+                      Text(
+                        'Filter by Intent',
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                       const SizedBox(height: 8),
                       Wrap(
                         spacing: 8,
@@ -946,16 +1041,25 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                             label: const Text('Any Intent'),
                             selected: selectedIntent.isEmpty,
                             selectedColor: SpyceColors.pink,
-                            labelStyle: TextStyle(color: selectedIntent.isEmpty ? Colors.white : Colors.white70),
-                            onSelected: (_) => setModal(() => selectedIntent = ''),
+                            labelStyle: TextStyle(
+                              color: selectedIntent.isEmpty
+                                  ? Colors.white
+                                  : Colors.white70,
+                            ),
+                            onSelected: (_) =>
+                                setModal(() => selectedIntent = ''),
                           ),
                           ...intentOptions.map((opt) {
-                            final isSel = selectedIntent == opt.id || selectedIntent == opt.name;
+                            final isSel =
+                                selectedIntent == opt.id ||
+                                selectedIntent == opt.name;
                             return ChoiceChip(
                               label: Text(opt.name),
                               selected: isSel,
                               selectedColor: SpyceColors.pink,
-                              labelStyle: TextStyle(color: isSel ? Colors.white : Colors.white70),
+                              labelStyle: TextStyle(
+                                color: isSel ? Colors.white : Colors.white70,
+                              ),
                               onSelected: (sel) => setModal(() {
                                 selectedIntent = sel ? opt.id : '';
                               }),
@@ -967,7 +1071,10 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                     ],
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
-                      title: const Text('Currently online only', style: TextStyle(color: Colors.white)),
+                      title: const Text(
+                        'Currently online only',
+                        style: TextStyle(color: Colors.white),
+                      ),
                       value: online,
                       activeThumbColor: SpyceColors.pink,
                       onChanged: (v) => setModal(() => online = v),
@@ -991,7 +1098,9 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                             // Region filter wins over distance (backend normalize)
                             'distance': hasRegion
                                 ? 0
-                                : (anywhere ? 0 : distance.round().clamp(1, 1000)),
+                                : (anywhere
+                                      ? 0
+                                      : distance.round().clamp(1, 1000)),
                             'city': selectedCity.trim(),
                             'state': selectedState.trim(),
                             'country': selectedCountry.trim(),
@@ -1025,7 +1134,6 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
     });
   }
 
-
   @override
   Widget build(BuildContext context) {
     if (showPaywall) {
@@ -1056,22 +1164,31 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                         children: const [
                           TextSpan(text: 'sp'),
                           TextSpan(
-                              text: 'y',
-                              style: TextStyle(color: SpyceColors.pink)),
+                            text: 'y',
+                            style: TextStyle(color: SpyceColors.pink),
+                          ),
                           TextSpan(text: 'ce'),
                         ],
                       ),
                     ),
                     const Spacer(),
                     IconButton(
+                      onPressed: () => context.push('/app/settings/notifications'),
+                      icon: const Icon(Icons.notifications_outlined),
+                      color: SpyceColors.white,
+                      tooltip: 'Notifications',
+                    ),
+                    IconButton(
                       onPressed: _openFilters,
                       icon: const Icon(Icons.tune_rounded),
                       color: SpyceColors.white,
+                      tooltip: 'Filters',
                     ),
                     IconButton(
                       onPressed: () => _load(0),
                       icon: const Icon(Icons.refresh_rounded),
                       color: SpyceColors.white,
+                      tooltip: 'Refresh',
                     ),
                   ],
                 ),
@@ -1083,18 +1200,23 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
               Material(
                 color: SpyceColors.pink.withValues(alpha: 0.15),
                 child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   child: Row(
                     children: [
-                      const Icon(Icons.place_outlined,
-                          color: SpyceColors.pinkSoft, size: 18),
+                      const Icon(
+                        Icons.place_outlined,
+                        color: SpyceColors.pinkSoft,
+                        size: 18,
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           locationBanner!,
                           style: const TextStyle(
-                            color: Colors.white,
+                            color: SpyceColors.white,
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
                           ),
@@ -1103,8 +1225,11 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                       IconButton(
                         visualDensity: VisualDensity.compact,
                         onPressed: () => setState(() => locationBanner = null),
-                        icon: const Icon(Icons.close,
-                            size: 16, color: Colors.white54),
+                        icon: const Icon(
+                          Icons.close,
+                          size: 16,
+                          color: Colors.white54,
+                        ),
                       ),
                     ],
                   ),
@@ -1112,106 +1237,108 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
               ),
             Expanded(
               child: loading
-                  ? const Center(
-                      child:
-                          CircularProgressIndicator(color: SpyceColors.pink),
-                    )
+                  ? const SpyceLoadingView(message: 'Finding your people…')
                   : (_isProfileIncomplete && profiles.isEmpty)
-                      ? _ProfileIncompleteView(
-                          profile: _myProfile,
-                          message: _profileIncompleteMessage,
-                          missingFields: _missingFields,
-                          onRefresh: () {
-                            setState(() {
-                              _isProfileIncomplete = false;
-                              loading = true;
-                            });
-                            _seedFiltersFromProfile();
-                            _load(0, refresh: true);
-                          },
-                        )
-                      : profiles.isEmpty && !_showVarietyBridge
-                          ? EmptyState(
-                              icon: Icons.explore_outlined,
-                              title: (filters['city']?.toString().isNotEmpty == true)
-                                  ? 'No one in ${filters['city']} yet'
-                                  : 'No more people right now',
-                              subtitle: error ??
-                                  locationBanner ??
-                                  'Pull to refresh or adjust filters — new people show up as they come online.',
-                              action: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  TextButton(
-                                    onPressed: () {
-                                      setState(() {
-                                        _varietyMode = false;
-                                        _showVarietyBridge = false;
-                                        filters.remove('include_liked');
-                                      });
-                                      _load(0);
-                                    },
-                                    child: const Text('Refresh',
-                                        style: TextStyle(
-                                            color: SpyceColors.pinkSoft)),
-                                  ),
-                                  TextButton(
-                                    onPressed: _openFilters,
-                                    child: const Text('Adjust filters',
-                                        style: TextStyle(
-                                            color: SpyceColors.pinkSoft)),
-                                  ),
-                                ],
-                              ),
-                            )
-                          : PageView.builder(
-                              controller: _pageCtrl,
-                              scrollDirection: Axis.vertical,
-                              itemCount: _pageCount,
-                              onPageChanged: (i) {
-                                final profIdx = _profileIndexForPage(i);
-                                final nearEnd = profIdx != null &&
-                                    profIdx >= profiles.length - 3;
-                                if (hasMore &&
-                                    !loadingMore &&
-                                    nearEnd &&
-                                    nextCursor != null) {
-                                  _load(nextCursor!, append: true);
-                                } else if (!hasMore &&
-                                    !_varietyMode &&
-                                    !_enteringVariety &&
-                                    profiles.isNotEmpty &&
-                                    (profIdx == null
-                                        ? false
-                                        : profIdx >= profiles.length - 2)) {
-                                  // Near the end of filtered results → relax & keep going
-                                  _enterVarietyAndContinue(keepProfiles: true);
-                                }
-                              },
-                              itemBuilder: (context, index) {
-                                final profIdx = _profileIndexForPage(index);
-                                if (profIdx == null) {
-                                  // Compact two-line bridge — not a full empty screen
-                                  return const _VarietyBridgePage();
-                                }
-                                if (profIdx < 0 || profIdx >= profiles.length) {
-                                  return const SizedBox.shrink();
-                                }
-                                final p = profiles[profIdx];
-                                return Padding(
-                                  padding:
-                                      const EdgeInsets.fromLTRB(10, 0, 10, 8),
-                                  child: FeedProfileCard(
-                                    profile: p,
-                                    liked: _isLiked(p),
-                                    onLike: () => _like(p),
-                                    onMessage: p.canDirectMessage
-                                        ? () => _message(p)
-                                        : null,
-                                  ),
-                                );
-                              },
+                  ? _ProfileIncompleteView(
+                      profile: _myProfile,
+                      message: _profileIncompleteMessage,
+                      missingFields: _missingFields,
+                      onRefresh: () {
+                        setState(() {
+                          _isProfileIncomplete = false;
+                          loading = true;
+                        });
+                        _seedFiltersFromProfile();
+                        _load(0, refresh: true);
+                      },
+                    )
+                  : profiles.isEmpty && !_showVarietyBridge
+                  ? EmptyState(
+                      icon: Icons.explore_outlined,
+                      title: (filters['city']?.toString().isNotEmpty == true)
+                          ? 'No one in ${filters['city']} yet'
+                          : 'No more people right now',
+                      subtitle:
+                          error ??
+                          locationBanner ??
+                          'Pull to refresh or adjust filters — new people show up as they come online.',
+                      action: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          TextButton(
+                            onPressed: () {
+                              setState(() {
+                                _varietyMode = false;
+                                _showVarietyBridge = false;
+                                filters.remove('include_liked');
+                              });
+                              _load(0);
+                            },
+                            child: const Text(
+                              'Refresh',
+                              style: TextStyle(color: SpyceColors.pinkSoft),
                             ),
+                          ),
+                          TextButton(
+                            onPressed: _openFilters,
+                            child: const Text(
+                              'Adjust filters',
+                              style: TextStyle(color: SpyceColors.pinkSoft),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : PageView.builder(
+                      controller: _pageCtrl,
+                      scrollDirection: Axis.vertical,
+                      itemCount: _pageCount,
+                      onPageChanged: (i) {
+                        final profIdx = _profileIndexForPage(i);
+                        final nearEnd =
+                            profIdx != null && profIdx >= profiles.length - 3;
+                        if (hasMore &&
+                            !loadingMore &&
+                            nearEnd &&
+                            nextCursor != null) {
+                          _load(nextCursor!, append: true);
+                        } else if (!hasMore &&
+                            !_varietyMode &&
+                            !_enteringVariety &&
+                            profiles.isNotEmpty &&
+                            (profIdx == null
+                                ? false
+                                : profIdx >= profiles.length - 2)) {
+                          // Near the end of filtered results → relax & keep going
+                          _enterVarietyAndContinue(keepProfiles: true);
+                        }
+                      },
+                      itemBuilder: (context, index) {
+                        if (_showEndLoader && index == _pageCount - 1) {
+                          return const _FeedEndLoadingPage();
+                        }
+                        final profIdx = _profileIndexForPage(index);
+                        if (profIdx == null) {
+                          // Compact two-line bridge — not a full empty screen
+                          return const _VarietyBridgePage();
+                        }
+                        if (profIdx < 0 || profIdx >= profiles.length) {
+                          return const SizedBox.shrink();
+                        }
+                        final p = profiles[profIdx];
+                        return Padding(
+                          padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
+                          child: FeedProfileCard(
+                            profile: p,
+                            liked: _isLiked(p),
+                            onLike: () => _like(p),
+                            onMessage: p.canDirectMessage
+                                ? () => _message(p)
+                                : null,
+                          ),
+                        );
+                      },
+                    ),
             ),
           ],
         ),
@@ -1246,15 +1373,15 @@ class _ProfileIncompleteView extends StatelessWidget {
     final missing = missingFields.isNotEmpty
         ? missingFields
         : (profile?.missingFields.isNotEmpty == true
-            ? profile!.missingFields
-            : [
-                'Username',
-                'Date of Birth / Age (18+)',
-                'Gender',
-                'Sexuality',
-                'Preferred Genders (Looking for)',
-                'Bio (at least 20 characters)',
-              ]);
+              ? profile!.missingFields
+              : [
+                  'Username',
+                  'Date of Birth / Age (18+)',
+                  'Gender',
+                  'Sexuality',
+                  'Preferred Genders (Looking for)',
+                  'Bio (at least 20 characters)',
+                ]);
 
     return Center(
       child: SingleChildScrollView(
@@ -1322,7 +1449,7 @@ class _ProfileIncompleteView extends StatelessWidget {
                         children: [
                           const Icon(
                             Icons.error_outline,
-                            color: Colors.amberAccent,
+                            color: SpyceColors.gold,
                             size: 18,
                           ),
                           const SizedBox(width: 10),
@@ -1361,6 +1488,16 @@ class _ProfileIncompleteView extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// Shown as the last PageView card while more profiles are loading.
+class _FeedEndLoadingPage extends StatelessWidget {
+  const _FeedEndLoadingPage();
+
+  @override
+  Widget build(BuildContext context) {
+    return const SpyceLoadingView(message: 'Finding more people…');
   }
 }
 

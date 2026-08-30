@@ -235,7 +235,7 @@ class _TurnstileWidgetState extends State<TurnstileWidget> {
               _error!,
               textAlign: TextAlign.center,
               style: const TextStyle(
-                color: Color(0xFFFF6B81),
+                color: SpyceColors.error,
                 fontSize: 12,
               ),
             ),

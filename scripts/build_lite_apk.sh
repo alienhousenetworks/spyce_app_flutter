@@ -47,7 +47,7 @@ flutter build apk \
   --target-platform android-arm64 \
   --obfuscate \
   --split-debug-info="$OUTPUT_DIR" \
-  --dart-define=ENABLE_SSL_PINNING="${ENABLE_SSL_PINNING:-true}" \
+  --dart-define=ENABLE_SSL_PINNING="${ENABLE_SSL_PINNING:-false}" \
   --dart-define=SSL_FINGERPRINTS="${SSL_FINGERPRINTS:-}" \
   --dart-define=API_BASE_URL="${API_BASE_URL:-https://api01.spycenow.com}" \
   --dart-define=MAGIC_OTP="${MAGIC_OTP:-}"
@@ -55,10 +55,26 @@ flutter build apk \
 APK_SRC="build/app/outputs/flutter-apk/app-release.apk"
 APK_OUT="spyce.apk"
 APK_LITE="spyce-lite.apk"
+
+# Strip unused Amplify/JS source maps if they survived packaging.
+if command -v zip >/dev/null 2>&1; then
+  zip -d "$APK_SRC" \
+    "*.map" \
+    "*/*.map" \
+    "*/*/*.map" \
+    "*/*/*/*.map" \
+    "*/*/*/*/*.map" \
+    "*/*/*/*/*/*.map" \
+    "*/*/*/*/*/*/*.map" \
+    2>/dev/null || true
+fi
+
 cp -f "$APK_SRC" "$APK_OUT"
 cp -f "$APK_SRC" "$APK_LITE"
+cp -f "$APK_SRC" "../spyce.apk"
+cp -f "$APK_SRC" "../spyce-lite.apk"
 
 echo "=== Build complete ==="
-ls -lh "$APK_SRC" "$APK_OUT" "$APK_LITE"
+ls -lh "$APK_SRC" "$APK_OUT" "$APK_LITE" "../spyce.apk"
 echo "Symbols: $OUTPUT_DIR"
 echo "Install: adb install -r $APK_OUT"

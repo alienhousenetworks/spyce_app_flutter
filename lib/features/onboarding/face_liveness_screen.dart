@@ -68,16 +68,17 @@ class _FaceLivenessScreenState extends ConsumerState<FaceLivenessScreen> {
         // Continue with dart-define / defaults if status fails
       }
 
-      final region = (statusMap['region'] ??
-              statusMap['cognito_region'] ??
-              Env.cognitoRegion)
-          .toString()
-          .trim();
-      final mode = (statusMap['liveness_client_mode'] ??
-              Env.faceLivenessClientMode)
-          .toString()
-          .toLowerCase()
-          .trim();
+      final region =
+          (statusMap['region'] ??
+                  statusMap['cognito_region'] ??
+                  Env.cognitoRegion)
+              .toString()
+              .trim();
+      final mode =
+          (statusMap['liveness_client_mode'] ?? Env.faceLivenessClientMode)
+              .toString()
+              .toLowerCase()
+              .trim();
       final serverWeb = (statusMap['liveness_web_url'] ?? '').toString().trim();
       final webBase = serverWeb.isNotEmpty
           ? serverWeb
@@ -92,7 +93,8 @@ class _FaceLivenessScreenState extends ConsumerState<FaceLivenessScreen> {
         );
         if (!amplifyOk) {
           throw ApiException(
-            message: AmplifyBootstrap.lastError ??
+            message:
+                AmplifyBootstrap.lastError ??
                 'Amplify/Cognito not configured. Set COGNITO_IDENTITY_POOL_ID '
                     'on the server or --dart-define=COGNITO_IDENTITY_POOL_ID=...',
             statusCode: 503,
@@ -105,7 +107,8 @@ class _FaceLivenessScreenState extends ConsumerState<FaceLivenessScreen> {
       final sid = res['session_id']?.toString() ?? res['sessionId']?.toString();
       if (sid == null || sid.isEmpty) {
         throw ApiException(
-          message: res['error']?.toString() ??
+          message:
+              res['error']?.toString() ??
               'Could not create face liveness session.',
           statusCode: 400,
         );
@@ -121,16 +124,15 @@ class _FaceLivenessScreenState extends ConsumerState<FaceLivenessScreen> {
             'region': region.isEmpty ? 'ap-south-1' : region,
           },
         );
-        final controller = WebViewController(
-          onPermissionRequest: (request) => request.grant(),
-        )
-          ..setJavaScriptMode(JavaScriptMode.unrestricted)
-          ..setBackgroundColor(Colors.black)
-          ..addJavaScriptChannel(
-            'SpyceLiveness',
-            onMessageReceived: (msg) => _onWebMessage(msg.message),
-          )
-          ..loadRequest(uri);
+        final controller =
+            WebViewController(onPermissionRequest: (request) => request.grant())
+              ..setJavaScriptMode(JavaScriptMode.unrestricted)
+              ..setBackgroundColor(Colors.black)
+              ..addJavaScriptChannel(
+                'SpyceLiveness',
+                onMessageReceived: (msg) => _onWebMessage(msg.message),
+              )
+              ..loadRequest(uri);
 
         setState(() {
           _sessionId = sid;
@@ -172,7 +174,8 @@ class _FaceLivenessScreenState extends ConsumerState<FaceLivenessScreen> {
       } else if (status == 'error' || status == 'failed') {
         setState(() {
           _phase = 'error';
-          _error = data['message']?.toString() ??
+          _error =
+              data['message']?.toString() ??
               data['error']?.toString() ??
               'Liveness check failed.';
         });
@@ -194,7 +197,8 @@ class _FaceLivenessScreenState extends ConsumerState<FaceLivenessScreen> {
     try {
       final repo = ref.read(verificationRepositoryProvider);
       final res = await repo.completeSession(_sessionId!);
-      final ok = res['verified'] == true ||
+      final ok =
+          res['verified'] == true ||
           res['status']?.toString().toUpperCase() == 'VERIFIED' ||
           res['isLive'] == true;
 
@@ -206,7 +210,8 @@ class _FaceLivenessScreenState extends ConsumerState<FaceLivenessScreen> {
       }
 
       final conf = res['liveness'] ?? res['confidence'];
-      final reason = res['failure_reason']?.toString() ??
+      final reason =
+          res['failure_reason']?.toString() ??
           res['error']?.toString() ??
           (conf != null
               ? 'Liveness confidence too low ($conf). Please try again.'
@@ -285,7 +290,10 @@ class _FaceLivenessScreenState extends ConsumerState<FaceLivenessScreen> {
       case 'detector':
         if (_sessionId == null) {
           return const Center(
-            child: Text('Missing session', style: TextStyle(color: Colors.white)),
+            child: Text(
+              'Missing session',
+              style: TextStyle(color: Colors.white),
+            ),
           );
         }
 
@@ -329,7 +337,11 @@ class _FaceLivenessScreenState extends ConsumerState<FaceLivenessScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.error_outline, color: Colors.redAccent, size: 48),
+              const Icon(
+                Icons.error_outline,
+                color: SpyceColors.error,
+                size: 48,
+              ),
               const SizedBox(height: 16),
               Text(
                 _error ?? 'Something went wrong',

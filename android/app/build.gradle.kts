@@ -39,12 +39,22 @@ android {
 
     packaging {
         jniLibs {
+            // Compress .so files inside the APK (smaller sideload). They unpack on install.
+            useLegacyPackaging = true
             // Force-drop non-arm64 natives from plugins (WebRTC, etc.)
             excludes += listOf(
                 "**/armeabi/**",
                 "**/armeabi-v7a/**",
                 "**/x86/**",
                 "**/x86_64/**",
+            )
+        }
+        resources {
+            // Amplify workers ship source maps; they are unused at runtime.
+            excludes += listOf(
+                "**/*.map",
+                "**/*.js.map",
+                "**/*.wasm.map",
             )
         }
     }
@@ -70,5 +80,28 @@ dependencies {
 
 flutter {
     source = "../.."
+}
+
+// Drop Amplify worker source maps after Flutter copies package assets.
+tasks.configureEach {
+    if (name == "compileFlutterBuildRelease") {
+        doLast {
+            val candidates =
+                listOf(
+                    layout.buildDirectory.get().asFile.resolve(
+                        "intermediates/flutter/release/flutter_assets",
+                    ),
+                    file("../../build/app/intermediates/flutter/release/flutter_assets"),
+                )
+            candidates.filter { it.exists() }.forEach { dir ->
+                dir.walkTopDown()
+                    .filter { it.isFile && it.name.endsWith(".map") }
+                    .forEach { file ->
+                        logger.lifecycle("Stripping source map ${file.relativeTo(dir)}")
+                        file.delete()
+                    }
+            }
+        }
+    }
 }
 

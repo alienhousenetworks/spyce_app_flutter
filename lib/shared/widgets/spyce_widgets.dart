@@ -17,7 +17,7 @@ class SpyceLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Clean "SPYCE" wordmark (pink Y) — wide asset.
+    // Clean "SPYCE" wordmark (ember Y) — wide asset.
     final height = size * 1.35;
     final width = height * 2.8;
 
@@ -130,7 +130,7 @@ class SpyceGradientScaffold extends StatelessWidget {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              Color(0xFF1A0A12),
+              SpyceColors.blush,
               SpyceColors.dark950,
               SpyceColors.dark950,
             ],
@@ -171,7 +171,10 @@ class NetworkAvatar extends StatelessWidget {
               height: size,
               fit: BoxFit.cover,
               placeholder: (_, _) => _placeholder(letter),
-              errorWidget: (_, _, _) => _placeholder(letter),
+              errorWidget: (_, failedUrl, err) {
+                debugPrint('🔴 [NetworkAvatar] Failed to load "$failedUrl": $err');
+                return _placeholder(letter);
+              },
             )
           : _placeholder(letter),
     );

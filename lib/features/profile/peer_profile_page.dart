@@ -426,8 +426,8 @@ class _PeerDetailExtras extends StatelessWidget {
                   .map(
                     (l) => Chip(
                       label: Text(l,
-                          style: const TextStyle(color: Color(0xFF3D4A1C))),
-                      backgroundColor: const Color(0xFFE8F0C8),
+                          style: const TextStyle(color: SpyceColors.white)),
+                      backgroundColor: SpyceColors.pink.withValues(alpha: 0.3),
                       side: BorderSide.none,
                     ),
                   )

@@ -177,21 +177,16 @@ class ProfileImage {
   final int order;
 
   factory ProfileImage.fromJson(Map<String, dynamic> json) {
-    // Prefer client-facing image_url; never use storage_path as network URL
-    // (storage_path is an S3/R2 key and breaks CachedNetworkImage).
-    final raw = (json['image_url'] ?? json['url'] ?? json['image'] ?? '')
+    final raw = (json['image_url'] ??
+            json['url'] ??
+            json['image'] ??
+            json['storage_path'] ??
+            '')
         .toString()
         .trim();
-    // Ignore raw object keys mistaken for URLs
-    final looksLikeKey = raw.isNotEmpty &&
-        !raw.startsWith('http') &&
-        !raw.startsWith('/') &&
-        (raw.startsWith('users/') ||
-            raw.startsWith('temp/') ||
-            raw.contains('/images/'));
     return ProfileImage(
       id: (json['id'] ?? '').toString(),
-      imageUrl: looksLikeKey ? '' : raw,
+      imageUrl: raw,
       order: (json['order'] as num?)?.toInt() ?? 0,
     );
   }
@@ -455,11 +450,7 @@ class FeedProfile {
 
     // Prefer detail list (name objects); fall back to ids/names list.
     // Hide when backend marks mood TTL inactive (has_active_mood=false).
-    var moods = _stringList(
-      json['current_moods_detail'] ??
-          json['current_moods'] ??
-          json['moods'],
-    );
+    var moods = _moodLabels(json);
     if (json['has_active_mood'] == false) {
       moods = const [];
     }
@@ -549,6 +540,10 @@ class FeedProfile {
     map['avatar'] ??= r['avatar'];
     map['avatar_url'] ??= r['avatar_url'];
     map['photo_status'] ??= r['photo_status'] ?? r['photoStatus'];
+    map['current_moods'] ??= r['current_moods'];
+    map['current_moods_detail'] ??= r['current_moods_detail'];
+    map['moods'] ??= r['moods'];
+    map['has_active_mood'] ??= r['has_active_mood'];
     // Liked state: profile_card flag and/or feed envelope fallback
     map['is_liked'] = map['is_liked'] == true ||
         r['is_liked'] == true ||
@@ -565,12 +560,17 @@ class FeedProfile {
     return v.toString();
   }
 
+  static final _uuidRe = RegExp(
+    r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+  );
+
   static List<String> _stringList(dynamic raw) {
     if (raw is! List) return const [];
     final out = <String>[];
     for (final t in raw) {
       if (t is Map) {
-        final s = (t['name'] ?? t['label'] ?? t['id'] ?? '').toString();
+        final s = (t['name'] ?? t['label'] ?? t['title'] ?? t['id'] ?? '')
+            .toString();
         if (s.isNotEmpty) out.add(s);
       } else {
         final s = t.toString();
@@ -578,6 +578,27 @@ class FeedProfile {
       }
     }
     return out;
+  }
+
+  static List<String> _moodLabels(Map<String, dynamic> json) {
+    final merged = <String>[];
+    for (final key in [
+      'current_moods_detail',
+      'current_moods',
+      'moods',
+    ]) {
+      for (final s in _stringList(json[key])) {
+        final t = s.trim();
+        if (t.isEmpty || _uuidRe.hasMatch(t)) continue;
+        if (!merged.contains(t)) merged.add(t);
+      }
+    }
+    return merged;
+  }
+
+  /// Plain hot-take strings for editors (max 3).
+  static List<String> parseHotTakeTexts(dynamic raw) {
+    return _parseHotTakes(raw).map((t) => t.text).take(3).toList();
   }
 
   /// Backend `hottakes`: list of 0–3 non-empty strings (or map/object forms).
@@ -1382,6 +1403,7 @@ class SubscriptionStatus {
     this.currency,
     this.durationDays,
     this.planName,
+    this.entitlements,
   });
 
   final bool hasAccess;
@@ -1392,6 +1414,7 @@ class SubscriptionStatus {
   final String? currency;
   final int? durationDays;
   final String? planName;
+  final UserEntitlements? entitlements;
 
   factory SubscriptionStatus.fromJson(Map<String, dynamic> json) {
     final isFree = json['is_free'] == true;
@@ -1417,6 +1440,191 @@ class SubscriptionStatus {
           : (num.tryParse(json['price']?.toString() ?? '')),
       currency: json['currency']?.toString(),
       durationDays: (json['subscription_duration_days'] as num?)?.toInt(),
+      entitlements: json['entitlements'] != null && json['entitlements'] is Map<String, dynamic>
+          ? UserEntitlements.fromJson(json['entitlements'] as Map<String, dynamic>)
+          : null,
+    );
+  }
+}
+
+class SubscriptionTierPlan {
+  const SubscriptionTierPlan({
+    required this.id,
+    required this.name,
+    required this.planCode,
+    this.tierLevel = 1,
+    this.isFreeTier = false,
+    this.badgeLabel,
+    this.durationDays = 30,
+    this.priceDisplay,
+    this.googleProductId,
+    this.appleProductId,
+    this.description,
+    this.dailyLikesLimit = 50,
+    this.dailySuperLikesLimit = 2,
+    this.dailyRewindsLimit = 5,
+    this.dailyConfessionPostsLimit = 5,
+    this.dailyConversationRequestsLimit = 10,
+    this.inChatAudioMinutesPerDay = 120,
+    this.inChatVideoMinutesPerDay = 60,
+    this.canSeeWhoLiked = false,
+    this.canHideAge = false,
+    this.canHideDistance = false,
+    this.canUseIncognito = false,
+    this.canBrowseTeleport = false,
+    this.canPriorityLikes = false,
+    this.canReadReceipts = false,
+  });
+
+  final String id;
+  final String name;
+  final String planCode;
+  final int tierLevel;
+  final bool isFreeTier;
+  final String? badgeLabel;
+  final int durationDays;
+  final num? priceDisplay;
+  final String? googleProductId;
+  final String? appleProductId;
+  final String? description;
+  final int dailyLikesLimit;
+  final int dailySuperLikesLimit;
+  final int dailyRewindsLimit;
+  final int dailyConfessionPostsLimit;
+  final int dailyConversationRequestsLimit;
+  final int inChatAudioMinutesPerDay;
+  final int inChatVideoMinutesPerDay;
+  final bool canSeeWhoLiked;
+  final bool canHideAge;
+  final bool canHideDistance;
+  final bool canUseIncognito;
+  final bool canBrowseTeleport;
+  final bool canPriorityLikes;
+  final bool canReadReceipts;
+
+  factory SubscriptionTierPlan.fromJson(Map<String, dynamic> json) {
+    return SubscriptionTierPlan(
+      id: json['id']?.toString() ?? '',
+      name: json['name']?.toString() ?? 'Premium',
+      planCode: json['plan_code']?.toString() ?? 'premium',
+      tierLevel: (json['tier_level'] as num?)?.toInt() ?? 1,
+      isFreeTier: json['is_free_tier'] == true,
+      badgeLabel: json['badge_label']?.toString(),
+      durationDays: (json['duration_days'] as num?)?.toInt() ?? 30,
+      priceDisplay: json['price_display'] is num
+          ? (json['price_display'] as num)
+          : num.tryParse(json['price_display']?.toString() ?? ''),
+      googleProductId: json['google_product_id']?.toString(),
+      appleProductId: json['apple_product_id']?.toString(),
+      description: json['description']?.toString(),
+      dailyLikesLimit: (json['daily_likes_limit'] as num?)?.toInt() ?? 50,
+      dailySuperLikesLimit: (json['daily_super_likes_limit'] as num?)?.toInt() ?? 2,
+      dailyRewindsLimit: (json['daily_rewinds_limit'] as num?)?.toInt() ?? 5,
+      dailyConfessionPostsLimit: (json['daily_confession_posts_limit'] as num?)?.toInt() ?? 5,
+      dailyConversationRequestsLimit: (json['daily_conversation_requests_limit'] as num?)?.toInt() ?? 10,
+      inChatAudioMinutesPerDay: (json['in_chat_audio_minutes_per_day'] as num?)?.toInt() ?? 120,
+      inChatVideoMinutesPerDay: (json['in_chat_video_minutes_per_day'] as num?)?.toInt() ?? 60,
+      canSeeWhoLiked: json['can_see_who_liked'] == true,
+      canHideAge: json['can_hide_age'] == true,
+      canHideDistance: json['can_hide_distance'] == true,
+      canUseIncognito: json['can_use_incognito'] == true,
+      canBrowseTeleport: json['can_browse_teleport'] == true,
+      canPriorityLikes: json['can_priority_likes'] == true,
+      canReadReceipts: json['can_read_receipts'] == true,
+    );
+  }
+}
+
+class UserEntitlements {
+  const UserEntitlements({
+    this.tierLevel = 0,
+    this.planName = 'Basic Free',
+    this.planCode = 'free',
+    this.badgeLabel,
+    this.isPremium = false,
+    this.isFreeTier = true,
+    this.canSeeWhoLiked = false,
+    this.canHideAge = false,
+    this.canHideDistance = false,
+    this.canUseIncognito = false,
+    this.canBrowseTeleport = false,
+    this.canPriorityLikes = false,
+    this.canReadReceipts = false,
+    this.dailyLikesLimit = 25,
+    this.dailyLikesRemaining = 25,
+    this.dailyLikesUsed = 0,
+    this.likesUnlimited = false,
+    this.dailySuperLikesRemaining = 0,
+    this.dailyRewindsRemaining = 0,
+    this.dailyConfessionsRemaining = 5,
+    this.dailyRequestsRemaining = 10,
+    this.inChatAudioMinutes = 0,
+    this.inChatVideoMinutes = 0,
+    this.resetsInSeconds = 86400,
+  });
+
+  final int tierLevel;
+  final String planName;
+  final String planCode;
+  final String? badgeLabel;
+  final bool isPremium;
+  final bool isFreeTier;
+  final bool canSeeWhoLiked;
+  final bool canHideAge;
+  final bool canHideDistance;
+  final bool canUseIncognito;
+  final bool canBrowseTeleport;
+  final bool canPriorityLikes;
+  final bool canReadReceipts;
+  final int dailyLikesLimit;
+  final int dailyLikesRemaining;
+  final int dailyLikesUsed;
+  final bool likesUnlimited;
+  final int dailySuperLikesRemaining;
+  final int dailyRewindsRemaining;
+  final int dailyConfessionsRemaining;
+  final int dailyRequestsRemaining;
+  final int inChatAudioMinutes;
+  final int inChatVideoMinutes;
+  final int resetsInSeconds;
+
+  factory UserEntitlements.fromJson(Map<String, dynamic> json) {
+    final features = (json['features'] as Map<String, dynamic>?) ?? {};
+    final quotas = (json['quotas'] as Map<String, dynamic>?) ?? {};
+
+    final likesQuota = (quotas['daily_likes'] as Map<String, dynamic>?) ?? {};
+    final superLikesQuota = (quotas['daily_super_likes'] as Map<String, dynamic>?) ?? {};
+    final rewindsQuota = (quotas['daily_rewinds'] as Map<String, dynamic>?) ?? {};
+    final confessionsQuota = (quotas['daily_confessions'] as Map<String, dynamic>?) ?? {};
+    final requestsQuota = (quotas['daily_conversation_requests'] as Map<String, dynamic>?) ?? {};
+    final audioQuota = (quotas['in_chat_audio_minutes'] as Map<String, dynamic>?) ?? {};
+    final videoQuota = (quotas['in_chat_video_minutes'] as Map<String, dynamic>?) ?? {};
+
+    return UserEntitlements(
+      tierLevel: (json['tier_level'] as num?)?.toInt() ?? 0,
+      planName: json['plan_name']?.toString() ?? 'Basic Free',
+      planCode: json['plan_code']?.toString() ?? 'free',
+      badgeLabel: json['badge_label']?.toString(),
+      isPremium: json['is_premium'] == true,
+      isFreeTier: json['is_free_tier'] == true,
+      canSeeWhoLiked: features['can_see_who_liked'] == true,
+      canHideAge: features['can_hide_age'] == true,
+      canHideDistance: features['can_hide_distance'] == true,
+      canUseIncognito: features['can_use_incognito'] == true,
+      canBrowseTeleport: features['can_browse_teleport'] == true,
+      canPriorityLikes: features['can_priority_likes'] == true,
+      canReadReceipts: features['can_read_receipts'] == true,
+      dailyLikesLimit: (likesQuota['limit'] as num?)?.toInt() ?? 25,
+      dailyLikesRemaining: (likesQuota['remaining'] as num?)?.toInt() ?? 25,
+      dailyLikesUsed: (likesQuota['used'] as num?)?.toInt() ?? 0,
+      likesUnlimited: likesQuota['is_unlimited'] == true,
+      dailySuperLikesRemaining: (superLikesQuota['remaining'] as num?)?.toInt() ?? 0,
+      dailyRewindsRemaining: (rewindsQuota['remaining'] as num?)?.toInt() ?? 0,
+      dailyConfessionsRemaining: (confessionsQuota['remaining'] as num?)?.toInt() ?? 5,
+      dailyRequestsRemaining: (requestsQuota['remaining'] as num?)?.toInt() ?? 10,
+      inChatAudioMinutes: (audioQuota['limit'] as num?)?.toInt() ?? 0,
+      inChatVideoMinutes: (videoQuota['limit'] as num?)?.toInt() ?? 0,
+      resetsInSeconds: (json['resets_in_seconds'] as num?)?.toInt() ?? 86400,
     );
   }
 }
@@ -2162,11 +2370,7 @@ class UserProfile {
       photoStatus: json['photo_status']?.toString(),
       moods: () {
         if (json['has_active_mood'] == false) return const <String>[];
-        return stringListForProfile(
-          json['current_moods_detail'] ??
-              json['current_moods'] ??
-              json['moods'],
-        );
+        return FeedProfile._moodLabels(json);
       }(),
       isOnline: json['is_online'] == true,
       lastSeen: json['last_seen']?.toString(),
@@ -2191,6 +2395,9 @@ class UserProfile {
     List<String>? moods,
     bool? isOnline,
     String? lastSeen,
+    bool? isPaused,
+    bool? isHidden,
+    bool? hideAge,
     bool clearLayoutId = false,
     bool clearBgId = false,
     bool clearBgVariantId = false,
@@ -2225,9 +2432,9 @@ class UserProfile {
       agePreferenceMax: agePreferenceMax,
       distancePreferenceKm: distancePreferenceKm,
       discoveryRadiusType: discoveryRadiusType,
-      isPaused: isPaused,
-      isHidden: isHidden,
-      hideAge: hideAge,
+      isPaused: isPaused ?? this.isPaused,
+      isHidden: isHidden ?? this.isHidden,
+      hideAge: hideAge ?? this.hideAge,
       hideOnlineStatus: hideOnlineStatus,
       hideDistance: hideDistance,
       isDiscoverable: isDiscoverable,

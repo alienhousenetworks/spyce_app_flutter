@@ -33,15 +33,19 @@ class ApiClient {
       ),
     );
 
-    if (!kIsWeb && Env.enableSslPinning && Env.sslFingerprints.isNotEmpty) {
+    if (!kIsWeb) {
       _dio.httpClientAdapter = IOHttpClientAdapter(
         createHttpClient: () {
           final client = HttpClient();
-          client.badCertificateCallback = (X509Certificate cert, String host, int port) {
-            final certDer = cert.der;
-            final sha256Fingerprint = sha256.convert(certDer).toString().toLowerCase();
-            return Env.sslFingerprints.contains(sha256Fingerprint);
-          };
+          client.connectionTimeout = const Duration(seconds: 30);
+          client.idleTimeout = const Duration(seconds: 30);
+          if (Env.enableSslPinning && Env.sslFingerprints.isNotEmpty) {
+            client.badCertificateCallback = (X509Certificate cert, String host, int port) {
+              final certDer = cert.der;
+              final sha256Fingerprint = sha256.convert(certDer).toString().toLowerCase();
+              return Env.sslFingerprints.contains(sha256Fingerprint);
+            };
+          }
           return client;
         },
       );
@@ -299,11 +303,17 @@ class ApiClient {
           _flattenFieldErrors(map) ??
           message;
     } else if (e.type == DioExceptionType.connectionTimeout ||
-        e.type == DioExceptionType.receiveTimeout) {
-      message = 'Connection timed out. Check your network.';
+        e.type == DioExceptionType.receiveTimeout ||
+        e.type == DioExceptionType.sendTimeout) {
+      final host = e.requestOptions.uri.host;
+      message = 'Connection timed out connecting to $host. Check your network or server status.';
     } else if (e.type == DioExceptionType.connectionError) {
-      message = 'No internet connection.';
+      final host = e.requestOptions.uri.host;
+      message = 'Could not connect to $host: ${e.error ?? e.message}';
     }
+
+    debugPrint('🔴 [ApiClient] Error on ${e.requestOptions.method} ${e.requestOptions.uri} '
+        '(status: $status): $message | rawError: ${e.error}');
 
     return ApiException(
       message: message,

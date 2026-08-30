@@ -15,7 +15,7 @@ abstract final class SpyceTheme {
         secondary: SpyceColors.teal,
         tertiary: SpyceColors.gold,
         surface: SpyceColors.dark900,
-        error: Color(0xFFFF4D6A),
+        error: SpyceColors.error,
         onPrimary: SpyceColors.white,
         onSecondary: SpyceColors.dark950,
         onSurface: SpyceColors.white,
@@ -102,7 +102,7 @@ abstract final class SpyceTheme {
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: Color(0xFFFF4D6A)),
+          borderSide: const BorderSide(color: SpyceColors.error),
         ),
         hintStyle: const TextStyle(color: SpyceColors.dark200),
         labelStyle: const TextStyle(color: SpyceColors.dark100),
@@ -160,6 +160,18 @@ abstract final class SpyceTheme {
       dialogTheme: DialogThemeData(
         backgroundColor: SpyceColors.dark800,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      ),
+      bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: SpyceColors.dark800,
+        modalBackgroundColor: SpyceColors.dark800,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+      ),
+      floatingActionButtonTheme: const FloatingActionButtonThemeData(
+        backgroundColor: SpyceColors.pink,
+        foregroundColor: SpyceColors.white,
+        elevation: 4,
       ),
     );
   }

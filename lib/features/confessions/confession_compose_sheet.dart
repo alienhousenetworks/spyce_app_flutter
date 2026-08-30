@@ -257,7 +257,7 @@ class _ConfessionComposePageState extends State<ConfessionComposePage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(safetyError),
-          backgroundColor: Colors.redAccent,
+          backgroundColor: SpyceColors.error,
           behavior: SnackBarBehavior.floating,
           duration: const Duration(seconds: 4),
         ),
@@ -395,7 +395,7 @@ class _ConfessionComposePageState extends State<ConfessionComposePage> {
               decoration: const BoxDecoration(
                 color: SpyceColors.dark900,
                 border: Border(
-                  top: BorderSide(color: Color(0xFF1E1E24), width: 0.8),
+                  top: BorderSide(color: SpyceColors.dark600, width: 0.8),
                 ),
               ),
               child: Column(

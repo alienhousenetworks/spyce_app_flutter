@@ -377,16 +377,15 @@ class _HeroPage extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 6),
+                        if (p.moods.isNotEmpty) ...[
+                          _MoodChips(moods: p.moods),
+                          const SizedBox(height: 8),
+                        ],
                         _PresenceStatusChip(
                           isOnline: p.isOnline,
                           lastSeen: p.lastSeen,
                           lastActiveAt: p.lastActiveAt,
                         ),
-                        // Current mood on first page (Discover hero)
-                        if (p.moods.isNotEmpty) ...[
-                          const SizedBox(height: 10),
-                          _MoodChips(moods: p.moods),
-                        ],
                         // Hero: city + privacy-bucketed distance (e.g. "Mumbai · ~15 km")
                         if ((p.city != null && p.city!.trim().isNotEmpty) ||
                             p.distanceKm != null) ...[
@@ -591,7 +590,7 @@ class _PresenceStatusChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: online
-              ? const Color(0xFF34D399).withValues(alpha: 0.55)
+              ? SpyceColors.online.withValues(alpha: 0.55)
               : Colors.white24,
         ),
       ),
@@ -604,12 +603,12 @@ class _PresenceStatusChip extends StatelessWidget {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: online
-                  ? const Color(0xFF34D399)
+                  ? SpyceColors.online
                   : SpyceColors.white.withValues(alpha: 0.45),
               boxShadow: online
                   ? [
                       BoxShadow(
-                        color: const Color(0xFF34D399).withValues(alpha: 0.55),
+                        color: SpyceColors.online.withValues(alpha: 0.55),
                         blurRadius: 6,
                       ),
                     ]
@@ -621,7 +620,7 @@ class _PresenceStatusChip extends StatelessWidget {
             label,
             style: GoogleFonts.dmSans(
               color: online
-                  ? const Color(0xFFA7F3D0)
+                  ? SpyceColors.onlineSoft
                   : SpyceColors.white.withValues(alpha: 0.88),
               fontSize: 13,
               fontWeight: FontWeight.w600,
@@ -654,7 +653,7 @@ class _RoundAction extends StatelessWidget {
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           border: Border.all(
-            color: const Color(0xFFF5E6C8).withValues(alpha: 0.85),
+            color: SpyceColors.paperInk.withValues(alpha: 0.85),
             width: 1.5,
           ),
           color: filled
@@ -669,7 +668,7 @@ class _RoundAction extends StatelessWidget {
         ),
         child: Icon(
           icon,
-          color: const Color(0xFFF5E6C8),
+          color: SpyceColors.paperInk,
           size: 30,
         ),
       ),
@@ -899,6 +898,54 @@ class _DetailsPage extends StatelessWidget {
             ],
           ),
         ),
+        if (p.moods.where((m) => m.trim().isNotEmpty).isNotEmpty) ...[
+          const SizedBox(height: 12),
+          _CreamCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Current mood',
+                  style: GoogleFonts.dmSans(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 16,
+                    color: SpyceColors.dark900,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final mood in p.moods.take(3))
+                      if (mood.trim().isNotEmpty)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: SpyceColors.pink.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: SpyceColors.pink.withValues(alpha: 0.35),
+                            ),
+                          ),
+                          child: Text(
+                            '✨ $mood',
+                            style: GoogleFonts.dmSans(
+                              color: SpyceColors.dark900,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
         // Hot takes on second-last page (not on turn-ons page)
         if (hotTakes.isNotEmpty) ...[
           const SizedBox(height: 12),
@@ -983,13 +1030,13 @@ class _DetailsPage extends StatelessWidget {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 12, vertical: 7),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFE8F0C8),
+                            color: SpyceColors.paperChip,
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Text(
                             lang,
                             style: const TextStyle(
-                              color: Color(0xFF3D4A1C),
+                              color: SpyceColors.paperChipText,
                               fontSize: 13,
                               fontWeight: FontWeight.w500,
                             ),
@@ -1026,13 +1073,13 @@ class _DetailsPage extends StatelessWidget {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 12, vertical: 7),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFF3E8D0),
+                            color: SpyceColors.paperWarm,
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Text(
                             i,
                             style: const TextStyle(
-                              color: Color(0xFF4A3D1C),
+                              color: SpyceColors.paperWarmText,
                               fontSize: 13,
                               fontWeight: FontWeight.w500,
                             ),
@@ -1174,7 +1221,7 @@ class _CreamCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8F1E3),
+        color: SpyceColors.paper,
         borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(

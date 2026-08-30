@@ -18,6 +18,7 @@ import '../../core/utils/presence_labels.dart';
 import '../../data/models/user_models.dart';
 import '../../data/repositories/api_repositories.dart';
 import '../../shared/widgets/media_user_id_watermark.dart';
+import '../../shared/widgets/spyce_loaders.dart';
 import '../../shared/widgets/spyce_widgets.dart';
 import '../auth/auth_controller.dart';
 import '../call/call_controller.dart';
@@ -37,8 +38,10 @@ class _ConversationsPageState extends ConsumerState<ConversationsPage> {
   int likesCount = 0;
   bool likesPremium = false;
   bool loading = true;
+
   /// True only for gender+sexuality combos allowed to see incoming likes.
   bool canSeeLikes = false;
+
   /// Admin matrix: clear faces + open full profile + like back to match.
   bool canViewFullLikeProfiles = false;
   bool canLikeBackIncoming = false;
@@ -60,9 +63,7 @@ class _ConversationsPageState extends ConsumerState<ConversationsPage> {
       final results = await Future.wait([
         chat.getConversations().catchError((_) => <ConversationItem>[]),
         match.getMatches().catchError((_) => <MatchItem>[]),
-        profile.getMyProfile().catchError(
-              (_) => const UserProfile(id: 'me'),
-            ),
+        profile.getMyProfile().catchError((_) => const UserProfile(id: 'me')),
       ]);
 
       var convos = results[0] as List<ConversationItem>;
@@ -106,8 +107,8 @@ class _ConversationsPageState extends ConsumerState<ConversationsPage> {
           incoming = likesRes.users;
           count = likesRes.count;
           premium = likesRes.isPremium;
-          viewFull = likesRes.canViewFullProfiles ||
-              incoming.any((u) => !u.blurred);
+          viewFull =
+              likesRes.canViewFullProfiles || incoming.any((u) => !u.blurred);
           likeBack = likesRes.canLikeBack || viewFull;
         }
       } catch (_) {
@@ -141,17 +142,18 @@ class _ConversationsPageState extends ConsumerState<ConversationsPage> {
     }
   }
 
-
   /// Load profile card for peers missing images → user photo or admin avatar pool.
   Future<List<ConversationItem>> _enrichConversationAvatars(
     List<ConversationItem> convos,
     ProfileRepository profileRepo,
   ) async {
     final need = convos
-        .where((c) =>
-            (c.peerImage == null || c.peerImage!.isEmpty) &&
-            c.peerUserId != null &&
-            c.peerUserId!.isNotEmpty)
+        .where(
+          (c) =>
+              (c.peerImage == null || c.peerImage!.isEmpty) &&
+              c.peerUserId != null &&
+              c.peerUserId!.isNotEmpty,
+        )
         .take(12)
         .toList();
     if (need.isEmpty) return convos;
@@ -197,11 +199,7 @@ class _ConversationsPageState extends ConsumerState<ConversationsPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              NetworkAvatar(
-                url: m.imageUrl,
-                name: m.shortOrName,
-                size: 88,
-              ),
+              NetworkAvatar(url: m.imageUrl, name: m.shortOrName, size: 88),
               const SizedBox(height: 12),
               Text(
                 m.displayName,
@@ -211,8 +209,10 @@ class _ConversationsPageState extends ConsumerState<ConversationsPage> {
                 ),
               ),
               if (m.isOnline)
-                const Text('Online',
-                    style: TextStyle(color: SpyceColors.teal, fontSize: 13)),
+                const Text(
+                  'Online',
+                  style: TextStyle(color: SpyceColors.teal, fontSize: 13),
+                ),
               const SizedBox(height: 8),
               const Text(
                 'You matched! Say hi — first message starts the conversation.',
@@ -237,7 +237,8 @@ class _ConversationsPageState extends ConsumerState<ConversationsPage> {
                   } else {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
-                          content: Text('Conversation opens after first message')),
+                        content: Text('Conversation opens after first message'),
+                      ),
                     );
                   }
                 },
@@ -254,9 +255,11 @@ class _ConversationsPageState extends ConsumerState<ConversationsPage> {
     try {
       final res = await ref.read(feedRepositoryProvider).like(l.id);
       if (!mounted) return;
-      final status =
-          (res['status'] ?? res['result'] ?? '').toString().toLowerCase();
-      final isMatch = status == 'match' ||
+      final status = (res['status'] ?? res['result'] ?? '')
+          .toString()
+          .toLowerCase();
+      final isMatch =
+          status == 'match' ||
           res['is_match'] == true ||
           res['matched'] == true ||
           res['match'] != null;
@@ -276,14 +279,14 @@ class _ConversationsPageState extends ConsumerState<ConversationsPage> {
       await _load();
     } on ApiException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.fullDetail)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.fullDetail)));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not like back: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not like back: $e')));
     }
   }
 
@@ -292,17 +295,17 @@ class _ConversationsPageState extends ConsumerState<ConversationsPage> {
     Navigator.of(context).pop(); // close likes sheet
     context
         .push(
-      '/app/user/${l.id}',
-      extra: {
-        'title': l.username,
-        'image': l.imageUrl,
-        'allowLikeBack': canLikeBackIncoming || l.canLikeBack,
-        'from_incoming_like': true,
-      },
-    )
+          '/app/user/${l.id}',
+          extra: {
+            'title': l.username,
+            'image': l.imageUrl,
+            'allowLikeBack': canLikeBackIncoming || l.canLikeBack,
+            'from_incoming_like': true,
+          },
+        )
         .then((matched) {
-      if (matched == true && mounted) _load();
-    });
+          if (matched == true && mounted) _load();
+        });
   }
 
   void _showIncomingLikes() {
@@ -330,7 +333,9 @@ class _ConversationsPageState extends ConsumerState<ConversationsPage> {
                 Text(
                   'Who liked you',
                   style: GoogleFonts.syne(
-                      fontSize: 20, fontWeight: FontWeight.w700),
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Padding(
@@ -339,11 +344,13 @@ class _ConversationsPageState extends ConsumerState<ConversationsPage> {
                     n == 0
                         ? 'No new likes yet — keep swiping.'
                         : fullAccess
-                            ? '$n liked you · open profile · like back to match'
-                            : '$n people liked you',
+                        ? '$n liked you · open profile · like back to match'
+                        : '$n people liked you',
                     textAlign: TextAlign.center,
                     style: const TextStyle(
-                        color: SpyceColors.dark100, fontSize: 12),
+                      color: SpyceColors.dark100,
+                      fontSize: 12,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -360,20 +367,18 @@ class _ConversationsPageState extends ConsumerState<ConversationsPage> {
                           padding: const EdgeInsets.all(16),
                           gridDelegate:
                               const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
-                            mainAxisSpacing: 12,
-                            crossAxisSpacing: 12,
-                            childAspectRatio: 0.78,
-                          ),
-                          itemCount:
-                              list.isNotEmpty ? list.length : n.clamp(0, 12),
+                                crossAxisCount: 2,
+                                mainAxisSpacing: 12,
+                                crossAxisSpacing: 12,
+                                childAspectRatio: 0.78,
+                              ),
+                          itemCount: list.isNotEmpty
+                              ? list.length
+                              : n.clamp(0, 12),
                           itemBuilder: (_, i) {
                             final l = i < list.length
                                 ? list[i]
-                                : IncomingLike(
-                                    id: 'stub_$i',
-                                    blurred: true,
-                                  );
+                                : IncomingLike(id: 'stub_$i', blurred: true);
                             return Material(
                               color: SpyceColors.dark700,
                               borderRadius: BorderRadius.circular(16),
@@ -390,15 +395,20 @@ class _ConversationsPageState extends ConsumerState<ConversationsPage> {
                                       ImageFiltered(
                                         imageFilter: l.blurred
                                             ? ImageFilter.blur(
-                                                sigmaX: 14, sigmaY: 14)
+                                                sigmaX: 14,
+                                                sigmaY: 14,
+                                              )
                                             : ImageFilter.blur(
-                                                sigmaX: 0, sigmaY: 0),
+                                                sigmaX: 0,
+                                                sigmaY: 0,
+                                              ),
                                         child: CachedNetworkImage(
                                           imageUrl: l.imageUrl!,
                                           fit: BoxFit.cover,
                                           errorWidget: (_, _, _) =>
                                               const ColoredBox(
-                                                  color: SpyceColors.dark600),
+                                                color: SpyceColors.dark600,
+                                              ),
                                         ),
                                       )
                                     else
@@ -406,8 +416,9 @@ class _ConversationsPageState extends ConsumerState<ConversationsPage> {
                                         decoration: BoxDecoration(
                                           gradient: LinearGradient(
                                             colors: [
-                                              SpyceColors.pink
-                                                  .withValues(alpha: 0.35),
+                                              SpyceColors.pink.withValues(
+                                                alpha: 0.35,
+                                              ),
                                               SpyceColors.dark600,
                                             ],
                                             begin: Alignment.topLeft,
@@ -417,8 +428,11 @@ class _ConversationsPageState extends ConsumerState<ConversationsPage> {
                                       ),
                                     if (l.blurred)
                                       const Center(
-                                        child: Icon(Icons.lock_outline,
-                                            color: Colors.white70, size: 32),
+                                        child: Icon(
+                                          Icons.lock_outline,
+                                          color: Colors.white70,
+                                          size: 32,
+                                        ),
                                       ),
                                     Positioned(
                                       left: 0,
@@ -426,15 +440,20 @@ class _ConversationsPageState extends ConsumerState<ConversationsPage> {
                                       bottom: 0,
                                       child: Container(
                                         padding: const EdgeInsets.fromLTRB(
-                                            8, 28, 8, 8),
+                                          8,
+                                          28,
+                                          8,
+                                          8,
+                                        ),
                                         decoration: BoxDecoration(
                                           gradient: LinearGradient(
                                             begin: Alignment.topCenter,
                                             end: Alignment.bottomCenter,
                                             colors: [
                                               Colors.transparent,
-                                              Colors.black
-                                                  .withValues(alpha: 0.75),
+                                              Colors.black.withValues(
+                                                alpha: 0.75,
+                                              ),
                                             ],
                                           ),
                                         ),
@@ -467,10 +486,10 @@ class _ConversationsPageState extends ConsumerState<ConversationsPage> {
                                                         .withValues(alpha: 0.9),
                                                     foregroundColor:
                                                         Colors.white,
-                                                    padding: const EdgeInsets
-                                                        .symmetric(
-                                                      horizontal: 10,
-                                                    ),
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          horizontal: 10,
+                                                        ),
                                                     textStyle: const TextStyle(
                                                       fontSize: 12,
                                                       fontWeight:
@@ -479,8 +498,9 @@ class _ConversationsPageState extends ConsumerState<ConversationsPage> {
                                                   ),
                                                   onPressed: () =>
                                                       _likeBackIncoming(l),
-                                                  child:
-                                                      const Text('Like back'),
+                                                  child: const Text(
+                                                    'Like back',
+                                                  ),
                                                 ),
                                               ),
                                             ] else if (!l.blurred) ...[
@@ -625,8 +645,8 @@ class _ConversationsPageState extends ConsumerState<ConversationsPage> {
                             Text(
                               likesCount > 0
                                   ? (canViewFullLikeProfiles
-                                      ? 'See full profiles · like back to match'
-                                      : 'Tap to see them')
+                                        ? 'See full profiles · like back to match'
+                                        : 'Tap to see them')
                                   : 'You’ll see likes here when you get them',
                               style: const TextStyle(
                                 color: SpyceColors.dark100,
@@ -670,10 +690,7 @@ class _ConversationsPageState extends ConsumerState<ConversationsPage> {
                             shape: BoxShape.circle,
                             gradient: LinearGradient(
                               colors: m.isOnline
-                                  ? const [
-                                      SpyceColors.pink,
-                                      SpyceColors.gold,
-                                    ]
+                                  ? const [SpyceColors.pink, SpyceColors.gold]
                                   : const [
                                       SpyceColors.dark400,
                                       SpyceColors.dark500,
@@ -705,161 +722,158 @@ class _ConversationsPageState extends ConsumerState<ConversationsPage> {
 
         Expanded(
           child: loading
-              ? const ShimmerList()
+              ? const SpyceChatLoader()
               : items.isEmpty
-                  ? const EmptyState(
-                      icon: Icons.chat_bubble_outline,
-                      title: 'No conversations',
-                      subtitle:
-                          'Matches appear on top — tap one to say hi.',
-                    )
-                  : RefreshIndicator(
-                      color: SpyceColors.pink,
-                      onRefresh: _load,
-                      child: ListView.separated(
-                        padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
-                        itemCount: items.length,
-                        separatorBuilder: (_, _) => const SizedBox(height: 8),
-                        itemBuilder: (context, i) {
-                          final c = items[i];
-                          final time = c.updatedAt != null
-                              ? DateFormat.jm().format(c.updatedAt!)
-                              : '';
-                          // @username (never fallback letter "C" from "Chat")
-                          final displayName = c.displayUsername;
-                          return Material(
-                            color: SpyceColors.dark800,
-                            borderRadius: BorderRadius.circular(16),
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(16),
-                              onTap: () => context.push(
-                                '/app/chat/${c.id}',
-                                extra: {
-                                  'title': displayName,
-                                  'peerUserId': c.peerUserId,
-                                  'peerImage': c.peerImage,
-                                  'isOnline': c.isOnline,
-                                  'lastSeen': c.lastSeen,
-                                },
-                              ),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 12,
-                                ),
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
+              ? const EmptyState(
+                  icon: Icons.chat_bubble_outline,
+                  title: 'No conversations',
+                  subtitle: 'Matches appear on top — tap one to say hi.',
+                )
+              : RefreshIndicator(
+                  color: SpyceColors.pink,
+                  onRefresh: _load,
+                  child: ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
+                    itemCount: items.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 8),
+                    itemBuilder: (context, i) {
+                      final c = items[i];
+                      final time = c.updatedAt != null
+                          ? DateFormat.jm().format(c.updatedAt!)
+                          : '';
+                      // @username (never fallback letter "C" from "Chat")
+                      final displayName = c.displayUsername;
+                      return Material(
+                        color: SpyceColors.dark800,
+                        borderRadius: BorderRadius.circular(16),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(16),
+                          onTap: () => context.push(
+                            '/app/chat/${c.id}',
+                            extra: {
+                              'title': displayName,
+                              'peerUserId': c.peerUserId,
+                              'peerImage': c.peerImage,
+                              'isOnline': c.isOnline,
+                              'lastSeen': c.lastSeen,
+                            },
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 12,
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      // username  ·  [profile pic → open peer profile]
+                                      Row(
                                         children: [
-                                          // username  ·  [profile pic → open peer profile]
-                                          Row(
-                                            children: [
-                                              Flexible(
-                                                child: Text(
-                                                  displayName,
-                                                  maxLines: 1,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                  style: GoogleFonts.dmSans(
-                                                    fontWeight: FontWeight.w700,
-                                                    fontSize: 16,
-                                                  ),
-                                                ),
+                                          Flexible(
+                                            child: Text(
+                                              displayName,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: GoogleFonts.dmSans(
+                                                fontWeight: FontWeight.w700,
+                                                fontSize: 16,
                                               ),
-                                              const SizedBox(width: 10),
-                                              // Tap avatar → peer profile (does not open chat)
-                                              GestureDetector(
-                                                onTap: () {
-                                                  final id = c.peerUserId;
-                                                  if (id == null ||
-                                                      id.isEmpty) {
-                                                    ScaffoldMessenger.of(
-                                                            context)
-                                                        .showSnackBar(
-                                                      const SnackBar(
-                                                        content: Text(
-                                                          'Profile unavailable for this chat',
-                                                        ),
-                                                      ),
-                                                    );
-                                                    return;
-                                                  }
-                                                  context.push(
-                                                    '/app/user/$id',
-                                                    extra: {
-                                                      'title': displayName,
-                                                      'image': c.peerImage,
-                                                    },
-                                                  );
-                                                },
-                                                child: _ChatListAvatar(
-                                                  url: c.peerImage,
-                                                  name: displayName,
-                                                ),
-                                              ),
-                                            ],
+                                            ),
                                           ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            c.lastMessage?.isNotEmpty == true
-                                                ? c.lastMessage!
-                                                : 'Say hi…',
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(
-                                              color: SpyceColors.dark100,
-                                              fontSize: 13,
+                                          const SizedBox(width: 10),
+                                          // Tap avatar → peer profile (does not open chat)
+                                          GestureDetector(
+                                            onTap: () {
+                                              final id = c.peerUserId;
+                                              if (id == null || id.isEmpty) {
+                                                ScaffoldMessenger.of(
+                                                  context,
+                                                ).showSnackBar(
+                                                  const SnackBar(
+                                                    content: Text(
+                                                      'Profile unavailable for this chat',
+                                                    ),
+                                                  ),
+                                                );
+                                                return;
+                                              }
+                                              context.push(
+                                                '/app/user/$id',
+                                                extra: {
+                                                  'title': displayName,
+                                                  'image': c.peerImage,
+                                                },
+                                              );
+                                            },
+                                            child: _ChatListAvatar(
+                                              url: c.peerImage,
+                                              name: displayName,
                                             ),
                                           ),
                                         ],
                                       ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        c.lastMessage?.isNotEmpty == true
+                                            ? c.lastMessage!
+                                            : 'Say hi…',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          color: SpyceColors.dark100,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    Text(
+                                      time,
+                                      style: const TextStyle(
+                                        color: SpyceColors.dark200,
+                                        fontSize: 11,
+                                      ),
                                     ),
-                                    const SizedBox(width: 10),
-                                    Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.end,
-                                      children: [
-                                        Text(
-                                          time,
-                                          style: const TextStyle(
-                                            color: SpyceColors.dark200,
-                                            fontSize: 11,
+                                    if (c.unreadCount > 0) ...[
+                                      const SizedBox(height: 6),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 7,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: SpyceColors.pink,
+                                          borderRadius: BorderRadius.circular(
+                                            10,
                                           ),
                                         ),
-                                        if (c.unreadCount > 0) ...[
-                                          const SizedBox(height: 6),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 7,
-                                              vertical: 2,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: SpyceColors.pink,
-                                              borderRadius:
-                                                  BorderRadius.circular(10),
-                                            ),
-                                            child: Text(
-                                              '${c.unreadCount}',
-                                              style: const TextStyle(
-                                                fontSize: 11,
-                                                fontWeight: FontWeight.w700,
-                                              ),
-                                            ),
+                                        child: Text(
+                                          '${c.unreadCount}',
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w700,
                                           ),
-                                        ],
-                                      ],
-                                    ),
+                                        ),
+                                      ),
+                                    ],
                                   ],
                                 ),
-                              ),
+                              ],
                             ),
-                          );
-                        },
-                      ),
-                    ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
         ),
       ],
     );
@@ -891,7 +905,8 @@ class _ChatListAvatar extends StatelessWidget {
           ? CachedNetworkImage(
               imageUrl: url!,
               fit: BoxFit.cover,
-              placeholder: (_, _) => const ColoredBox(color: SpyceColors.dark600),
+              placeholder: (_, _) =>
+                  const ColoredBox(color: SpyceColors.dark600),
               errorWidget: (_, _, _) => Center(
                 child: Text(
                   letter,
@@ -1004,10 +1019,9 @@ class _ChatThreadPageState extends ConsumerState<ChatThreadPage> {
 
     // 2) Soft-sync with server for newer messages (like WhatsApp)
     try {
-      final remote = await ref.read(chatRepositoryProvider).getMessages(
-            widget.conversationId,
-            myId: myId,
-          );
+      final remote = await ref
+          .read(chatRepositoryProvider)
+          .getMessages(widget.conversationId, myId: myId);
       final merged = await store.mergeAndSave(
         conversationId: widget.conversationId,
         local: cached,
@@ -1064,10 +1078,7 @@ class _ChatThreadPageState extends ConsumerState<ChatThreadPage> {
     }
     context.push(
       '/app/user/$id',
-      extra: {
-        'title': widget.title,
-        'image': widget.peerImage,
-      },
+      extra: {'title': widget.title, 'image': widget.peerImage},
     );
   }
 
@@ -1101,11 +1112,9 @@ class _ChatThreadPageState extends ConsumerState<ChatThreadPage> {
     // Persist optimistic immediately (device-first like WhatsApp)
     await ChatLocalStore.instance.append(widget.conversationId, optimistic);
     try {
-      final sent = await ref.read(chatRepositoryProvider).sendMessage(
-            widget.conversationId,
-            text,
-            myId: myId,
-          );
+      final sent = await ref
+          .read(chatRepositoryProvider)
+          .sendMessage(widget.conversationId, text, myId: myId);
       if (!mounted) return;
       final confirmed = sent.copyWith(
         isMe: true,
@@ -1113,10 +1122,7 @@ class _ChatThreadPageState extends ConsumerState<ChatThreadPage> {
         deliveredAt: sent.deliveredAt ?? DateTime.now(),
       );
       setState(() {
-        messages = [
-          ...messages.where((m) => m.id != optimistic.id),
-          confirmed,
-        ];
+        messages = [...messages.where((m) => m.id != optimistic.id), confirmed];
         sending = false;
       });
       await ChatLocalStore.instance.save(widget.conversationId, messages);
@@ -1178,30 +1184,44 @@ class _ChatThreadPageState extends ConsumerState<ChatThreadPage> {
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              leading: const Icon(Icons.photo_library_outlined,
-                  color: SpyceColors.pinkSoft),
-              title: const Text('Photo from gallery',
-                  style: TextStyle(color: Colors.white)),
+              leading: const Icon(
+                Icons.photo_library_outlined,
+                color: SpyceColors.pinkSoft,
+              ),
+              title: const Text(
+                'Photo from gallery',
+                style: TextStyle(color: Colors.white),
+              ),
               onTap: () => Navigator.pop(ctx, 'image_gallery'),
             ),
             ListTile(
-              leading:
-                  const Icon(Icons.photo_camera_outlined, color: SpyceColors.pinkSoft),
-              title: const Text('Take photo',
-                  style: TextStyle(color: Colors.white)),
+              leading: const Icon(
+                Icons.photo_camera_outlined,
+                color: SpyceColors.pinkSoft,
+              ),
+              title: const Text(
+                'Take photo',
+                style: TextStyle(color: Colors.white),
+              ),
               onTap: () => Navigator.pop(ctx, 'image_camera'),
             ),
             ListTile(
-              leading:
-                  const Icon(Icons.videocam_outlined, color: SpyceColors.teal),
-              title: const Text('Video from gallery',
-                  style: TextStyle(color: Colors.white)),
+              leading: const Icon(
+                Icons.videocam_outlined,
+                color: SpyceColors.teal,
+              ),
+              title: const Text(
+                'Video from gallery',
+                style: TextStyle(color: Colors.white),
+              ),
               onTap: () => Navigator.pop(ctx, 'video_gallery'),
             ),
             ListTile(
               leading: const Icon(Icons.videocam, color: SpyceColors.teal),
-              title: const Text('Record video',
-                  style: TextStyle(color: Colors.white)),
+              title: const Text(
+                'Record video',
+                style: TextStyle(color: Colors.white),
+              ),
               onTap: () => Navigator.pop(ctx, 'video_camera'),
             ),
             const SizedBox(height: 8),
@@ -1212,8 +1232,9 @@ class _ChatThreadPageState extends ConsumerState<ChatThreadPage> {
     if (choice == null || !mounted) return;
 
     final isVideo = choice.startsWith('video');
-    final source =
-        choice.endsWith('camera') ? ImageSource.camera : ImageSource.gallery;
+    final source = choice.endsWith('camera')
+        ? ImageSource.camera
+        : ImageSource.gallery;
     final allowed = await _ensureMediaPermission(source);
     if (!allowed || !mounted) return;
 
@@ -1227,15 +1248,16 @@ class _ChatThreadPageState extends ConsumerState<ChatThreadPage> {
       } else {
         file = await _picker.pickImage(
           source: source,
-          imageQuality: 85,
-          maxWidth: 1920,
+          imageQuality: 78,
+          maxWidth: 1080,
+          maxHeight: 1350,
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not open picker: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Could not open picker: $e')));
       }
       return;
     }
@@ -1266,11 +1288,9 @@ class _ChatThreadPageState extends ConsumerState<ChatThreadPage> {
     await ChatLocalStore.instance.append(widget.conversationId, optimistic);
 
     try {
-      final uploadRes = await ref.read(chatRepositoryProvider).uploadMedia(
-            widget.conversationId,
-            path,
-            messageType: messageType,
-          );
+      final uploadRes = await ref
+          .read(chatRepositoryProvider)
+          .uploadMedia(widget.conversationId, path, messageType: messageType);
       // Media is async (202 → Celery). Poll until remote media appears.
       // Keep optimistic row until a real media message is found.
       final myId2 = ref.read(authControllerProvider).user?.id;
@@ -1278,15 +1298,12 @@ class _ChatThreadPageState extends ConsumerState<ChatThreadPage> {
       var foundMedia = false;
       ChatMessage? remoteMedia;
       for (var attempt = 0; attempt < 12; attempt++) {
-        await Future.delayed(
-          Duration(milliseconds: attempt == 0 ? 900 : 1400),
-        );
+        await Future.delayed(Duration(milliseconds: attempt == 0 ? 900 : 1400));
         if (!mounted) return;
         try {
-          final remote = await ref.read(chatRepositoryProvider).getMessages(
-                widget.conversationId,
-                myId: myId2,
-              );
+          final remote = await ref
+              .read(chatRepositoryProvider)
+              .getMessages(widget.conversationId, myId: myId2);
           // Prefer keeping optimistic until we find real media with URL
           final merged = await ChatLocalStore.instance.mergeAndSave(
             conversationId: widget.conversationId,
@@ -1523,11 +1540,9 @@ class _ChatThreadPageState extends ConsumerState<ChatThreadPage> {
       );
       return;
     }
-    await ref.read(callControllerProvider.notifier).startCall(
-          peerUserId: peerId,
-          kind: kind,
-          peerName: widget.title,
-        );
+    await ref
+        .read(callControllerProvider.notifier)
+        .startCall(peerUserId: peerId, kind: kind, peerName: widget.title);
   }
 
   Future<void> _onMenu(String value) async {
@@ -1593,15 +1608,16 @@ class _ChatThreadPageState extends ConsumerState<ChatThreadPage> {
           await mod.blockUser(peerId);
           await chat.leaveConversation(widget.conversationId);
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('User blocked')),
-            );
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(const SnackBar(content: Text('User blocked')));
             context.pop();
           }
         } on ApiException catch (e) {
           if (mounted) {
-            ScaffoldMessenger.of(context)
-                .showSnackBar(SnackBar(content: Text(e.message)));
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text(e.message)));
           }
         }
       case 'report':
@@ -1623,15 +1639,21 @@ class _ChatThreadPageState extends ConsumerState<ChatThreadPage> {
                       items: const [
                         DropdownMenuItem(value: 'SPAM', child: Text('Spam')),
                         DropdownMenuItem(
-                            value: 'HARASSMENT', child: Text('Harassment')),
+                          value: 'HARASSMENT',
+                          child: Text('Harassment'),
+                        ),
                         DropdownMenuItem(
-                            value: 'INAPPROPRIATE',
-                            child: Text('Inappropriate')),
+                          value: 'INAPPROPRIATE',
+                          child: Text('Inappropriate'),
+                        ),
                         DropdownMenuItem(
-                            value: 'FAKE_PROFILE', child: Text('Fake profile')),
+                          value: 'FAKE_PROFILE',
+                          child: Text('Fake profile'),
+                        ),
                         DropdownMenuItem(
-                            value: 'UNDERAGE_CSE',
-                            child: Text('Underage sexual exploitation')),
+                          value: 'UNDERAGE_CSE',
+                          child: Text('Underage sexual exploitation'),
+                        ),
                         DropdownMenuItem(value: 'OTHER', child: Text('Other')),
                       ],
                       onChanged: (v) => setLocal(() => reason = v ?? 'SPAM'),
@@ -1677,14 +1699,15 @@ class _ChatThreadPageState extends ConsumerState<ChatThreadPage> {
           }
         } on ApiException catch (e) {
           if (mounted) {
-            ScaffoldMessenger.of(context)
-                .showSnackBar(SnackBar(content: Text(e.message)));
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text(e.message)));
           }
         } catch (_) {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Report submitted')),
-            );
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(const SnackBar(content: Text('Report submitted')));
           }
         } finally {
           reasonCtrl.dispose();
@@ -1706,9 +1729,9 @@ class _ChatThreadPageState extends ConsumerState<ChatThreadPage> {
           }
         } catch (e) {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(e.toString())),
-            );
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text(e.toString())));
           }
         }
     }
@@ -1739,7 +1762,7 @@ class _ChatThreadPageState extends ConsumerState<ChatThreadPage> {
                         width: 11,
                         height: 11,
                         decoration: BoxDecoration(
-                          color: const Color(0xFF34D399),
+                          color: SpyceColors.online,
                           shape: BoxShape.circle,
                           border: Border.all(
                             color: SpyceColors.dark900,
@@ -1774,11 +1797,12 @@ class _ChatThreadPageState extends ConsumerState<ChatThreadPage> {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: _isOnline
-                            ? const Color(0xFF6EE7B7)
+                            ? SpyceColors.onlineSoft
                             : SpyceColors.dark200,
                         fontSize: 12,
-                        fontWeight:
-                            _isOnline ? FontWeight.w600 : FontWeight.w400,
+                        fontWeight: _isOnline
+                            ? FontWeight.w600
+                            : FontWeight.w400,
                       ),
                     ),
                   ],
@@ -1851,9 +1875,7 @@ class _ChatThreadPageState extends ConsumerState<ChatThreadPage> {
         children: [
           Expanded(
             child: loading
-                ? const Center(
-                    child:
-                        CircularProgressIndicator(color: SpyceColors.pink))
+                ? const SpyceChatLoader(message: 'Loading conversation…')
                 : ListView.builder(
                     controller: _scrollCtrl,
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
@@ -1887,8 +1909,10 @@ class _ChatThreadPageState extends ConsumerState<ChatThreadPage> {
                               color: SpyceColors.pinkSoft,
                             ),
                           )
-                        : const Icon(Icons.attach_file_rounded,
-                            color: SpyceColors.pinkSoft),
+                        : const Icon(
+                            Icons.attach_file_rounded,
+                            color: SpyceColors.pinkSoft,
+                          ),
                   ),
                   Expanded(
                     child: TextField(
@@ -1899,7 +1923,9 @@ class _ChatThreadPageState extends ConsumerState<ChatThreadPage> {
                       decoration: const InputDecoration(
                         hintText: 'Message…',
                         contentPadding: EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 12),
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
                       ),
                       onSubmitted: (_) => _send(),
                     ),
@@ -1926,10 +1952,7 @@ class _ChatThreadPageState extends ConsumerState<ChatThreadPage> {
 /// Bubble with media support + WhatsApp-style delivery ticks.
 /// Media never shows a thumbnail — only a distinct photo/video icon.
 class _MessageBubble extends StatelessWidget {
-  const _MessageBubble({
-    required this.message,
-    required this.onOpenMedia,
-  });
+  const _MessageBubble({required this.message, required this.onOpenMedia});
 
   final ChatMessage message;
   final VoidCallback onOpenMedia;
@@ -1949,8 +1972,9 @@ class _MessageBubble extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 10),
         constraints: BoxConstraints(maxWidth: maxW),
         child: Column(
-          crossAxisAlignment:
-              m.isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+          crossAxisAlignment: m.isMe
+              ? CrossAxisAlignment.end
+              : CrossAxisAlignment.start,
           children: [
             Container(
               padding: isMediaIcon
@@ -2038,9 +2062,7 @@ class _MessageBubble extends StatelessWidget {
                       ),
                     )
                   : Icon(
-                      m.isVideo
-                          ? Icons.videocam_rounded
-                          : Icons.image_rounded,
+                      m.isVideo ? Icons.videocam_rounded : Icons.image_rounded,
                       color: Colors.white,
                       size: 22,
                     ),
@@ -2063,7 +2085,9 @@ class _MessageBubble extends StatelessWidget {
                   Text(
                     sending
                         ? 'Uploading…'
-                        : (m.isMe ? 'Tap to preview · one-time' : 'Tap once to view'),
+                        : (m.isMe
+                              ? 'Tap to preview · one-time'
+                              : 'Tap once to view'),
                     style: GoogleFonts.dmSans(
                       color: SpyceColors.white.withValues(alpha: 0.8),
                       fontSize: 11,
@@ -2080,10 +2104,7 @@ class _MessageBubble extends StatelessWidget {
 
     return Text(
       m.text,
-      style: GoogleFonts.dmSans(
-        color: SpyceColors.white,
-        height: 1.35,
-      ),
+      style: GoogleFonts.dmSans(color: SpyceColors.white, height: 1.35),
     );
   }
 }
@@ -2122,8 +2143,11 @@ class _OneTimeMediaDialog extends StatelessWidget {
                                 fit: BoxFit.contain,
                                 errorBuilder: (_, __, ___) => const Padding(
                                   padding: EdgeInsets.all(24),
-                                  child: Icon(Icons.broken_image,
-                                      color: Colors.white54, size: 48),
+                                  child: Icon(
+                                    Icons.broken_image,
+                                    color: Colors.white54,
+                                    size: 48,
+                                  ),
                                 ),
                               )
                             : CachedNetworkImage(
@@ -2139,8 +2163,11 @@ class _OneTimeMediaDialog extends StatelessWidget {
                                 ),
                                 errorWidget: (_, __, ___) => const Padding(
                                   padding: EdgeInsets.all(24),
-                                  child: Icon(Icons.broken_image,
-                                      color: Colors.white54, size: 48),
+                                  child: Icon(
+                                    Icons.broken_image,
+                                    color: Colors.white54,
+                                    size: 48,
+                                  ),
                                 ),
                               ),
                       ),
@@ -2198,9 +2225,7 @@ class _VideoOneTimeBody extends StatelessWidget {
           const SizedBox(height: 20),
           FilledButton.icon(
             onPressed: () async {
-              final uri = isLocal
-                  ? Uri.file(url)
-                  : Uri.tryParse(url);
+              final uri = isLocal ? Uri.file(url) : Uri.tryParse(url);
               if (uri == null) return;
               final ok = await launchUrl(
                 uri,
@@ -2243,12 +2268,16 @@ class _DeliveryTicks extends StatelessWidget {
           ),
         );
       case ChatDeliveryStatus.failed:
-        return const Icon(Icons.error_outline, size: 14, color: Colors.orangeAccent);
+        return const Icon(
+          Icons.error_outline,
+          size: 14,
+          color: SpyceColors.warning,
+        );
       case ChatDeliveryStatus.read:
         return const Text(
           '✓✓',
           style: TextStyle(
-            color: Color(0xFF5EEAD4), // teal read ticks
+            color: SpyceColors.teal,
             fontSize: 12,
             fontWeight: FontWeight.w700,
             height: 1,
@@ -2257,20 +2286,12 @@ class _DeliveryTicks extends StatelessWidget {
       case ChatDeliveryStatus.delivered:
         return const Text(
           '✓✓',
-          style: TextStyle(
-            color: SpyceColors.dark200,
-            fontSize: 12,
-            height: 1,
-          ),
+          style: TextStyle(color: SpyceColors.dark200, fontSize: 12, height: 1),
         );
       case ChatDeliveryStatus.sent:
         return const Text(
           '✓',
-          style: TextStyle(
-            color: SpyceColors.dark200,
-            fontSize: 12,
-            height: 1,
-          ),
+          style: TextStyle(color: SpyceColors.dark200, fontSize: 12, height: 1),
         );
       case ChatDeliveryStatus.none:
         return const SizedBox.shrink();

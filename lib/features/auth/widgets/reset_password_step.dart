@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../../core/config/env.dart';
 import '../../../core/theme/onboarding_theme.dart';
+import '../../../core/theme/spyce_colors.dart';
 import '../../../shared/widgets/onboarding_widgets.dart';
 import '../../../shared/widgets/turnstile_widget.dart';
 
@@ -22,7 +23,8 @@ class ForgotPasswordStep extends StatefulWidget {
   final String? error;
   final String? message;
   final VoidCallback onBack;
-  final Future<bool> Function(String email, String? captchaToken) onRequestReset;
+  final Future<bool> Function(String email, String? captchaToken)
+  onRequestReset;
 
   @override
   State<ForgotPasswordStep> createState() => _ForgotPasswordStepState();
@@ -68,99 +70,108 @@ class _ForgotPasswordStepState extends State<ForgotPasswordStep> {
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
       children: [
-        Row(
-          children: [
-            IconButton(
+        Padding(
+          padding: const EdgeInsets.fromLTRB(8, 4, 8, 0),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: IconButton(
               onPressed: widget.loading ? null : widget.onBack,
-              icon: const Icon(Icons.arrow_back, color: Colors.white, size: 22),
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
+              icon: const Icon(
+                Icons.arrow_back_ios_new_rounded,
+                color: Colors.white,
+                size: 18,
+              ),
             ),
-          ],
+          ),
         ),
-        const SizedBox(height: 16),
-        OnboardingGlassCard(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
-          child: Column(
-            children: [
-              Text(
-                'Reset Your Password',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.syne(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Enter your registered email and we\'ll send you a 6-digit recovery code.',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.dmSans(
-                  fontSize: 13,
-                  color: OnboardingColors.textSecondary,
-                ),
-              ),
-              const SizedBox(height: 20),
-              OnboardingTextField(
-                controller: _emailCtrl,
-                keyboardType: TextInputType.emailAddress,
-                hintText: 'name@example.com',
-                textAlign: TextAlign.center,
-                onChanged: (_) => setState(() {}),
-              ),
-              if (Env.turnstileEnabled) ...[
-                const SizedBox(height: 16),
-                TurnstileWidget(
-                  resetKey: _turnstileReset,
-                  onTokenReceived: (token) {
-                    setState(() {
-                      _captchaToken = token;
-                      _localError = null;
-                    });
-                  },
-                  onExpired: () {
-                    setState(() {
-                      _captchaToken = null;
-                      _localError = 'Captcha expired — please try again.';
-                    });
-                  },
-                  onError: () {
-                    setState(() => _captchaToken = null);
-                  },
-                ),
-              ],
-              if (showError != null) ...[
-                const SizedBox(height: 12),
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                 Text(
-                  showError,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Color(0xFFFF6B81),
-                    fontSize: 12,
+                  'Reset your password',
+                  style: GoogleFonts.syne(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                    height: 1.15,
+                    letterSpacing: -0.4,
                   ),
                 ),
-              ],
-              if (widget.message != null) ...[
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
                 Text(
-                  widget.message!,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Colors.tealAccent,
-                    fontSize: 12,
+                  "Enter your email and we'll send a 6-digit recovery code.",
+                  style: GoogleFonts.dmSans(
+                    fontSize: 15,
+                    height: 1.4,
+                    color: OnboardingColors.textSecondary,
                   ),
                 ),
+                const SizedBox(height: 24),
+                const OnboardingFieldLabel('Email'),
+                OnboardingTextField(
+                  controller: _emailCtrl,
+                  keyboardType: TextInputType.emailAddress,
+                  hintText: 'name@example.com',
+                  onChanged: (_) => setState(() {}),
+                ),
+                if (Env.turnstileEnabled) ...[
+                  const SizedBox(height: 16),
+                  TurnstileWidget(
+                    resetKey: _turnstileReset,
+                    onTokenReceived: (token) {
+                      setState(() {
+                        _captchaToken = token;
+                        _localError = null;
+                      });
+                    },
+                    onExpired: () {
+                      setState(() {
+                        _captchaToken = null;
+                        _localError = 'Captcha expired — please try again.';
+                      });
+                    },
+                    onError: () {
+                      setState(() => _captchaToken = null);
+                    },
+                  ),
+                ],
+                if (showError != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    showError,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: SpyceColors.error,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+                if (widget.message != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    widget.message!,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: SpyceColors.success,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
               ],
-              const SizedBox(height: 24),
-              OnboardingPrimaryButton(
-                label: 'Send Recovery Code',
-                loading: widget.loading,
-                onPressed: _emailCtrl.text.trim().isNotEmpty ? _submit : null,
-              ),
-            ],
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+          child: OnboardingPrimaryButton(
+            label: 'Send recovery code',
+            loading: widget.loading,
+            onPressed: _emailCtrl.text.trim().isNotEmpty ? _submit : null,
           ),
         ),
       ],
@@ -241,106 +252,117 @@ class _ResetPasswordStepState extends State<ResetPasswordStep> {
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
       children: [
-        Row(
-          children: [
-            IconButton(
+        Padding(
+          padding: const EdgeInsets.fromLTRB(8, 4, 8, 0),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: IconButton(
               onPressed: widget.loading ? null : widget.onBack,
-              icon: const Icon(Icons.arrow_back, color: Colors.white, size: 22),
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
+              icon: const Icon(
+                Icons.arrow_back_ios_new_rounded,
+                color: Colors.white,
+                size: 18,
+              ),
             ),
-          ],
+          ),
         ),
-        const SizedBox(height: 16),
-        OnboardingGlassCard(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
-          child: Column(
-            children: [
-              Text(
-                'Set New Password',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.syne(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Set a new password',
+                  style: GoogleFonts.syne(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                    height: 1.15,
+                    letterSpacing: -0.4,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Code sent to ${widget.email}',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.dmSans(
-                  fontSize: 12,
-                  color: OnboardingColors.textSecondary,
-                ),
-              ),
-              const SizedBox(height: 20),
-              OnboardingTextField(
-                controller: _otpCtrl,
-                keyboardType: TextInputType.number,
-                hintText: '6-digit recovery code',
-                textAlign: TextAlign.center,
-                onChanged: (_) => setState(() {}),
-              ),
-              const SizedBox(height: 14),
-              OnboardingTextField(
-                controller: _passCtrl,
-                obscureText: _obscurePass,
-                hintText: 'New Password (min 8 chars)',
-                textAlign: TextAlign.center,
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    _obscurePass ? Icons.visibility_off : Icons.visibility,
+                const SizedBox(height: 8),
+                Text(
+                  'Code sent to ${widget.email}',
+                  style: GoogleFonts.dmSans(
+                    fontSize: 15,
+                    height: 1.4,
                     color: OnboardingColors.textSecondary,
-                    size: 20,
-                  ),
-                  onPressed: () => setState(() => _obscurePass = !_obscurePass),
-                ),
-                onChanged: (_) => setState(() {}),
-              ),
-              const SizedBox(height: 14),
-              OnboardingTextField(
-                controller: _confirmPassCtrl,
-                obscureText: _obscurePass,
-                hintText: 'Confirm New Password',
-                textAlign: TextAlign.center,
-                onChanged: (_) => setState(() {}),
-              ),
-              if (showError != null) ...[
-                const SizedBox(height: 12),
-                Text(
-                  showError,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Color(0xFFFF6B81),
-                    fontSize: 12,
                   ),
                 ),
+                const SizedBox(height: 24),
+                const OnboardingFieldLabel('Recovery code'),
+                OnboardingTextField(
+                  controller: _otpCtrl,
+                  keyboardType: TextInputType.number,
+                  hintText: '6-digit code',
+                  onChanged: (_) => setState(() {}),
+                ),
+                const SizedBox(height: 16),
+                const OnboardingFieldLabel('New password'),
+                OnboardingTextField(
+                  controller: _passCtrl,
+                  obscureText: _obscurePass,
+                  hintText: 'Min 8 characters',
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscurePass ? Icons.visibility_off : Icons.visibility,
+                      color: OnboardingColors.textSecondary,
+                      size: 20,
+                    ),
+                    onPressed: () =>
+                        setState(() => _obscurePass = !_obscurePass),
+                  ),
+                  onChanged: (_) => setState(() {}),
+                ),
+                const SizedBox(height: 16),
+                const OnboardingFieldLabel('Confirm password'),
+                OnboardingTextField(
+                  controller: _confirmPassCtrl,
+                  obscureText: _obscurePass,
+                  hintText: 'Re-enter password',
+                  onChanged: (_) => setState(() {}),
+                ),
+                if (showError != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    showError,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: SpyceColors.error,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+                if (widget.message != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    widget.message!,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: SpyceColors.success,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
               ],
-              if (widget.message != null) ...[
-                const SizedBox(height: 12),
-                Text(
-                  widget.message!,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Colors.tealAccent,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-              const SizedBox(height: 24),
-              OnboardingPrimaryButton(
-                label: 'Save & Sign In',
-                loading: widget.loading,
-                onPressed: (_otpCtrl.text.isNotEmpty &&
-                        _passCtrl.text.isNotEmpty &&
-                        _confirmPassCtrl.text.isNotEmpty)
-                    ? _submit
-                    : null,
-              ),
-            ],
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+          child: OnboardingPrimaryButton(
+            label: 'Save & sign in',
+            loading: widget.loading,
+            onPressed:
+                (_otpCtrl.text.isNotEmpty &&
+                    _passCtrl.text.isNotEmpty &&
+                    _confirmPassCtrl.text.isNotEmpty)
+                ? _submit
+                : null,
           ),
         ),
       ],

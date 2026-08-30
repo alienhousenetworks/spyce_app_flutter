@@ -10,6 +10,7 @@ import '../../features/chat/chat_page.dart';
 import '../../features/confessions/confessions_page.dart';
 import '../../features/discover/discover_page.dart';
 import '../../features/mood/mood_page.dart';
+import '../../features/notifications/notification_settings_page.dart';
 import '../../features/onboarding/onboarding_page.dart';
 import '../../features/premium/subscription_paywall.dart';
 import '../../features/profile/peer_profile_page.dart';
@@ -41,12 +42,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       }
 
       if (auth.bootstrapped && auth.isLoggedIn && !auth.onboardingComplete) {
-        if (loc.startsWith('/onboarding')) return null;
+        if (loc.startsWith('/onboarding') || loc == '/') return null;
         return '/onboarding';
       }
 
       if (auth.bootstrapped && auth.isLoggedIn && auth.onboardingComplete) {
-        if (loc == '/' || loc == '/auth' || loc == '/onboarding') {
+        // Stay on splash (`/`) until SplashPage finishes preloading data.
+        if (loc == '/auth' || loc == '/onboarding') {
           return '/app/discover';
         }
         if (loc.startsWith('/app/matches')) return '/app/chat';
@@ -135,6 +137,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/app/settings',
         parentNavigatorKey: _rootKey,
         builder: (c, s) => const SettingsPage(),
+        routes: [
+          GoRoute(
+            path: 'notifications',
+            parentNavigatorKey: _rootKey,
+            builder: (c, s) => const NotificationSettingsPage(),
+          ),
+        ],
       ),
       // Peer profile from chat avatar / match / incoming likes
       GoRoute(
@@ -147,8 +156,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           var allowLikeBack = false;
           if (extra is Map) {
             name = extra['title']?.toString() ?? extra['name']?.toString();
-            image = extra['image']?.toString() ?? extra['peerImage']?.toString();
-            allowLikeBack = extra['allowLikeBack'] == true ||
+            image =
+                extra['image']?.toString() ?? extra['peerImage']?.toString();
+            allowLikeBack =
+                extra['allowLikeBack'] == true ||
                 extra['from_incoming_like'] == true;
           }
           return PeerProfilePage(
@@ -189,12 +200,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
 class _AuthNavRefresh extends ChangeNotifier {
   _AuthNavRefresh(this.ref) {
-    _sub = ref.listen<AuthNavSnapshot>(
-      authNavProvider,
-      (previous, next) {
-        if (previous != next) notifyListeners();
-      },
-    );
+    _sub = ref.listen<AuthNavSnapshot>(authNavProvider, (previous, next) {
+      if (previous != next) notifyListeners();
+    });
   }
 
   final Ref ref;

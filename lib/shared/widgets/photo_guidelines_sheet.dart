@@ -20,6 +20,7 @@ class PhotoGuidelinesSheet {
       backgroundColor: SpyceColors.dark900,
       isDismissible: false,
       enableDrag: false,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -42,10 +43,11 @@ class _GuidelinesContent extends StatelessWidget {
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
             Row(
               children: [
                 Container(
@@ -119,6 +121,7 @@ class _GuidelinesContent extends StatelessWidget {
               ),
             ),
           ],
+        ),
         ),
       ),
     );

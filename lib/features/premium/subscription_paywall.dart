@@ -7,6 +7,7 @@ import 'package:in_app_purchase/in_app_purchase.dart';
 import '../../core/services/iap_service.dart';
 import '../../core/theme/spyce_colors.dart';
 import '../../data/models/user_models.dart';
+import '../../data/repositories/api_repositories.dart';
 import '../../shared/widgets/spyce_widgets.dart';
 
 class SubscriptionPaywall extends ConsumerStatefulWidget {
@@ -34,6 +35,7 @@ class _SubscriptionPaywallState extends ConsumerState<SubscriptionPaywall> {
   bool _loading = false;
   int _selectedPackageIndex = 0;
   List<ProductDetails> _products = [];
+  List<SubscriptionTierPlan> _tierPlans = [];
 
   // Default store SKUs configured for Apple StoreKit & Google Play
   static const _storeProductIds = {
@@ -45,21 +47,38 @@ class _SubscriptionPaywallState extends ConsumerState<SubscriptionPaywall> {
   @override
   void initState() {
     super.initState();
-    _loadStoreProducts();
+    _loadData();
   }
 
-  Future<void> _loadStoreProducts() async {
+  Future<void> _loadData() async {
     setState(() => _loading = true);
     try {
+      final subRepo = ref.read(subscriptionRepositoryProvider);
+      final plans = await subRepo.getAvailablePlans();
+      if (mounted && plans.isNotEmpty) {
+        setState(() {
+          _tierPlans = plans;
+        });
+      }
+
+      final productSkus = <String>{..._storeProductIds};
+      for (final plan in plans) {
+        if (Platform.isAndroid && plan.googleProductId != null && plan.googleProductId!.isNotEmpty) {
+          productSkus.add(plan.googleProductId!);
+        } else if (Platform.isIOS && plan.appleProductId != null && plan.appleProductId!.isNotEmpty) {
+          productSkus.add(plan.appleProductId!);
+        }
+      }
+
       final iap = ref.read(iapServiceProvider);
-      final products = await iap.loadProducts(_storeProductIds);
+      final products = await iap.loadProducts(productSkus);
       if (mounted) {
         setState(() {
           _products = products;
         });
       }
     } catch (e) {
-      debugPrint('[Paywall] Failed to load store products: $e');
+      debugPrint('[Paywall] Failed to load store products or tier plans: $e');
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -156,7 +175,106 @@ class _SubscriptionPaywallState extends ConsumerState<SubscriptionPaywall> {
               const SizedBox(height: 20),
 
               // Package selection cards
-              if (_products.isNotEmpty) ...[
+              if (_tierPlans.isNotEmpty) ...[
+                Column(
+                  children: List.generate(_tierPlans.length, (idx) {
+                    final plan = _tierPlans[idx];
+                    final isSelected = _selectedPackageIndex == idx;
+                    final matchingProduct = _products.isNotEmpty && idx < _products.length
+                        ? _products[idx]
+                        : null;
+                    final priceStr = matchingProduct?.price ??
+                        (plan.priceDisplay != null
+                            ? '${s?.currency ?? 'INR'} ${plan.priceDisplay!.toStringAsFixed(0)}'
+                            : '${s?.currency ?? 'INR'} ${plan.durationDays}d');
+
+                    final likesStr = plan.dailyLikesLimit == -1 ? 'Unlimited likes' : '${plan.dailyLikesLimit} likes/day';
+                    final audioStr = plan.inChatAudioMinutesPerDay == -1 ? 'Unlimited calls' : '${plan.inChatAudioMinutesPerDay ~/ 60}h voice call';
+
+                    return GestureDetector(
+                      onTap: () => setState(() => _selectedPackageIndex = idx),
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        decoration: BoxDecoration(
+                          color: isSelected ? SpyceColors.dark800 : SpyceColors.dark900,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: isSelected ? SpyceColors.pink : SpyceColors.dark700,
+                            width: isSelected ? 2 : 1,
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  isSelected ? Icons.check_circle : Icons.radio_button_unchecked,
+                                  color: isSelected ? SpyceColors.pink : SpyceColors.dark400,
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Row(
+                                    children: [
+                                      Text(
+                                        plan.name,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 15,
+                                        ),
+                                      ),
+                                      if (plan.badgeLabel != null && plan.badgeLabel!.isNotEmpty) ...[
+                                        const SizedBox(width: 8),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: SpyceColors.pink.withValues(alpha: 0.2),
+                                            borderRadius: BorderRadius.circular(6),
+                                            border: Border.all(color: SpyceColors.pink, width: 0.5),
+                                          ),
+                                          child: Text(
+                                            plan.badgeLabel!,
+                                            style: const TextStyle(
+                                              fontSize: 9,
+                                              fontWeight: FontWeight.w800,
+                                              color: SpyceColors.pink,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                                Text(
+                                  priceStr,
+                                  style: GoogleFonts.syne(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w800,
+                                    color: SpyceColors.gold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Padding(
+                              padding: const EdgeInsets.only(left: 30),
+                              child: Text(
+                                '$likesStr · $audioStr${plan.canHideAge ? ' · Hide Age' : ''}${plan.canUseIncognito ? ' · Ghost Mode' : ''}',
+                                style: TextStyle(
+                                  color: SpyceColors.dark300,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
+                ),
+              ] else if (_products.isNotEmpty) ...[
                 Column(
                   children: List.generate(_products.length, (idx) {
                     final p = _products[idx];

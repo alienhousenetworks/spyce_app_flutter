@@ -7,6 +7,7 @@ import '../../core/network/api_exception.dart';
 import '../../core/theme/spyce_colors.dart';
 import '../../data/models/user_models.dart';
 import '../../data/repositories/api_repositories.dart';
+import '../../shared/widgets/spyce_loaders.dart';
 import '../../shared/widgets/spyce_widgets.dart';
 import 'confession_compose_sheet.dart';
 import 'confession_formatter.dart';
@@ -41,16 +42,17 @@ class _ConfessionsPageState extends ConsumerState<ConfessionsPage> {
 
   Future<void> _loadIncomingCount() async {
     try {
-      final n =
-          await ref.read(socialRepositoryProvider).countConfessionRequests();
+      final n = await ref
+          .read(socialRepositoryProvider)
+          .countConfessionRequests();
       if (mounted) setState(() => incomingNotes = n);
     } catch (_) {}
   }
 
   Future<void> _openNotesInbox() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const ConfessionNotesInboxPage()),
-    );
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const ConfessionNotesInboxPage()));
     if (mounted) await _loadIncomingCount();
   }
 
@@ -88,7 +90,9 @@ class _ConfessionsPageState extends ConsumerState<ConfessionsPage> {
     final byRoot = <String, ConfessionPost>{};
 
     String rootKey(ConfessionPost p) {
-      if (p.parentId != null && p.parentId!.isNotEmpty && p.parentId != 'null') {
+      if (p.parentId != null &&
+          p.parentId!.isNotEmpty &&
+          p.parentId != 'null') {
         return p.parentId!;
       }
       if (p.isRepost && p.original != null && p.original!.id.isNotEmpty) {
@@ -128,12 +132,16 @@ class _ConfessionsPageState extends ConsumerState<ConfessionsPage> {
     } catch (_) {}
     setState(() {
       feed = feed
-          .map((e) => e.id == p.id
-              ? e.copyWith(
-                  hasRelated: true,
-                  relateCount: e.hasRelated ? e.relateCount : e.relateCount + 1,
-                )
-              : e)
+          .map(
+            (e) => e.id == p.id
+                ? e.copyWith(
+                    hasRelated: true,
+                    relateCount: e.hasRelated
+                        ? e.relateCount
+                        : e.relateCount + 1,
+                  )
+                : e,
+          )
           .toList();
     });
   }
@@ -142,9 +150,9 @@ class _ConfessionsPageState extends ConsumerState<ConfessionsPage> {
     if (p.isAuthor) return;
     if (p.hasReposted) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Already reposted')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Already reposted')));
       }
       return;
     }
@@ -155,30 +163,25 @@ class _ConfessionsPageState extends ConsumerState<ConfessionsPage> {
       if (!mounted) return;
       setState(() {
         feed = feed.map((e) {
-          final sameRoot = e.id == p.id ||
+          final sameRoot =
+              e.id == p.id ||
               e.parentId == p.id ||
               (p.parentId != null &&
                   (e.id == p.parentId || e.parentId == p.parentId));
           if (!sameRoot && e.id != p.id) return e;
-          final nextCount = serverCount ??
+          final nextCount =
+              serverCount ??
               (already || e.hasReposted ? e.repostCount : e.repostCount + 1);
-          return e.copyWith(
-            repostCount: nextCount,
-            hasReposted: true,
-          );
+          return e.copyWith(repostCount: nextCount, hasReposted: true);
         }).toList();
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(already ? 'Already reposted' : 'Reposted'),
-        ),
+        SnackBar(content: Text(already ? 'Already reposted' : 'Reposted')),
       );
     } catch (e) {
       if (!mounted) return;
       final msg = e is ApiException ? e.message : 'Could not repost';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(msg)),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
     }
   }
 
@@ -190,10 +193,7 @@ class _ConfessionsPageState extends ConsumerState<ConfessionsPage> {
       (value: 'SPAM', label: 'Spam'),
       (value: 'HARASSMENT', label: 'Harassment'),
       (value: 'FAKE_PROFILE', label: 'Fake / misleading'),
-      (
-        value: 'UNDERAGE_CSE',
-        label: 'Underage sexual exploitation',
-      ),
+      (value: 'UNDERAGE_CSE', label: 'Underage sexual exploitation'),
       (value: 'OTHER', label: 'Other'),
     ];
 
@@ -318,8 +318,9 @@ class _ConfessionsPageState extends ConsumerState<ConfessionsPage> {
                           },
                   ),
                   TextButton(
-                    onPressed:
-                        submitting ? null : () => Navigator.pop(ctx, false),
+                    onPressed: submitting
+                        ? null
+                        : () => Navigator.pop(ctx, false),
                     child: const Text(
                       'Cancel',
                       style: TextStyle(color: SpyceColors.dark100),
@@ -338,16 +339,18 @@ class _ConfessionsPageState extends ConsumerState<ConfessionsPage> {
     if (submitted != true) return;
 
     try {
-      final res = await ref.read(socialRepositoryProvider).reportConfession(
-            p.id,
-            reason: reason,
-            description: description,
-          );
+      final res = await ref
+          .read(socialRepositoryProvider)
+          .reportConfession(p.id, reason: reason, description: description);
       if (!mounted) return;
       final hideIds = <String>{p.id, if (p.parentId != null) p.parentId!};
       setState(() {
         feed = feed
-            .where((x) => !hideIds.contains(x.id) && !hideIds.contains(x.parentId ?? ''))
+            .where(
+              (x) =>
+                  !hideIds.contains(x.id) &&
+                  !hideIds.contains(x.parentId ?? ''),
+            )
             .toList();
       });
       final pending = res['pending_admin_review'] == true;
@@ -355,14 +358,16 @@ class _ConfessionsPageState extends ConsumerState<ConfessionsPage> {
       final snack = pending
           ? 'Hidden and sent to safety review. Staff will verify.'
           : global
-              ? 'This confession was removed for everyone after multiple reports.'
-              : 'Hidden for you. Others can still see it.';
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(snack)));
+          ? 'This confession was removed for everyone after multiple reports.'
+          : 'Hidden for you. Others can still see it.';
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(snack)));
     } on ApiException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.message)));
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -374,17 +379,15 @@ class _ConfessionsPageState extends ConsumerState<ConfessionsPage> {
   Future<void> _sendNote(ConfessionPost p) async {
     if (p.isAuthor) return;
     if (p.hasRequestedChat) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('You already sent a note')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('You already sent a note')));
       return;
     }
     if (!p.canRequestChat) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'Notes only when you both prefer each other\'s gender',
-          ),
+          content: Text('Notes only when you both prefer each other\'s gender'),
         ),
       );
       return;
@@ -412,7 +415,9 @@ class _ConfessionsPageState extends ConsumerState<ConfessionsPage> {
               Text(
                 'Send a note',
                 style: GoogleFonts.syne(
-                    fontSize: 20, fontWeight: FontWeight.w700),
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
               const SizedBox(height: 8),
               const Text(
@@ -436,7 +441,8 @@ class _ConfessionsPageState extends ConsumerState<ConfessionsPage> {
                   if (ctrl.text.trim().length < 10) {
                     ScaffoldMessenger.of(ctx).showSnackBar(
                       const SnackBar(
-                          content: Text('Write at least 10 characters')),
+                        content: Text('Write at least 10 characters'),
+                      ),
                     );
                     return;
                   }
@@ -457,10 +463,7 @@ class _ConfessionsPageState extends ConsumerState<ConfessionsPage> {
           feed = feed
               .map(
                 (e) => e.id == p.id
-                    ? e.copyWith(
-                        hasRequestedChat: true,
-                        canRequestChat: false,
-                      )
+                    ? e.copyWith(hasRequestedChat: true, canRequestChat: false)
                     : e,
               )
               .toList();
@@ -468,13 +471,15 @@ class _ConfessionsPageState extends ConsumerState<ConfessionsPage> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-                content: Text('Note sent — waiting for their accept')),
+              content: Text('Note sent — waiting for their accept'),
+            ),
           );
         }
       } on ApiException catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context)
-              .showSnackBar(SnackBar(content: Text(e.message)));
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(e.message)));
         }
       } catch (_) {
         if (mounted) {
@@ -515,7 +520,11 @@ class _ConfessionsPageState extends ConsumerState<ConfessionsPage> {
                 const SizedBox(height: 18),
                 Row(
                   children: [
-                    const Icon(Icons.security, color: SpyceColors.pink, size: 24),
+                    const Icon(
+                      Icons.security,
+                      color: SpyceColors.pink,
+                      size: 24,
+                    ),
                     const SizedBox(width: 10),
                     Text(
                       'Community Safety & Terms',
@@ -547,7 +556,10 @@ class _ConfessionsPageState extends ConsumerState<ConfessionsPage> {
                 const SizedBox(height: 8),
                 TextButton(
                   onPressed: () => Navigator.of(ctx).pop(false),
-                  child: const Text('Cancel', style: TextStyle(color: SpyceColors.dark200)),
+                  child: const Text(
+                    'Cancel',
+                    style: TextStyle(color: SpyceColors.dark200),
+                  ),
                 ),
               ],
             ),
@@ -563,7 +575,9 @@ class _ConfessionsPageState extends ConsumerState<ConfessionsPage> {
     if (result == null) return;
 
     try {
-      final created = await ref.read(socialRepositoryProvider).post(
+      final created = await ref
+          .read(socialRepositoryProvider)
+          .post(
             text: result.text,
             moodTag: result.moodTag,
             stylePreset: result.stylePreset,
@@ -589,7 +603,9 @@ class _ConfessionsPageState extends ConsumerState<ConfessionsPage> {
         if (accepted) {
           try {
             await ref.read(socialRepositoryProvider).acceptUgcEula();
-            final created = await ref.read(socialRepositoryProvider).post(
+            final created = await ref
+                .read(socialRepositoryProvider)
+                .post(
                   text: result.text,
                   moodTag: result.moodTag,
                   stylePreset: result.stylePreset,
@@ -612,7 +628,9 @@ class _ConfessionsPageState extends ConsumerState<ConfessionsPage> {
             return;
           } catch (retryErr) {
             if (!mounted) return;
-            final msg = retryErr is ApiException ? retryErr.message : '$retryErr';
+            final msg = retryErr is ApiException
+                ? retryErr.message
+                : '$retryErr';
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text('Could not post confession: $msg')),
             );
@@ -620,14 +638,14 @@ class _ConfessionsPageState extends ConsumerState<ConfessionsPage> {
           }
         }
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.message)));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not post confession: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not post confession: $e')));
     }
   }
 
@@ -643,32 +661,31 @@ class _ConfessionsPageState extends ConsumerState<ConfessionsPage> {
                 bottom: false,
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 8, 4),
-                  child: Row(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        showMine ? 'My confessions' : 'Confessions',
-                        style: GoogleFonts.syne(
-                          fontSize: 24,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const Spacer(),
-                      TextButton(
-                        onPressed: () => setState(() => showMine = !showMine),
-                        child: Text(
-                          showMine ? 'Feed' : 'My posts',
-                          style: TextStyle(
-                            color: showMine
-                                ? SpyceColors.teal
-                                : SpyceColors.pinkSoft,
-                            fontWeight: FontWeight.w600,
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Confessions',
+                              style: GoogleFonts.syne(
+                                fontSize: 24,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
                           ),
-                        ),
+                          IconButton(
+                            onPressed: _load,
+                            icon: const Icon(Icons.refresh),
+                          ),
+                        ],
                       ),
-                      IconButton(
-                        onPressed: _load,
-                        icon: const Icon(Icons.refresh),
+                      _FeedMineToggle(
+                        showMine: showMine,
+                        onChanged: (mine) => setState(() => showMine = mine),
                       ),
+                      const SizedBox(height: 4),
                     ],
                   ),
                 ),
@@ -686,7 +703,9 @@ class _ConfessionsPageState extends ConsumerState<ConfessionsPage> {
                       onTap: () => setState(() => showMine = true),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 12),
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
                         child: Row(
                           children: [
                             Container(
@@ -696,8 +715,10 @@ class _ConfessionsPageState extends ConsumerState<ConfessionsPage> {
                                 color: SpyceColors.pinkDim,
                                 borderRadius: BorderRadius.circular(12),
                               ),
-                              child: const Icon(Icons.insights_outlined,
-                                  color: SpyceColors.pinkSoft),
+                              child: const Icon(
+                                Icons.insights_outlined,
+                                color: SpyceColors.pinkSoft,
+                              ),
                             ),
                             const SizedBox(width: 12),
                             Expanded(
@@ -723,8 +744,10 @@ class _ConfessionsPageState extends ConsumerState<ConfessionsPage> {
                                 ],
                               ),
                             ),
-                            const Icon(Icons.chevron_right,
-                                color: SpyceColors.dark200),
+                            const Icon(
+                              Icons.chevron_right,
+                              color: SpyceColors.dark200,
+                            ),
                           ],
                         ),
                       ),
@@ -734,7 +757,7 @@ class _ConfessionsPageState extends ConsumerState<ConfessionsPage> {
 
               Expanded(
                 child: loading
-                    ? const ShimmerList(count: 3)
+                    ? const SpyceConfessionLoader()
                     : RefreshIndicator(
                         color: SpyceColors.pink,
                         onRefresh: _load,
@@ -814,7 +837,7 @@ class _ConfessionsPageState extends ConsumerState<ConfessionsPage> {
                                         ? '99+'
                                         : '$incomingNotes',
                                     style: const TextStyle(
-                                      color: Colors.white,
+                                      color: SpyceColors.white,
                                       fontSize: 10,
                                       fontWeight: FontWeight.w800,
                                       height: 1.2,
@@ -832,7 +855,7 @@ class _ConfessionsPageState extends ConsumerState<ConfessionsPage> {
                     FloatingActionButton(
                       onPressed: _compose,
                       backgroundColor: SpyceColors.pink,
-                      child: const Icon(Icons.edit, color: Colors.white),
+                      child: const Icon(Icons.edit, color: SpyceColors.white),
                     ),
                   ],
                 ],
@@ -840,6 +863,54 @@ class _ConfessionsPageState extends ConsumerState<ConfessionsPage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _FeedMineToggle extends StatelessWidget {
+  const _FeedMineToggle({required this.showMine, required this.onChanged});
+
+  final bool showMine;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: SpyceColors.dark800,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: SpyceColors.dark600),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _pill('Feed', !showMine, () => onChanged(false)),
+          _pill('Mine', showMine, () => onChanged(true)),
+        ],
+      ),
+    );
+  }
+
+  Widget _pill(String label, bool on, VoidCallback tap) {
+    return GestureDetector(
+      onTap: tap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: on ? SpyceColors.pink : Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: on ? SpyceColors.white : SpyceColors.dark100,
+            fontWeight: FontWeight.w700,
+            fontSize: 12,
+          ),
+        ),
       ),
     );
   }
@@ -887,8 +958,9 @@ class _FeedList extends StatelessWidget {
             : '';
         final isRepost = p.isRepost;
         final original = p.original;
-        final headerGender =
-            isRepost && original != null ? original.gender : p.gender;
+        final headerGender = isRepost && original != null
+            ? original.gender
+            : p.gender;
         final headerMeta = isRepost && original != null
             ? original.anonMeta
             : p.anonMeta;
@@ -897,8 +969,9 @@ class _FeedList extends StatelessWidget {
                 .toUpperCase();
 
         final theme = ConfessionThemeConfig.fromId(p.effectiveBgTheme);
-        final styleType =
-            ConfessionStyleTypeExt.fromCode(p.effectiveStylePreset);
+        final styleType = ConfessionStyleTypeExt.fromCode(
+          p.effectiveStylePreset,
+        );
         final mood = isRepost && original != null
             ? original.moodTag
             : p.moodTag;
@@ -909,10 +982,7 @@ class _FeedList extends StatelessWidget {
           decoration: BoxDecoration(
             gradient: theme.gradient,
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: theme.borderColor,
-              width: 1.0,
-            ),
+            border: Border.all(color: theme.borderColor, width: 1.0),
             boxShadow: [
               BoxShadow(
                 color: theme.glowColor,
@@ -1007,8 +1077,9 @@ class _FeedList extends StatelessWidget {
                                     color: theme.badgeColor,
                                     borderRadius: BorderRadius.circular(8),
                                     border: Border.all(
-                                      color: theme.accentColor
-                                          .withValues(alpha: 0.4),
+                                      color: theme.accentColor.withValues(
+                                        alpha: 0.4,
+                                      ),
                                       width: 0.6,
                                     ),
                                   ),
@@ -1046,9 +1117,9 @@ class _FeedList extends StatelessWidget {
                                 )
                               else if (original?.createdAt != null)
                                 Text(
-                                  DateFormat.MMMd()
-                                      .add_jm()
-                                      .format(original!.createdAt!),
+                                  DateFormat.MMMd().add_jm().format(
+                                    original!.createdAt!,
+                                  ),
                                   style: TextStyle(
                                     color: theme.metaColor,
                                     fontSize: 11,
@@ -1117,22 +1188,16 @@ class _FeedList extends StatelessWidget {
               Row(
                 children: [
                   _Action(
-                    icon: p.hasRelated
-                        ? Icons.favorite
-                        : Icons.favorite_border,
+                    icon: p.hasRelated ? Icons.favorite : Icons.favorite_border,
                     label: '${p.relateCount}',
-                    color: p.hasRelated
-                        ? theme.accentColor
-                        : theme.metaColor,
+                    color: p.hasRelated ? theme.accentColor : theme.metaColor,
                     onTap: () => onRelate(p),
                   ),
                   const SizedBox(width: 18),
                   _Action(
                     icon: Icons.repeat,
                     label: '${p.repostCount}',
-                    color: p.hasReposted
-                        ? SpyceColors.teal
-                        : theme.metaColor,
+                    color: p.hasReposted ? SpyceColors.teal : theme.metaColor,
                     onTap: () => onRepost(p),
                   ),
                   const SizedBox(width: 18),
@@ -1212,8 +1277,9 @@ class _MyConfessionsList extends StatelessWidget {
         final isRepost = p.isRepost;
 
         final theme = ConfessionThemeConfig.fromId(p.effectiveBgTheme);
-        final styleType =
-            ConfessionStyleTypeExt.fromCode(p.effectiveStylePreset);
+        final styleType = ConfessionStyleTypeExt.fromCode(
+          p.effectiveStylePreset,
+        );
 
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
@@ -1236,8 +1302,10 @@ class _MyConfessionsList extends StatelessWidget {
               Row(
                 children: [
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
                     decoration: BoxDecoration(
                       color: isRepost
                           ? SpyceColors.teal.withValues(alpha: 0.2)
@@ -1250,13 +1318,9 @@ class _MyConfessionsList extends StatelessWidget {
                       ),
                     ),
                     child: Text(
-                      isRepost
-                          ? 'You reposted'
-                          : 'Yours · ${styleType.label}',
+                      isRepost ? 'You reposted' : 'Yours · ${styleType.label}',
                       style: TextStyle(
-                        color: isRepost
-                            ? SpyceColors.teal
-                            : theme.accentColor,
+                        color: isRepost ? SpyceColors.teal : theme.accentColor,
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
                       ),
@@ -1265,10 +1329,7 @@ class _MyConfessionsList extends StatelessWidget {
                   const Spacer(),
                   Text(
                     when,
-                    style: TextStyle(
-                      color: theme.metaColor,
-                      fontSize: 11,
-                    ),
+                    style: TextStyle(color: theme.metaColor, fontSize: 11),
                   ),
                 ],
               ),
@@ -1295,14 +1356,13 @@ class _MyConfessionsList extends StatelessWidget {
               // Stats row — display only
               Container(
                 padding: const EdgeInsets.symmetric(
-                    horizontal: 12, vertical: 10),
+                  horizontal: 12,
+                  vertical: 10,
+                ),
                 decoration: BoxDecoration(
                   color: theme.badgeColor,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: theme.borderColor,
-                    width: 0.6,
-                  ),
+                  border: Border.all(color: theme.borderColor, width: 0.6),
                 ),
                 child: Row(
                   children: [
@@ -1369,10 +1429,7 @@ class _Stat extends StatelessWidget {
             ),
             Text(
               label,
-              style: const TextStyle(
-                color: SpyceColors.dark200,
-                fontSize: 10,
-              ),
+              style: const TextStyle(color: SpyceColors.dark200, fontSize: 10),
             ),
           ],
         ),

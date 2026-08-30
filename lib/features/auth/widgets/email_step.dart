@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../../core/config/env.dart';
 import '../../../core/theme/onboarding_theme.dart';
+import '../../../core/theme/spyce_colors.dart';
 import '../../../shared/widgets/onboarding_widgets.dart';
 import '../../../shared/widgets/turnstile_widget.dart';
 import '../auth_controller.dart';
@@ -36,7 +37,12 @@ class EmailStep extends StatefulWidget {
   final VoidCallback onSwitchMode;
   final ValueChanged<AuthMethod> onSwitchMethod;
   final Future<bool> Function(String email, String? captchaToken) onSendOtp;
-  final Future<bool> Function(String email, String password, String? captchaToken) onPasswordAuth;
+  final Future<bool> Function(
+    String email,
+    String password,
+    String? captchaToken,
+  )
+  onPasswordAuth;
   final VoidCallback onForgotPassword;
   final Future<bool> Function() onGoogle;
 
@@ -114,261 +120,255 @@ class _EmailStepState extends State<EmailStep> {
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
       children: [
-        Row(
-          children: [
-            IconButton(
+        Padding(
+          padding: const EdgeInsets.fromLTRB(8, 4, 8, 0),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: IconButton(
               onPressed: widget.loading ? null : widget.onBack,
-              icon: const Icon(Icons.arrow_back, color: Colors.white, size: 22),
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
+              icon: const Icon(
+                Icons.arrow_back_ios_new_rounded,
+                color: Colors.white,
+                size: 18,
+              ),
             ),
-          ],
+          ),
         ),
-        const SizedBox(height: 16),
-        OnboardingGlassCard(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
-          child: Column(
-            children: [
-              Text(
-                isSignUp ? 'Create Your Account' : 'Welcome Back',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.syne(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Segmented Toggle: OTP Code vs Password
-              Container(
-                decoration: BoxDecoration(
-                  color: OnboardingColors.inputFill,
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(
-                    color: OnboardingColors.inputBorder,
-                    width: 1,
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  isSignUp ? 'Create your account' : 'Welcome back',
+                  style: GoogleFonts.syne(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                    height: 1.15,
+                    letterSpacing: -0.4,
                   ),
                 ),
-                padding: const EdgeInsets.all(3),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: widget.loading
-                            ? null
-                            : () => widget.onSwitchMethod(AuthMethod.otp),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 180),
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          decoration: BoxDecoration(
-                            color: isOtp
-                                ? OnboardingColors.primary
-                                : Colors.transparent,
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            'Email OTP',
-                            style: GoogleFonts.dmSans(
-                              fontSize: 13,
-                              fontWeight: isOtp
-                                  ? FontWeight.w700
-                                  : FontWeight.w500,
+                const SizedBox(height: 8),
+                Text(
+                  isSignUp
+                      ? 'Use email OTP or a password. You can also continue with Google.'
+                      : 'Sign in with OTP, password, or Google.',
+                  style: GoogleFonts.dmSans(
+                    fontSize: 15,
+                    height: 1.4,
+                    color: OnboardingColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Container(
+                  decoration: BoxDecoration(
+                    color: OnboardingColors.inputFill,
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: OnboardingColors.inputBorder),
+                  ),
+                  padding: const EdgeInsets.all(3),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: widget.loading
+                              ? null
+                              : () => widget.onSwitchMethod(AuthMethod.otp),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 180),
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            decoration: BoxDecoration(
                               color: isOtp
-                                  ? Colors.white
-                                  : OnboardingColors.textSecondary,
+                                  ? OnboardingColors.primary
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              'Email OTP',
+                              style: GoogleFonts.dmSans(
+                                fontSize: 13,
+                                fontWeight: isOtp
+                                    ? FontWeight.w700
+                                    : FontWeight.w500,
+                                color: isOtp
+                                    ? Colors.white
+                                    : OnboardingColors.textSecondary,
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: widget.loading
-                            ? null
-                            : () => widget.onSwitchMethod(AuthMethod.password),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 180),
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          decoration: BoxDecoration(
-                            color: !isOtp
-                                ? OnboardingColors.primary
-                                : Colors.transparent,
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            'Password',
-                            style: GoogleFonts.dmSans(
-                              fontSize: 13,
-                              fontWeight: !isOtp
-                                  ? FontWeight.w700
-                                  : FontWeight.w500,
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: widget.loading
+                              ? null
+                              : () =>
+                                    widget.onSwitchMethod(AuthMethod.password),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 180),
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            decoration: BoxDecoration(
                               color: !isOtp
-                                  ? Colors.white
-                                  : OnboardingColors.textSecondary,
+                                  ? OnboardingColors.primary
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              'Password',
+                              style: GoogleFonts.dmSans(
+                                fontSize: 13,
+                                fontWeight: !isOtp
+                                    ? FontWeight.w700
+                                    : FontWeight.w500,
+                                color: !isOtp
+                                    ? Colors.white
+                                    : OnboardingColors.textSecondary,
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // Email Input
-              OnboardingTextField(
-                controller: _emailCtrl,
-                focusNode: _emailFocus,
-                keyboardType: TextInputType.emailAddress,
-                hintText: 'name@example.com',
-                textAlign: TextAlign.center,
-                onChanged: (_) => setState(() {}),
-              ),
-
-              // Password Input (if Password method)
-              if (!isOtp) ...[
-                const SizedBox(height: 14),
-                OnboardingTextField(
-                  controller: _passCtrl,
-                  focusNode: _passFocus,
-                  obscureText: _obscurePassword,
-                  hintText: isSignUp
-                      ? 'Create Password (min 8 chars)'
-                      : 'Enter Your Password',
-                  textAlign: TextAlign.center,
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _obscurePassword
-                          ? Icons.visibility_off
-                          : Icons.visibility,
-                      color: OnboardingColors.textSecondary,
-                      size: 20,
-                    ),
-                    onPressed: () =>
-                        setState(() => _obscurePassword = !_obscurePassword),
+                    ],
                   ),
+                ),
+                const SizedBox(height: 20),
+                const OnboardingFieldLabel('Email'),
+                OnboardingTextField(
+                  controller: _emailCtrl,
+                  focusNode: _emailFocus,
+                  keyboardType: TextInputType.emailAddress,
+                  hintText: 'name@example.com',
                   onChanged: (_) => setState(() {}),
                 ),
-                if (!isSignUp) ...[
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton(
-                      onPressed: widget.loading ? null : widget.onForgotPassword,
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 4,
-                          vertical: 2,
+                if (!isOtp) ...[
+                  const SizedBox(height: 16),
+                  const OnboardingFieldLabel('Password'),
+                  OnboardingTextField(
+                    controller: _passCtrl,
+                    focusNode: _passFocus,
+                    obscureText: _obscurePassword,
+                    hintText: isSignUp
+                        ? 'Create a password (min 8 chars)'
+                        : 'Your password',
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _obscurePassword
+                            ? Icons.visibility_off
+                            : Icons.visibility,
+                        color: OnboardingColors.textSecondary,
+                        size: 20,
+                      ),
+                      onPressed: () =>
+                          setState(() => _obscurePassword = !_obscurePassword),
+                    ),
+                    onChanged: (_) => setState(() {}),
+                  ),
+                  if (!isSignUp)
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: widget.loading
+                            ? null
+                            : widget.onForgotPassword,
+                        child: Text(
+                          'Forgot password?',
+                          style: GoogleFonts.dmSans(
+                            color: OnboardingColors.textSecondary,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
-                      child: Text(
-                        'Forgot Password?',
-                        style: GoogleFonts.dmSans(
-                          color: OnboardingColors.textSecondary,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
+                    ),
+                ],
+                if (isOtp) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    "We'll send a 6-digit code to this email.",
+                    style: GoogleFonts.dmSans(
+                      color: OnboardingColors.textSecondary,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+                if (Env.turnstileEnabled) ...[
+                  const SizedBox(height: 16),
+                  TurnstileWidget(
+                    resetKey: _turnstileReset,
+                    onTokenReceived: (token) {
+                      setState(() {
+                        _captchaToken = token;
+                        _localError = null;
+                      });
+                    },
+                    onExpired: () {
+                      setState(() {
+                        _captchaToken = null;
+                        _localError = 'Captcha expired — please try again.';
+                      });
+                    },
+                    onError: () {
+                      setState(() => _captchaToken = null);
+                    },
+                  ),
+                ],
+                if (showError != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    showError,
+                    style: const TextStyle(
+                      color: SpyceColors.error,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+                if (widget.message != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    widget.message!,
+                    style: const TextStyle(
+                      color: SpyceColors.success,
+                      fontSize: 13,
                     ),
                   ),
                 ],
               ],
-
-              if (isOtp) ...[
-                const SizedBox(height: 14),
-                Text(
-                  'We\'ll send you a secure 6-digit verification code.',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.dmSans(
-                    color: OnboardingColors.textSecondary,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-
-              if (Env.turnstileEnabled) ...[
-                const SizedBox(height: 16),
-                TurnstileWidget(
-                  resetKey: _turnstileReset,
-                  onTokenReceived: (token) {
-                    setState(() {
-                      _captchaToken = token;
-                      _localError = null;
-                    });
-                  },
-                  onExpired: () {
-                    setState(() {
-                      _captchaToken = null;
-                      _localError = 'Captcha expired — please try again.';
-                    });
-                  },
-                  onError: () {
-                    setState(() => _captchaToken = null);
-                  },
-                ),
-              ],
-
-              if (showError != null) ...[
-                const SizedBox(height: 12),
-                Text(
-                  showError,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Color(0xFFFF6B81),
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-              if (widget.message != null) ...[
-                const SizedBox(height: 12),
-                Text(
-                  widget.message!,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Colors.tealAccent,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-              const SizedBox(height: 20),
-
-              // Action Button
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
               OnboardingPrimaryButton(
-                label: isOtp
-                    ? 'Get OTP'
-                    : (isSignUp ? 'Sign Up' : 'Sign In'),
+                label: isOtp ? 'Get OTP' : (isSignUp ? 'Sign up' : 'Sign in'),
                 loading: widget.loading,
                 onPressed: _emailCtrl.text.trim().isNotEmpty ? _submit : null,
               ),
-
-              const SizedBox(height: 16),
-              const AuthDivider(),
-              const SizedBox(height: 16),
-
-              // Google Social Button
+              const SizedBox(height: 12),
+              const AuthDivider(label: 'or'),
+              const SizedBox(height: 12),
               GoogleSignInButton(
                 loading: widget.loading,
-                onPressed: widget.loading
-                    ? null
-                    : () {
-                        widget.onGoogle();
-                      },
+                onPressed: widget.loading ? null : () => widget.onGoogle(),
               ),
-
-              const SizedBox(height: 12),
               TextButton(
                 onPressed: widget.loading ? null : widget.onSwitchMode,
                 child: Text(
                   isSignUp
                       ? 'Already have an account? Sign in'
                       : 'New to SPYCE? Create an account',
-                  style: const TextStyle(
+                  style: GoogleFonts.dmSans(
                     color: OnboardingColors.textSecondary,
-                    fontSize: 12,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),

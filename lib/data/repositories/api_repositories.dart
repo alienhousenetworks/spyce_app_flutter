@@ -286,6 +286,17 @@ class AuthRepository {
     await _storage.clearTokens();
   }
 
+  Future<Map<String, dynamic>> deleteAccount() async {
+    try {
+      await _api.delete('/users/delete-account/');
+      await _storage.clearTokens();
+      return {'status': 'deleted'};
+    } catch (e) {
+      await _storage.clearTokens();
+      rethrow;
+    }
+  }
+
   Future<AuthUser?> getMe() async {
     final token = await _storage.getAccessToken();
     if (token == null) return null;
@@ -785,6 +796,26 @@ class SubscriptionRepository {
     return SubscriptionStatus.fromJson(_asMap(data));
   }
 
+  Future<UserEntitlements> getEntitlements() async {
+    final data = await _api.get<dynamic>('/subscriptions/entitlements/');
+    return UserEntitlements.fromJson(_asMap(data));
+  }
+
+  Future<Map<String, dynamic>> getRequiredPlan() async {
+    final data = await _api.get<dynamic>('/subscriptions/required-plan/');
+    return _asMap(data);
+  }
+
+  Future<List<SubscriptionTierPlan>> getAvailablePlans() async {
+    final data = await _api.get<dynamic>('/subscriptions/required-plan/');
+    final map = _asMap(data);
+    final list = map['available_plans'] as List<dynamic>? ?? [];
+    return list
+        .whereType<Map<String, dynamic>>()
+        .map(SubscriptionTierPlan.fromJson)
+        .toList();
+  }
+
   Future<Map<String, dynamic>> purchase(String idempotencyKey) async {
     final data = await _api.post<dynamic>(
       '/subscription/purchase/',
@@ -802,7 +833,7 @@ class SubscriptionRepository {
     String? productId,
   }) async {
     final data = await _api.post<dynamic>(
-      '/subscription/restore/',
+      '/subscriptions/restore/',
       data: {
         'platform': platform,
         if (purchaseToken != null) 'purchase_token': purchaseToken,

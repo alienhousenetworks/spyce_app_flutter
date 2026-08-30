@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/auth/firebase_auth_service.dart';
@@ -25,10 +26,7 @@ enum AuthStep {
   resetPassword,
 }
 
-enum AuthMethod {
-  otp,
-  password,
-}
+enum AuthMethod { otp, password }
 
 enum AuthMode { signIn, signUp }
 
@@ -240,8 +238,7 @@ class AuthController extends StateNotifier<AuthState> {
   }
 
   Future<bool> _handleAuthSuccess(Map<String, dynamic> data) async {
-    final isNewUser =
-        data['is_new_user'] == true || data['is_new'] == true;
+    final isNewUser = data['is_new_user'] == true || data['is_new'] == true;
     final verifyOnboarding = data['onboarding_complete'] is bool
         ? data['onboarding_complete'] as bool
         : null;
@@ -388,12 +385,14 @@ class AuthController extends StateNotifier<AuthState> {
       );
       return true;
     } on ApiException catch (e) {
+      debugPrint('🔴 [AuthController] requestOtp ApiException: ${e.fullDetail}');
       state = state.copyWith(loading: false, error: e.message);
       return false;
-    } catch (_) {
+    } catch (e, stack) {
+      debugPrint('🔴 [AuthController] requestOtp error: $e\n$stack');
       state = state.copyWith(
         loading: false,
-        error: 'Could not send OTP. Check your connection and try again.',
+        error: 'Could not send OTP: ${ApiException.describe(e)}',
       );
       return false;
     }
@@ -417,12 +416,14 @@ class AuthController extends StateNotifier<AuthState> {
       }
       return _handleAuthSuccess(result.data);
     } on ApiException catch (e) {
+      debugPrint('🔴 [AuthController] verifyOtp ApiException: ${e.fullDetail}');
       state = state.copyWith(loading: false, error: e.message);
       return false;
-    } catch (_) {
+    } catch (e, stack) {
+      debugPrint('🔴 [AuthController] verifyOtp error: $e\n$stack');
       state = state.copyWith(
         loading: false,
-        error: 'Could not verify OTP. Check your connection and try again.',
+        error: 'Could not verify OTP: ${ApiException.describe(e)}',
       );
       return false;
     }
@@ -522,7 +523,8 @@ class AuthController extends StateNotifier<AuthState> {
     } on StateError catch (e) {
       state = state.copyWith(loading: false, error: e.message);
       return false;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('ℹ️ [AuthController] Firebase sign-in bypassed or error: $e. Trying direct backend login...');
       // Fallback to direct backend password login
       try {
         final result = await _auth.loginWithPassword(
@@ -533,18 +535,22 @@ class AuthController extends StateNotifier<AuthState> {
         if (!result.ok) {
           state = state.copyWith(
             loading: false,
-            error: result.data['error']?.toString() ?? 'Invalid email or password.',
+            error:
+                result.data['error']?.toString() ??
+                'Invalid email or password.',
           );
           return false;
         }
         return _handleAuthSuccess(result.data);
       } on ApiException catch (e) {
+        debugPrint('🔴 [AuthController] Backend loginWithPassword ApiException: ${e.fullDetail}');
         state = state.copyWith(loading: false, error: e.message);
         return false;
-      } catch (_) {
+      } catch (e, stack) {
+        debugPrint('🔴 [AuthController] Backend loginWithPassword error: $e\n$stack');
         state = state.copyWith(
           loading: false,
-          error: 'Could not sign in. Check your connection.',
+          error: 'Could not sign in: ${ApiException.describe(e)}',
         );
         return false;
       }
@@ -583,7 +589,10 @@ class AuthController extends StateNotifier<AuthState> {
           captchaToken: captchaToken,
         );
         if (data['error'] != null) {
-          state = state.copyWith(loading: false, error: data['error'].toString());
+          state = state.copyWith(
+            loading: false,
+            error: data['error'].toString(),
+          );
           return false;
         }
         state = state.copyWith(
@@ -682,12 +691,14 @@ class AuthController extends StateNotifier<AuthState> {
       }
       return _handleAuthSuccess(result.data);
     } on ApiException catch (e) {
+      debugPrint('🔴 [AuthController] signInWithFirebaseToken ApiException: ${e.fullDetail}');
       state = state.copyWith(loading: false, error: e.message);
       return false;
-    } catch (_) {
+    } catch (e, stack) {
+      debugPrint('🔴 [AuthController] signInWithFirebaseToken error: $e\n$stack');
       state = state.copyWith(
         loading: false,
-        error: 'Could not complete Firebase login. Check your connection.',
+        error: 'Login failed: ${ApiException.describe(e)}',
       );
       return false;
     }
@@ -724,6 +735,24 @@ class AuthController extends StateNotifier<AuthState> {
       await FirebaseAuthService.signOut();
     } catch (_) {}
     state = const AuthState(bootstrapped: true);
+  }
+
+  Future<Map<String, dynamic>> deleteAccount() async {
+    state = state.copyWith(loading: true);
+    try {
+      final result = await _auth.deleteAccount();
+      try {
+        await FirebaseAuthService.signOut();
+      } catch (_) {}
+      state = const AuthState(bootstrapped: true);
+      return result;
+    } catch (e) {
+      try {
+        await FirebaseAuthService.signOut();
+      } catch (_) {}
+      state = const AuthState(bootstrapped: true);
+      rethrow;
+    }
   }
 
   void markOnboardingComplete({String? username}) {

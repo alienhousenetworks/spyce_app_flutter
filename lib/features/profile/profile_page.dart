@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -13,6 +14,8 @@ import 'package:permission_handler/permission_handler.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/theme/feed_backgrounds.dart';
 import '../../core/theme/spyce_colors.dart';
+import '../../core/utils/image_compressor.dart';
+import '../../core/utils/image_pick.dart';
 import '../../core/utils/language_labels.dart';
 import '../../core/utils/media_url.dart';
 import '../../data/models/user_models.dart';
@@ -136,6 +139,38 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       // Offline optimistic merge
       if (!mounted) return;
       setState(() => saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Saved locally (offline)')),
+      );
+    }
+  }
+
+  /// Flip discovery toggles immediately so the switch animates; then persist.
+  Future<void> _toggleFlag(String field, bool value) async {
+    final prev = profile;
+    if (prev == null) return;
+    setState(() {
+      profile = prev.copyWith(
+        isPaused: field == 'is_paused' ? value : null,
+        isHidden: field == 'is_hidden' ? value : null,
+        hideAge: field == 'hide_age' ? value : null,
+      );
+    });
+    try {
+      final updated =
+          await ref.read(profileRepositoryProvider).updateMyProfile({
+        field: value,
+      });
+      if (!mounted) return;
+      setState(() => profile = updated);
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() => profile = prev);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message)),
+      );
+    } catch (_) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Saved locally (offline)')),
       );
@@ -1067,36 +1102,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
   Future<bool> _ensureImagePermission(ImageSource source) async {
     if (source == ImageSource.camera) {
-      final status = await Permission.camera.request();
-      if (status.isGranted || status.isLimited) return true;
-      if (!mounted) return false;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Camera permission is required to take a photo'),
-          action: status.isPermanentlyDenied
-              ? SnackBarAction(label: 'Settings', onPressed: openAppSettings)
-              : null,
-        ),
-      );
-      return false;
+      return ensureCameraPermission(context);
     }
-
-    // Gallery — photos permission on modern Android / iOS
-    PermissionStatus status = await Permission.photos.request();
-    if (status.isGranted || status.isLimited) return true;
-    // Older Android may map to storage
-    status = await Permission.storage.request();
-    if (status.isGranted || status.isLimited) return true;
-    if (!mounted) return false;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Photo library permission is required'),
-        action: status.isPermanentlyDenied
-            ? SnackBarAction(label: 'Settings', onPressed: openAppSettings)
-            : null,
-      ),
-    );
-    return false;
+    return ensureGalleryPermission(context);
   }
 
   Future<void> _pickAndUploadImage(
@@ -1112,12 +1120,19 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     final picker = ImagePicker();
     final XFile? file = await picker.pickImage(
       source: source,
-      maxWidth: 1600,
-      maxHeight: 1600,
+      maxWidth: 1080,
+      maxHeight: 1350,
       imageQuality: 85,
       preferredCameraDevice: CameraDevice.front,
     );
     if (file == null || !mounted) return;
+
+    // Compress and convert to lightweight WebP (< 200 KB) on device
+    final compressedFile = await ImageCompressor.compressToWebp(
+      File(file.path),
+      targetMaxKb: 200,
+    );
+    if (!mounted) return;
 
     final beforeIds =
         profile?.images.map((i) => i.id).where((id) => id.isNotEmpty).toSet() ??
@@ -1129,7 +1144,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
     setState(() {
       saving = true;
-      pendingLocalPhotoPath = file.path;
+      pendingLocalPhotoPath = compressedFile.path;
     });
     final repo = ref.read(profileRepositoryProvider);
     try {
@@ -1150,7 +1165,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           // Continue upload even if delete fails (e.g. already gone)
         }
       }
-      final uploadRes = await repo.uploadImage(file.path);
+      final uploadRes = await repo.uploadImage(compressedFile.path);
       if (!mounted) return;
 
       final status = (uploadRes['status'] ?? '').toString().toLowerCase();
@@ -1456,10 +1471,16 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   leading: ClipRRect(
                     borderRadius: BorderRadius.circular(8),
                     child: CachedNetworkImage(
-                      imageUrl: p.imageUrl,
+                      imageUrl: resolveMediaUrl(p.imageUrl) ?? p.imageUrl,
                       width: 40,
                       height: 40,
                       fit: BoxFit.cover,
+                      errorWidget: (_, __, ___) => Container(
+                        width: 40,
+                        height: 40,
+                        color: SpyceColors.dark700,
+                        child: const Icon(Icons.broken_image, size: 18, color: Colors.white38),
+                      ),
                     ),
                   ),
                   title: Text(
@@ -1546,8 +1567,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                 onTap: () => Navigator.pop(ctx, 'replace'),
               ),
               ListTile(
-                leading: const Icon(Icons.delete_outline, color: Color(0xFFFF6B81)),
-                title: const Text('Delete photo', style: TextStyle(color: Color(0xFFFF6B81))),
+                leading: const Icon(Icons.delete_outline, color: SpyceColors.error),
+                title: const Text('Delete photo', style: TextStyle(color: SpyceColors.error)),
                 onTap: () => Navigator.pop(ctx, 'delete'),
               ),
               TextButton(
@@ -1564,6 +1585,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
     if (action == 'view') {
       final viewUrl = resolveMediaUrl(image.imageUrl);
+      debugPrint('🔍 [PhotoView] Opening photo id=${image.id}, rawUrl=${image.imageUrl}, resolvedUrl=$viewUrl');
       await showDialog<void>(
         context: context,
         builder: (ctx) => Dialog(
@@ -1575,9 +1597,25 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               child: viewUrl == null || viewUrl.isEmpty
                   ? Container(
                       color: SpyceColors.dark800,
-                      padding: const EdgeInsets.all(40),
-                      child: const Icon(Icons.broken_image,
-                          color: Colors.white38, size: 48),
+                      padding: const EdgeInsets.all(32),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.broken_image,
+                              color: Colors.white38, size: 48),
+                          const SizedBox(height: 12),
+                          const Text(
+                            'Invalid or empty photo URL',
+                            style: TextStyle(color: Colors.white70, fontSize: 13),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Raw: "${image.imageUrl}"',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(color: Colors.white38, fontSize: 11),
+                          ),
+                        ],
+                      ),
                     )
                   : CachedNetworkImage(
                       imageUrl: viewUrl,
@@ -1589,12 +1627,47 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                           color: SpyceColors.pinkSoft,
                         ),
                       ),
-                      errorWidget: (_, _, _) => Container(
-                        color: SpyceColors.dark800,
-                        padding: const EdgeInsets.all(40),
-                        child: const Icon(Icons.broken_image,
-                            color: Colors.white38, size: 48),
-                      ),
+                      errorWidget: (_, failedUrl, err) {
+                        debugPrint('🔴 [PhotoViewDialog] Error loading "$failedUrl": $err');
+                        return Container(
+                          color: SpyceColors.dark800,
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.broken_image,
+                                  color: Colors.white38, size: 48),
+                              const SizedBox(height: 12),
+                              const Text(
+                                'Could not load photo',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'URL: $failedUrl',
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: Colors.white60,
+                                  fontSize: 11,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                'Error: $err',
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: Colors.redAccent,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
                     ),
             ),
           ),
@@ -1642,7 +1715,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             ),
             TextButton(
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Delete', style: TextStyle(color: Color(0xFFFF6B81))),
+              child: const Text('Delete', style: TextStyle(color: SpyceColors.error)),
             ),
           ],
         ),
@@ -2122,18 +2195,18 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                         label: 'Pause Profile',
                         subtitle: 'Hide from discovery while keeping matches',
                         value: p?.isPaused ?? false,
-                        onChanged: (v) => _patch({'is_paused': v}),
+                        onChanged: (v) => _toggleFlag('is_paused', v),
                       ),
                       _ToggleTile(
                         label: 'Incognito Mode',
                         subtitle: 'Hide profile completely',
                         value: p?.isHidden ?? false,
-                        onChanged: (v) => _patch({'is_hidden': v}),
+                        onChanged: (v) => _toggleFlag('is_hidden', v),
                       ),
                       _ToggleTile(
                         label: 'Hide Age',
                         value: p?.hideAge ?? false,
-                        onChanged: (v) => _patch({'hide_age': v}),
+                        onChanged: (v) => _toggleFlag('hide_age', v),
                       ),
                     ],
                   ),
@@ -2152,6 +2225,13 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     title: const Text('SPYCE Premium', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
                     trailing: const Icon(Icons.chevron_right, color: Colors.white54),
                     onTap: () => context.push('/app/premium'),
+                  ),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.settings_outlined, color: SpyceColors.pinkSoft),
+                    title: const Text('Settings & Notifications', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                    trailing: const Icon(Icons.chevron_right, color: Colors.white54),
+                    onTap: () => context.push('/app/settings'),
                   ),
                   const SizedBox(height: 12),
                   OutlinedButton.icon(
@@ -2179,13 +2259,83 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                         context.go('/auth');
                       }
                     },
-                    icon: const Icon(Icons.logout, color: SpyceColors.pinkSoft),
+                    icon: const Icon(Icons.logout, color: Colors.white70),
                     label: const Text(
                       'Sign out',
-                      style: TextStyle(color: SpyceColors.pinkSoft, fontWeight: FontWeight.w600),
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
                     ),
                     style: OutlinedButton.styleFrom(
-                      side: BorderSide(color: SpyceColors.pink.withValues(alpha: 0.4)),
+                      side: const BorderSide(color: SpyceColors.dark600),
+                      minimumSize: const Size(double.infinity, 50),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      final confirmed = await showDialog<bool>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          backgroundColor: SpyceColors.dark900,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            side: const BorderSide(color: SpyceColors.pink),
+                          ),
+                          title: Row(
+                            children: const [
+                              Icon(Icons.warning_amber_rounded, color: SpyceColors.pink, size: 24),
+                              SizedBox(width: 8),
+                              Text('Delete Account?'),
+                            ],
+                          ),
+                          content: const Text(
+                            'Your profile, matches, and chats will be immediately deactivated and hidden.\n\n'
+                            'You have a 30-day grace period to restore your account by simply logging in again with your email.',
+                            style: TextStyle(color: SpyceColors.dark100, fontSize: 13, height: 1.4),
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx, false),
+                              child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+                            ),
+                            ElevatedButton(
+                              onPressed: () => Navigator.pop(ctx, true),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: SpyceColors.pink,
+                                foregroundColor: Colors.white,
+                              ),
+                              child: const Text('Delete Account'),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (confirmed == true) {
+                        try {
+                          await ref.read(authControllerProvider.notifier).deleteAccount();
+                          if (!mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Account scheduled for deletion. You can restore within 30 days by signing in.'),
+                              backgroundColor: SpyceColors.pink,
+                            ),
+                          );
+                          context.go('/auth');
+                        } catch (e) {
+                          if (!mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Error deleting account: $e')),
+                          );
+                          context.go('/auth');
+                        }
+                      }
+                    },
+                    icon: const Icon(Icons.delete_forever, color: SpyceColors.pink),
+                    label: const Text(
+                      'Delete Account',
+                      style: TextStyle(color: SpyceColors.pink, fontWeight: FontWeight.bold),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(color: SpyceColors.pink.withValues(alpha: 0.5)),
                       minimumSize: const Size(double.infinity, 50),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                     ),
@@ -2302,15 +2452,18 @@ class _ProfilePhotoSlot extends StatelessWidget {
                     ),
                   ),
                 ),
-                errorWidget: (_, _, _) => Container(
-                  color: SpyceColors.dark800,
-                  alignment: Alignment.center,
-                  child: const Icon(
-                    Icons.broken_image_outlined,
-                    color: Colors.white38,
-                    size: 22,
-                  ),
-                ),
+                errorWidget: (_, failedUrl, err) {
+                  debugPrint('🔴 [_ProfilePhotoSlot] Slot $index load failed! url=$failedUrl error=$err');
+                  return Container(
+                    color: SpyceColors.dark800,
+                    alignment: Alignment.center,
+                    child: const Icon(
+                      Icons.broken_image_outlined,
+                      color: Colors.white38,
+                      size: 22,
+                    ),
+                  );
+                },
               ),
               if (index == 0)
                 Positioned(
@@ -2497,17 +2650,40 @@ class _ToggleTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SwitchListTile(
-      contentPadding: EdgeInsets.zero,
-      dense: true,
-      title: Text(label, style: const TextStyle(fontSize: 14)),
-      subtitle: subtitle != null
-          ? Text(subtitle!,
-              style: const TextStyle(color: SpyceColors.dark200, fontSize: 11))
-          : null,
-      value: value,
-      activeThumbColor: SpyceColors.pink,
-      onChanged: onChanged,
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: const TextStyle(fontSize: 14)),
+                if (subtitle != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      subtitle!,
+                      style: const TextStyle(
+                        color: SpyceColors.dark200,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          Switch.adaptive(
+            value: value,
+            onChanged: onChanged,
+            activeThumbColor: SpyceColors.pink,
+            activeTrackColor: SpyceColors.pink.withValues(alpha: 0.45),
+            inactiveThumbColor: Colors.white70,
+            inactiveTrackColor: Colors.white24,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+        ],
+      ),
     );
   }
 }
@@ -2533,33 +2709,6 @@ class _ThemePickerSheetState extends State<_ThemePickerSheet> {
   bool loading = true;
   bool saving = false;
   String? error;
-
-  static const _tokenColors = <String, Color>{
-    'sunset': Color(0xFFFF6B35),
-    'ocean': Color(0xFF0077B6),
-    'midnight': Color(0xFF3D348B),
-    'pink': Color(0xFFFF1F6B),
-    'teal': Color(0xFF00D4AA),
-    'violet': Color(0xFFA855F7),
-    'gold': Color(0xFFF5B800),
-    'coral': Color(0xFFFF6FA3),
-    'ice': Color(0xFFA5F3FC),
-    'emerald': Color(0xFF10B981),
-    'rose': Color(0xFFFB7185),
-    'slate': Color(0xFF64748B),
-    'amber': Color(0xFFF59E0B),
-    'cyan': Color(0xFF06B6D4),
-    'magenta': Color(0xFFD946EF),
-    'lime': Color(0xFF84CC16),
-    'peach': Color(0xFFFDBA74),
-    'lavender': Color(0xFFC084FC),
-    'mint': Color(0xFF6EE7B7),
-    'spyce': Color(0xFFFF2E74),
-    'cool': Color(0xFF3B82F6),
-    'warm': Color(0xFFF97316),
-    'dark1': Color(0xFF1E1B4B),
-    'dark2': Color(0xFF312E81),
-  };
 
   @override
   void initState() {
@@ -2668,7 +2817,7 @@ class _ThemePickerSheetState extends State<_ThemePickerSheet> {
                 ? v.bgVariantId.split('-').last
                 : v.bgVariantId))
         .toLowerCase();
-    return _tokenColors[token] ?? SpyceColors.pink;
+    return SpyceColors.variantAccents[token] ?? SpyceColors.pink;
   }
 
   List<Widget> _buildVariantSection(ThemeBackgroundOption? bg) {
@@ -2805,7 +2954,7 @@ class _ThemePickerSheetState extends State<_ThemePickerSheet> {
                 padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
                 child: Text(
                   error!,
-                  style: const TextStyle(color: Color(0xFFFF6B81), fontSize: 12),
+                  style: const TextStyle(color: SpyceColors.error, fontSize: 12),
                 ),
               ),
             const SizedBox(height: 12),

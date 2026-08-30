@@ -3,11 +3,12 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../core/theme/onboarding_theme.dart';
+import '../../../core/utils/onboarding.dart';
 import '../../../data/models/user_models.dart';
 import '../../../shared/widgets/language_picker.dart';
 import '../../../shared/widgets/onboarding_widgets.dart';
 
-class IdentityStep extends StatefulWidget {
+class IdentityStep extends StatelessWidget {
   const IdentityStep({
     super.key,
     required this.usernameCtrl,
@@ -23,6 +24,7 @@ class IdentityStep extends StatefulWidget {
     required this.onGenderChanged,
     required this.onSexualityChanged,
     required this.onLanguagesChanged,
+    required this.onDobChanged,
   });
 
   final TextEditingController usernameCtrl;
@@ -38,351 +40,175 @@ class IdentityStep extends StatefulWidget {
   final ValueChanged<String> onGenderChanged;
   final ValueChanged<String> onSexualityChanged;
   final ValueChanged<Set<String>> onLanguagesChanged;
+  final VoidCallback onDobChanged;
 
-  @override
-  State<IdentityStep> createState() => _IdentityStepState();
-}
+  DateTime? get _dob => parseDob(dobCtrl.text);
 
-class _IdentityStepState extends State<IdentityStep> {
-  late final TextEditingController _dayCtrl;
-  late final TextEditingController _monthCtrl;
-  late final TextEditingController _yearCtrl;
-
-  @override
-  void initState() {
-    super.initState();
-    final parts = widget.dobCtrl.text.split('-');
-    if (parts.length == 3) {
-      _yearCtrl = TextEditingController(text: parts[0]);
-      _monthCtrl = TextEditingController(text: parts[1]);
-      _dayCtrl = TextEditingController(text: parts[2]);
-    } else {
-      _yearCtrl = TextEditingController();
-      _monthCtrl = TextEditingController();
-      _dayCtrl = TextEditingController();
-    }
-  }
-
-  @override
-  void dispose() {
-    _dayCtrl.dispose();
-    _monthCtrl.dispose();
-    _yearCtrl.dispose();
-    super.dispose();
-  }
-
-  void _syncDob() {
-    final y = _yearCtrl.text.trim().padLeft(4, '0');
-    final m = _monthCtrl.text.trim().padLeft(2, '0');
-    final d = _dayCtrl.text.trim().padLeft(2, '0');
-    if (_yearCtrl.text.length == 4 && _monthCtrl.text.isNotEmpty && _dayCtrl.text.isNotEmpty) {
-      widget.dobCtrl.text = '$y-$m-$d';
-    } else {
-      widget.dobCtrl.text = '';
-    }
-    setState(() {});
-  }
-
-  int? get _calculatedAge {
-    final raw = widget.dobCtrl.text.trim();
-    if (raw.isEmpty) return null;
-    final dt = DateTime.tryParse(raw);
+  int? get _age {
+    final dt = _dob;
     if (dt == null) return null;
+    return ageFromDob(dt);
+  }
+
+  Future<void> _pickDob(BuildContext context) async {
     final now = DateTime.now();
-    var age = now.year - dt.year;
-    if (now.month < dt.month || (now.month == dt.month && now.day < dt.day)) {
-      age--;
-    }
-    return age >= 0 ? age : null;
-  }
-
-  String? _findName(List<CatalogOption> options, String? id) {
-    if (id == null || id.isEmpty) return null;
-    for (final o in options) {
-      if (o.id == id) return o.name;
-    }
-    return id;
-  }
-
-  void _showOptionPicker(
-    String title,
-    List<CatalogOption> options,
-    String? currentId,
-    ValueChanged<String> onSelect,
-  ) {
-    showModalBottomSheet(
+    final last = DateTime(now.year - 18, now.month, now.day);
+    final first = DateTime(1940, 1, 1);
+    final initial = _dob ?? DateTime(now.year - 21, now.month, now.day);
+    final picked = await showDatePicker(
       context: context,
-      backgroundColor: OnboardingColors.surfaceCard,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) {
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                title,
-                textAlign: TextAlign.center,
-                style: GoogleFonts.syne(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Flexible(
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: options.length,
-                  itemBuilder: (_, i) {
-                    final opt = options[i];
-                    final isSelected = currentId == opt.id;
-                    return ListTile(
-                      title: Text(
-                        opt.name,
-                        style: GoogleFonts.dmSans(
-                          color: isSelected ? Colors.white : Colors.white70,
-                          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w400,
-                        ),
-                      ),
-                      trailing: isSelected
-                          ? const Icon(Icons.check, color: OnboardingColors.sectionRed)
-                          : null,
-                      onTap: () {
-                        onSelect(opt.id);
-                        Navigator.pop(ctx);
-                      },
-                    );
-                  },
-                ),
-              ),
-            ],
+      initialDate: initial.isAfter(last) ? last : initial,
+      firstDate: first,
+      lastDate: last,
+      helpText: 'When were you born?',
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.dark(
+              primary: OnboardingColors.accentRed,
+              onPrimary: Colors.white,
+              surface: OnboardingColors.bgDark,
+              onSurface: Colors.white,
+            ),
+            dialogTheme: const DialogThemeData(
+              backgroundColor: OnboardingColors.bgDark,
+            ),
           ),
+          child: child!,
         );
       },
     );
+    if (picked == null) return;
+    dobCtrl.text = formatDobDisplay(picked);
+    onDobChanged();
   }
 
   @override
   Widget build(BuildContext context) {
-    final age = _calculatedAge;
-    final selectedGenderName = _findName(widget.genderOpts, widget.gender);
-    final selectedSexualityName = _findName(widget.sexualityOpts, widget.sexuality);
+    final age = _age;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const OnboardingSectionTitle('YOUR IDENTITY'),
-        const SizedBox(height: 16),
+        const OnboardingFieldLabel('Username'),
+        OnboardingTextField(controller: usernameCtrl, hintText: 'e.g. alex'),
+        const SizedBox(height: 6),
+        const OnboardingHelperText("this is how you'll appear on your profile"),
 
-        // Create A Username
-        Center(
-          child: Text(
-            'Create A Username',
-            style: GoogleFonts.dmSans(
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              color: Colors.white,
-            ),
-          ),
-        ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 24),
+        const OnboardingFieldLabel('Birthday'),
         OnboardingTextField(
-          controller: widget.usernameCtrl,
-          hintText: 'e.g. Alex',
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 4),
-        const Center(
-          child: OnboardingHelperText('this is how you\'ll appear on your profile'),
-        ),
-
-        const SizedBox(height: 20),
-
-        // When were you born?
-        Center(
-          child: Text(
-            'When were you born?',
-            style: GoogleFonts.dmSans(
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              color: Colors.white,
+          controller: dobCtrl,
+          hintText: 'DD/MM/YYYY',
+          keyboardType: TextInputType.number,
+          inputFormatters: const [_DobSlashFormatter()],
+          onChanged: (_) => onDobChanged(),
+          suffixIcon: IconButton(
+            onPressed: () => _pickDob(context),
+            icon: Icon(
+              Icons.calendar_today_rounded,
+              size: 18,
+              color: Colors.white.withValues(alpha: 0.7),
             ),
           ),
         ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(
-              child: Column(
-                children: [
-                  Text(
-                    'DAY',
-                    style: GoogleFonts.syne(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white70,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  OnboardingTextField(
-                    controller: _dayCtrl,
-                    keyboardType: TextInputType.number,
-                    textAlign: TextAlign.center,
-                    maxLength: 2,
-                    hintText: '1',
-                    onChanged: (_) => _syncDob(),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                children: [
-                  Text(
-                    'MONTH',
-                    style: GoogleFonts.syne(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white70,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  OnboardingTextField(
-                    controller: _monthCtrl,
-                    keyboardType: TextInputType.number,
-                    textAlign: TextAlign.center,
-                    maxLength: 2,
-                    hintText: '1',
-                    onChanged: (_) => _syncDob(),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                children: [
-                  Text(
-                    'YEAR',
-                    style: GoogleFonts.syne(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white70,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  OnboardingTextField(
-                    controller: _yearCtrl,
-                    keyboardType: TextInputType.number,
-                    textAlign: TextAlign.center,
-                    maxLength: 4,
-                    hintText: '2004',
-                    onChanged: (_) => _syncDob(),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        if (age != null) ...[
-          const SizedBox(height: 4),
-          Center(
-            child: OnboardingHelperText('$age years old'),
-          ),
-        ],
-
-        const SizedBox(height: 20),
-
-        // GENDER & SEXUALITY Dropdowns
-        Row(
-          children: [
-            Expanded(
-              child: Column(
-                children: [
-                  Text(
-                    'GENDER',
-                    style: GoogleFonts.syne(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white70,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  OnboardingDropdownField(
-                    label: 'Select Gender',
-                    value: selectedGenderName,
-                    onTap: () {
-                      if (!widget.genderLocked) {
-                        _showOptionPicker(
-                          'Select Gender',
-                          widget.genderOpts,
-                          widget.gender,
-                          widget.onGenderChanged,
-                        );
-                      }
-                    },
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                children: [
-                  Text(
-                    'SEXUALITY',
-                    style: GoogleFonts.syne(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white70,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  OnboardingDropdownField(
-                    label: 'Select Sexuality',
-                    value: selectedSexualityName,
-                    onTap: () {
-                      if (!widget.sexualityLocked) {
-                        _showOptionPicker(
-                          'Select Sexuality',
-                          widget.sexualityOpts,
-                          widget.sexuality,
-                          widget.onSexualityChanged,
-                        );
-                      }
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ],
+        const SizedBox(height: 6),
+        OnboardingHelperText(
+          age == null
+              ? 'Type DD/MM/YYYY or tap the calendar'
+              : age < 18
+                  ? 'You must be 18+ to join SPYCE'
+                  : '$age years old',
         ),
 
-        const SizedBox(height: 20),
-
-        // Languages that you speak
-        Center(
-          child: Text(
-            'Languages that you speak',
-            style: GoogleFonts.dmSans(
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              color: Colors.white,
-            ),
-          ),
+        const SizedBox(height: 24),
+        const OnboardingFieldLabel('Gender'),
+        _ChipWrap(
+          options: genderOpts,
+          selectedId: gender,
+          locked: genderLocked,
+          onSelect: onGenderChanged,
         ),
-        const SizedBox(height: 8),
+
+        const SizedBox(height: 24),
+        const OnboardingFieldLabel('Sexuality'),
+        _ChipWrap(
+          options: sexualityOpts,
+          selectedId: sexuality,
+          locked: sexualityLocked,
+          onSelect: onSexualityChanged,
+        ),
+
+        const SizedBox(height: 24),
+        const OnboardingFieldLabel('Languages you speak'),
         LanguagePicker(
-          options: widget.languageOpts,
-          selectedIds: widget.selectedLanguageIds,
-          onChanged: widget.onLanguagesChanged,
+          options: languageOpts,
+          selectedIds: selectedLanguageIds,
+          onChanged: onLanguagesChanged,
         ),
       ],
+    );
+  }
+}
+
+class _DobSlashFormatter extends TextInputFormatter {
+  const _DobSlashFormatter();
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    var digits = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.length > 8) digits = digits.substring(0, 8);
+    final buf = StringBuffer();
+    for (var i = 0; i < digits.length; i++) {
+      if (i == 2 || i == 4) buf.write('/');
+      buf.write(digits[i]);
+    }
+    final text = buf.toString();
+    return TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    );
+  }
+}
+
+class _ChipWrap extends StatelessWidget {
+  const _ChipWrap({
+    required this.options,
+    required this.selectedId,
+    required this.locked,
+    required this.onSelect,
+  });
+
+  final List<CatalogOption> options;
+  final String? selectedId;
+  final bool locked;
+  final ValueChanged<String> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    if (options.isEmpty) {
+      return Text(
+        'Options unavailable — reconnect and retry.',
+        style: GoogleFonts.dmSans(
+          color: OnboardingColors.textMuted,
+          fontSize: 13,
+        ),
+      );
+    }
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: options.map((o) {
+        return OnboardingChoiceChip(
+          label: o.name,
+          selected: selectedId == o.id,
+          locked: locked,
+          onTap: () => onSelect(o.id),
+        );
+      }).toList(),
     );
   }
 }

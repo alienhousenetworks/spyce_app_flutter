@@ -52,7 +52,7 @@ class CallOverlay extends ConsumerWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.call_end, size: 56, color: Colors.redAccent),
+                  const Icon(Icons.call_end, size: 56, color: SpyceColors.error),
                   const SizedBox(height: 16),
                   Text(
                     'Call failed',
@@ -109,7 +109,7 @@ class CallOverlay extends ConsumerWidget {
                   child: Text(
                     call.error!,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(color: Colors.orangeAccent, fontSize: 13),
+                    style: const TextStyle(color: SpyceColors.warning, fontSize: 13),
                   ),
                 ),
               ],
@@ -370,7 +370,7 @@ class CallOverlay extends ConsumerWidget {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: const [
-                          Icon(Icons.shield_outlined, color: Colors.redAccent, size: 18),
+                          Icon(Icons.shield_outlined, color: SpyceColors.error, size: 18),
                           SizedBox(width: 6),
                           Text(
                             'Report / Block',
@@ -462,7 +462,7 @@ class CallOverlay extends ConsumerWidget {
               children: [
                 Row(
                   children: const [
-                    Icon(Icons.shield, color: Colors.redAccent, size: 24),
+                    Icon(Icons.shield, color: SpyceColors.error, size: 24),
                     SizedBox(width: 10),
                     Text(
                       'Call Safety & Moderation',
@@ -535,7 +535,7 @@ class CallOverlay extends ConsumerWidget {
   ) {
     return ListTile(
       contentPadding: EdgeInsets.zero,
-      leading: const Icon(Icons.block, color: Colors.redAccent, size: 20),
+      leading: const Icon(Icons.block, color: SpyceColors.error, size: 20),
       title: Text(
         label,
         style: const TextStyle(color: Colors.white, fontSize: 14),

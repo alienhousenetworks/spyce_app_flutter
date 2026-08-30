@@ -100,7 +100,7 @@ class _LanguagePickerState extends State<LanguagePicker> {
     if (widget.options.isEmpty) {
       return const Text(
         'Language options unavailable — reconnect and retry.',
-        style: TextStyle(color: Color(0xFFFF6B81), fontSize: 13),
+        style: TextStyle(color: SpyceColors.error, fontSize: 13),
       );
     }
 

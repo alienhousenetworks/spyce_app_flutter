@@ -11,9 +11,7 @@ import '../../data/repositories/api_repositories.dart';
 import '../auth/auth_controller.dart';
 import '../call/call_controller.dart';
 
-
-/// Bottom nav order:
-/// Discover → Confessions → Chat → Paper plane → Profile
+/// Bottom nav: Discover · Confessions · Chat · Profile
 class AppShell extends ConsumerStatefulWidget {
   const AppShell({super.key, required this.navigationShell});
 
@@ -32,7 +30,9 @@ class _AppShellState extends ConsumerState<AppShell> {
       // Mark this device online while SPYCE is open (periodic + lifecycle)
       ref.read(presenceServiceProvider).start();
       // Enforce location permission & GPS on first open — user cannot proceed without it
-      final locOk = await ref.read(locationBootstrapProvider).ensureOnFirstOpen();
+      final locOk = await ref
+          .read(locationBootstrapProvider)
+          .ensureOnFirstOpen();
       if (!locOk && mounted) {
         _showLocationBlockingDialog();
       }
@@ -48,36 +48,48 @@ class _AppShellState extends ConsumerState<AppShell> {
       builder: (ctx) => WillPopScope(
         onWillPop: () async => false,
         child: AlertDialog(
-          backgroundColor: const Color(0xFF16161C),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          backgroundColor: SpyceColors.dark800,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
           title: const Row(
             children: [
-              Icon(Icons.location_off_rounded, color: Color(0xFFFF6B81), size: 28),
+              Icon(
+                Icons.location_off_rounded,
+                color: SpyceColors.pink,
+                size: 28,
+              ),
               SizedBox(width: 10),
-              Text(
-                'Location Required',
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              Expanded(
+                child: Text(
+                  'Location required',
+                  style: TextStyle(
+                    color: SpyceColors.white,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ),
             ],
           ),
           content: const Text(
-            'SPYCE requires your device location to connect you with nearby matches and paper planes.\n\nYou must enable Location Services and allow location permission to use the app.',
-            style: TextStyle(color: Colors.white70, height: 1.45),
+            'SPYCE uses your location to show nearby people and paper planes.\n\nTurn on Location Services and allow access to continue.',
+            style: TextStyle(color: SpyceColors.textSecondary, height: 1.45),
           ),
           actions: [
-            ElevatedButton(
-              onPressed: () async {
-                Navigator.of(ctx).pop();
-                final ok = await ref.read(locationBootstrapProvider).detectAndSave(force: true);
-                if (!ok && mounted) {
-                  _showLocationBlockingDialog();
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFFF6B81),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () async {
+                  Navigator.of(ctx).pop();
+                  final ok = await ref
+                      .read(locationBootstrapProvider)
+                      .detectAndSave(force: true);
+                  if (!ok && mounted) {
+                    _showLocationBlockingDialog();
+                  }
+                },
+                child: const Text('Enable & retry'),
               ),
-              child: const Text('Enable & Retry', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             ),
           ],
         ),
@@ -110,7 +122,6 @@ class _AppShellState extends ConsumerState<AppShell> {
     }
   }
 
-
   void _onTap(int index) {
     widget.navigationShell.goBranch(
       index,
@@ -139,40 +150,43 @@ class _AppShellState extends ConsumerState<AppShell> {
           ),
         ),
         child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _NavItem(
-                  icon: Icons.explore_outlined,
-                  activeIcon: Icons.explore,
-                  label: 'Discover',
-                  selected: i == 0,
-                  onTap: () => _onTap(0),
-                ),
-                _NavItem(
-                  icon: Icons.nightlight_outlined,
-                  activeIcon: Icons.nightlight,
-                  label: 'Confess',
-                  selected: i == 1,
-                  onTap: () => _onTap(1),
-                ),
-                _NavItem(
-                  icon: Icons.chat_bubble_outline,
-                  activeIcon: Icons.chat_bubble,
-                  label: 'Chat',
-                  selected: i == 2,
-                  onTap: () => _onTap(2),
-                ),
-                _NavItem(
-                  icon: Icons.person_outline,
-                  activeIcon: Icons.person,
-                  label: 'Profile',
-                  selected: i == 3,
-                  onTap: () => _onTap(3),
-                ),
-              ],
+          child: SizedBox(
+            height: 58,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _NavItem(
+                    icon: Icons.explore_outlined,
+                    activeIcon: Icons.explore,
+                    label: 'Discover',
+                    selected: i == 0,
+                    onTap: () => _onTap(0),
+                  ),
+                  _NavItem(
+                    icon: Icons.nightlight_outlined,
+                    activeIcon: Icons.nightlight,
+                    label: 'Confess',
+                    selected: i == 1,
+                    onTap: () => _onTap(1),
+                  ),
+                  _NavItem(
+                    icon: Icons.chat_bubble_outline,
+                    activeIcon: Icons.chat_bubble,
+                    label: 'Chat',
+                    selected: i == 2,
+                    onTap: () => _onTap(2),
+                  ),
+                  _NavItem(
+                    icon: Icons.person_outline,
+                    activeIcon: Icons.person,
+                    label: 'Profile',
+                    selected: i == 3,
+                    onTap: () => _onTap(3),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -203,19 +217,24 @@ class _NavItem extends StatelessWidget {
     final color = selected ? SpyceColors.pink : SpyceColors.dark200;
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      borderRadius: BorderRadius.circular(16),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        decoration: BoxDecoration(
+          color: selected ? SpyceColors.pinkDim : Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(selected ? activeIcon : icon, color: color, size: 22),
-            const SizedBox(height: 3),
+            Icon(selected ? activeIcon : icon, color: color, size: 24),
+            const SizedBox(height: 4),
             Text(
               label,
               style: TextStyle(
                 color: color,
-                fontSize: 9.5,
+                fontSize: 11,
                 fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
               ),
             ),

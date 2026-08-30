@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/theme/onboarding_theme.dart';
+import '../../core/theme/spyce_colors.dart';
 
-/// Organic wave painter rendering the target Figma background (burnt orange & navy waves).
+/// Organic wave painter — charcoal + ember atmosphere matching the flame.
 class OnboardingWaveBackground extends StatelessWidget {
   const OnboardingWaveBackground({super.key, required this.child});
 
@@ -14,13 +16,9 @@ class OnboardingWaveBackground extends StatelessWidget {
     return Stack(
       fit: StackFit.expand,
       children: [
-        // Base dark navy fill
         const ColoredBox(color: OnboardingColors.bgDark),
         // Organic wave custom paint
-        CustomPaint(
-          size: Size.infinite,
-          painter: _WaveBackgroundPainter(),
-        ),
+        CustomPaint(size: Size.infinite, painter: _WaveBackgroundPainter()),
         // Dark vignette overlay for content readability
         Container(
           decoration: BoxDecoration(
@@ -35,7 +33,7 @@ class OnboardingWaveBackground extends StatelessWidget {
             ),
           ),
         ),
-        child,
+        Positioned.fill(child: child),
       ],
     );
   }
@@ -47,8 +45,7 @@ class _WaveBackgroundPainter extends CustomPainter {
     final w = size.width;
     final h = size.height;
 
-    // Dark teal wave layer
-    final tealPaint = Paint()
+    final blushPaint = Paint()
       ..color = OnboardingColors.bgWaveTeal
       ..style = PaintingStyle.fill;
 
@@ -58,10 +55,9 @@ class _WaveBackgroundPainter extends CustomPainter {
       ..lineTo(w, h * 0.7)
       ..cubicTo(w * 0.5, h * 0.85, w * 0.2, h * 0.6, 0, h * 0.75)
       ..close();
-    canvas.drawPath(tealPath, tealPaint);
+    canvas.drawPath(tealPath, blushPaint);
 
-    // Burnt Orange right-side wave layer (Figma signature shape)
-    final orangePaint = Paint()
+    final winePaint = Paint()
       ..color = OnboardingColors.bgWaveOrange
       ..style = PaintingStyle.fill;
 
@@ -71,10 +67,9 @@ class _WaveBackgroundPainter extends CustomPainter {
       ..cubicTo(w * 0.95, h * 0.82, w * 0.75, h * 0.92, w, h * 0.88)
       ..lineTo(w, h * 0.25)
       ..close();
-    canvas.drawPath(orangePath, orangePaint);
+    canvas.drawPath(orangePath, winePaint);
 
-    // Burnt Orange bottom-left wave accent
-    final orangeLeftPaint = Paint()
+    final wineLeftPaint = Paint()
       ..color = OnboardingColors.bgWaveOrangeDark.withValues(alpha: 0.85)
       ..style = PaintingStyle.fill;
 
@@ -82,7 +77,7 @@ class _WaveBackgroundPainter extends CustomPainter {
       ..moveTo(0, h * 0.65)
       ..cubicTo(w * 0.4, h * 0.6, w * 0.45, h * 0.85, 0, h * 0.95)
       ..close();
-    canvas.drawPath(orangeLeftPath, orangeLeftPaint);
+    canvas.drawPath(orangeLeftPath, wineLeftPaint);
   }
 
   @override
@@ -107,10 +102,7 @@ class OnboardingGlassCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: OnboardingColors.surfaceCard,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: OnboardingColors.cardBorder,
-          width: 1.2,
-        ),
+        border: Border.all(color: OnboardingColors.cardBorder, width: 1.2),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.45),
@@ -139,42 +131,299 @@ class OnboardingProgressHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    return Row(
       children: [
-        Row(
-          children: [
-            if (onBack != null)
-              IconButton(
-                onPressed: onBack,
-                icon: const Icon(Icons.arrow_back, color: Colors.white, size: 22),
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-              )
-            else
-              const SizedBox(width: 22),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Row(
-                children: List.generate(totalSteps, (i) {
-                  final active = i < step;
-                  return Expanded(
-                    child: Container(
-                      height: 5,
-                      margin: EdgeInsets.only(right: i == totalSteps - 1 ? 0 : 6),
-                      decoration: BoxDecoration(
-                        color: active
-                            ? Colors.white.withValues(alpha: 0.9)
-                            : Colors.white.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    ),
-                  );
-                }),
-              ),
-            ),
-          ],
+        SizedBox(
+          width: 40,
+          height: 40,
+          child: onBack != null
+              ? IconButton(
+                  onPressed: onBack,
+                  icon: const Icon(
+                    Icons.arrow_back_ios_new_rounded,
+                    color: Colors.white,
+                    size: 18,
+                  ),
+                  padding: EdgeInsets.zero,
+                )
+              : const SizedBox.shrink(),
+        ),
+        const SizedBox(width: 4),
+        Expanded(
+          child: Row(
+            children: List.generate(totalSteps, (i) {
+              final filled = i < step;
+              return Expanded(
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 220),
+                  height: 4,
+                  margin: EdgeInsets.only(right: i == totalSteps - 1 ? 0 : 6),
+                  decoration: BoxDecoration(
+                    color: filled
+                        ? SpyceColors.pink
+                        : Colors.white.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                ),
+              );
+            }),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Text(
+          '$step/$totalSteps',
+          style: GoogleFonts.dmSans(
+            color: Colors.white.withValues(alpha: 0.55),
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ],
+    );
+  }
+}
+
+/// Full-screen onboarding chrome: wave background, progress, large title,
+/// scrollable body, and a pinned bottom CTA. Keyboard-aware.
+class OnboardingScaffold extends StatelessWidget {
+  const OnboardingScaffold({
+    super.key,
+    required this.body,
+    this.step,
+    this.totalSteps = 5,
+    this.onBack,
+    this.title,
+    this.subtitle,
+    this.primaryLabel,
+    this.onPrimary,
+    this.primaryLoading = false,
+    this.secondaryLabel,
+    this.onSecondary,
+    this.error,
+    this.footer,
+    this.showProgress = false,
+    this.bodyPadding = const EdgeInsets.fromLTRB(24, 8, 24, 12),
+  });
+
+  final Widget body;
+  final int? step;
+  final int totalSteps;
+  final VoidCallback? onBack;
+  final String? title;
+  final String? subtitle;
+  final String? primaryLabel;
+  final VoidCallback? onPrimary;
+  final bool primaryLoading;
+  final String? secondaryLabel;
+  final VoidCallback? onSecondary;
+  final String? error;
+  final Widget? footer;
+  final bool showProgress;
+  final EdgeInsetsGeometry bodyPadding;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      resizeToAvoidBottomInset: true,
+      backgroundColor: OnboardingColors.bgDark,
+      body: OnboardingWaveBackground(
+        child: SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(8, 4, 20, 0),
+                child: showProgress && step != null
+                    ? OnboardingProgressHeader(
+                        step: step!,
+                        totalSteps: totalSteps,
+                        onBack: onBack,
+                      )
+                    : Row(
+                        children: [
+                          if (onBack != null)
+                            IconButton(
+                              onPressed: onBack,
+                              icon: const Icon(
+                                Icons.arrow_back_ios_new_rounded,
+                                color: Colors.white,
+                                size: 18,
+                              ),
+                            )
+                          else
+                            const SizedBox(height: 40),
+                        ],
+                      ),
+              ),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: bodyPadding,
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (title != null) ...[
+                        Text(
+                          title!,
+                          style: GoogleFonts.syne(
+                            fontSize: 28,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                            height: 1.15,
+                            letterSpacing: -0.4,
+                          ),
+                        ),
+                        if (subtitle != null) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            subtitle!,
+                            style: GoogleFonts.dmSans(
+                              fontSize: 15,
+                              height: 1.4,
+                              color: OnboardingColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 28),
+                      ],
+                      body,
+                    ],
+                  ),
+                ),
+              ),
+              if (error != null && error!.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+                  child: Text(
+                    error!,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.dmSans(
+                      color: SpyceColors.error,
+                      fontSize: 13,
+                      height: 1.35,
+                    ),
+                  ),
+                ),
+              if (primaryLabel != null || footer != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+                  child:
+                      footer ??
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          OnboardingPrimaryButton(
+                            label: primaryLabel!,
+                            onPressed: onPrimary,
+                            loading: primaryLoading,
+                          ),
+                          if (secondaryLabel != null) ...[
+                            const SizedBox(height: 4),
+                            TextButton(
+                              onPressed: onSecondary,
+                              child: Text(
+                                secondaryLabel!,
+                                style: GoogleFonts.dmSans(
+                                  color: OnboardingColors.textSecondary,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Small uppercase / emphasis label above a field.
+class OnboardingFieldLabel extends StatelessWidget {
+  const OnboardingFieldLabel(this.text, {super.key});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Text(
+        text,
+        style: GoogleFonts.dmSans(
+          fontSize: 13,
+          fontWeight: FontWeight.w700,
+          color: Colors.white,
+          letterSpacing: 0.1,
+        ),
+      ),
+    );
+  }
+}
+
+/// Selectable pill used for gender, sexuality, intent, match prefs.
+class OnboardingChoiceChip extends StatelessWidget {
+  const OnboardingChoiceChip({
+    super.key,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    this.locked = false,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback? onTap;
+  final bool locked;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: locked ? null : onTap,
+        borderRadius: BorderRadius.circular(22),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(22),
+            color: selected
+                ? SpyceColors.pink.withValues(alpha: 0.22)
+                : OnboardingColors.inputFill.withValues(alpha: 0.85),
+            border: Border.all(
+              color: selected ? SpyceColors.pink : OnboardingColors.inputBorder,
+              width: selected ? 1.4 : 1,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: GoogleFonts.dmSans(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                ),
+              ),
+              if (locked) ...[
+                const SizedBox(width: 6),
+                Icon(
+                  Icons.lock_rounded,
+                  size: 13,
+                  color: Colors.white.withValues(alpha: 0.55),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -209,27 +458,26 @@ class OnboardingHelperText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const Text(
-          '✦ ',
-          style: TextStyle(
-            color: OnboardingColors.textSecondary,
-            fontSize: 11,
+    return Text.rich(
+      TextSpan(
+        children: [
+          const TextSpan(
+            text: '✦  ',
+            style: TextStyle(
+              color: OnboardingColors.textSecondary,
+              fontSize: 11,
+            ),
           ),
-        ),
-        Flexible(
-          child: Text(
-            text,
+          TextSpan(
+            text: text,
             style: GoogleFonts.dmSans(
               color: OnboardingColors.textSecondary,
               fontSize: 12,
               height: 1.3,
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -251,6 +499,7 @@ class OnboardingTextField extends StatelessWidget {
     this.obscureText = false,
     this.suffixIcon,
     this.onTap,
+    this.inputFormatters,
   });
 
   final TextEditingController controller;
@@ -266,6 +515,7 @@ class OnboardingTextField extends StatelessWidget {
   final bool obscureText;
   final Widget? suffixIcon;
   final VoidCallback? onTap;
+  final List<TextInputFormatter>? inputFormatters;
 
   @override
   Widget build(BuildContext context) {
@@ -280,6 +530,7 @@ class OnboardingTextField extends StatelessWidget {
       readOnly: readOnly,
       onTap: onTap,
       onChanged: onChanged,
+      inputFormatters: inputFormatters,
       style: GoogleFonts.dmSans(
         color: OnboardingColors.textPrimary,
         fontSize: 15,
@@ -294,7 +545,10 @@ class OnboardingTextField extends StatelessWidget {
         suffixIcon: suffixIcon,
         filled: true,
         fillColor: OnboardingColors.inputFill,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
           borderSide: const BorderSide(color: OnboardingColors.inputBorder),
@@ -305,7 +559,7 @@ class OnboardingTextField extends StatelessWidget {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: Colors.white, width: 1.5),
+          borderSide: const BorderSide(color: SpyceColors.pink, width: 1.5),
         ),
         counterText: '',
       ),
@@ -368,46 +622,34 @@ class OnboardingDropdownField extends StatelessWidget {
   }
 }
 
-/// Primary button control (Dark teal or Red CTA for Face Verification).
+/// Primary CTA — always brand flame (matches the fire loader).
 class OnboardingPrimaryButton extends StatelessWidget {
   const OnboardingPrimaryButton({
     super.key,
     required this.label,
     required this.onPressed,
     this.loading = false,
-    this.isRedAccent = false,
   });
 
   final String label;
   final VoidCallback? onPressed;
   final bool loading;
-  final bool isRedAccent;
 
   @override
   Widget build(BuildContext context) {
-    final bgColor = isRedAccent
-        ? OnboardingColors.accentRed
-        : OnboardingColors.inputFill;
-
     return SizedBox(
       width: double.infinity,
-      height: 52,
+      height: 56,
       child: ElevatedButton(
         onPressed: loading ? null : onPressed,
         style: ElevatedButton.styleFrom(
-          backgroundColor: bgColor,
+          backgroundColor: SpyceColors.pink,
           disabledBackgroundColor: OnboardingColors.buttonDisabled,
-          foregroundColor: Colors.white,
+          foregroundColor: SpyceColors.white,
           elevation: 0,
+          shadowColor: SpyceColors.pink.withValues(alpha: 0.45),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
-            side: BorderSide(
-              color: onPressed != null
-                  ? (isRedAccent
-                      ? OnboardingColors.accentRed
-                      : OnboardingColors.inputBorder)
-                  : Colors.transparent,
-            ),
           ),
         ),
         child: loading

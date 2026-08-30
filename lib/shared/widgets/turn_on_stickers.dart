@@ -29,7 +29,7 @@ class TurnOnStickerCard extends StatelessWidget {
     final card = AnimatedContainer(
       duration: const Duration(milliseconds: 160),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8F1E3),
+        color: SpyceColors.paper,
         borderRadius: BorderRadius.circular(radius),
         border: Border.all(
           color: selected

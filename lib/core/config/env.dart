@@ -3,7 +3,7 @@ class Env {
   Env._();
 
   static const String appName = 'SPYCE';
-  static const String appVersion = '1.0.3';
+  static const String appVersion = '1.0.6';
 
   /// Production test API (same host as web client).
   static const String apiBaseUrl = String.fromEnvironment(

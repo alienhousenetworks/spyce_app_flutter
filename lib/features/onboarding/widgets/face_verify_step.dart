@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../core/theme/onboarding_theme.dart';
-import '../../../shared/widgets/onboarding_widgets.dart';
 
 class FaceVerifyStep extends StatelessWidget {
   const FaceVerifyStep({
@@ -20,70 +19,66 @@ class FaceVerifyStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        const OnboardingSectionTitle('FACE VERIFICATION'),
-        const SizedBox(height: 16),
-
-        Text(
-          'Live face check',
-          textAlign: TextAlign.center,
-          style: GoogleFonts.syne(
-            fontSize: 18,
-            fontWeight: FontWeight.w700,
-            color: Colors.white,
-          ),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          'It helps SPYCE be a genuine & respectful space for everyone.',
-          textAlign: TextAlign.center,
-          style: GoogleFonts.dmSans(
-            color: OnboardingColors.textSecondary,
-            fontSize: 12,
-            height: 1.35,
-          ),
-        ),
-
-        const SizedBox(height: 32),
-
-        // Face Verification Target Box (Corner brackets + Dashed Red Circle with Smile Face)
-        SizedBox(
-          width: 170,
-          height: 170,
-          child: CustomPaint(
-            painter: _CornerBracketsPainter(color: Colors.white.withValues(alpha: 0.8)),
-            child: Center(
-              child: CustomPaint(
-                painter: _DashedCirclePainter(color: OnboardingColors.sectionRed),
-                child: Container(
-                  width: 100,
-                  height: 100,
-                  alignment: Alignment.center,
-                  child: const Icon(
-                    Icons.sentiment_satisfied_alt_outlined,
-                    size: 52,
+    return SizedBox(
+      width: double.infinity,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          const SizedBox(height: 12),
+          SizedBox(
+            width: 200,
+            height: 200,
+            child: CustomPaint(
+              painter: _CornerBracketsPainter(
+                color: Colors.white.withValues(alpha: 0.8),
+              ),
+              child: Center(
+                child: CustomPaint(
+                  painter: _DashedCirclePainter(
                     color: OnboardingColors.sectionRed,
+                  ),
+                  child: Container(
+                    width: 112,
+                    height: 112,
+                    alignment: Alignment.center,
+                    child: verifying
+                        ? const SizedBox(
+                            width: 36,
+                            height: 36,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.4,
+                              color: OnboardingColors.sectionRed,
+                            ),
+                          )
+                        : Icon(
+                            verified
+                                ? Icons.verified_rounded
+                                : Icons.sentiment_satisfied_alt_outlined,
+                            size: 52,
+                            color: verified
+                                ? OnboardingColors.successGreen
+                                : OnboardingColors.sectionRed,
+                          ),
                   ),
                 ),
               ),
             ),
           ),
-        ),
 
-        const SizedBox(height: 32),
-
-        Text(
-          'Hold your face in frame. We use a short liveness check so profiles stay real',
-          textAlign: TextAlign.center,
-          style: GoogleFonts.dmSans(
-            color: OnboardingColors.textSecondary,
-            fontSize: 12,
-            height: 1.35,
+          const SizedBox(height: 28),
+          Text(
+            realMode
+                ? 'Hold your face in frame. We run a short liveness check so profiles stay real.'
+                : 'Hold your face in frame. We use a short check so profiles stay real.',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.dmSans(
+              color: OnboardingColors.textSecondary,
+              fontSize: 14,
+              height: 1.4,
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -112,7 +107,11 @@ class _CornerBracketsPainter extends CustomPainter {
 
     // Bottom-Left
     canvas.drawLine(Offset(0, size.height), Offset(len, size.height), paint);
-    canvas.drawLine(Offset(0, size.height), Offset(0, size.height - len), paint);
+    canvas.drawLine(
+      Offset(0, size.height),
+      Offset(0, size.height - len),
+      paint,
+    );
 
     // Bottom-Right
     canvas.drawLine(
@@ -128,7 +127,8 @@ class _CornerBracketsPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _CornerBracketsPainter old) => old.color != color;
+  bool shouldRepaint(covariant _CornerBracketsPainter old) =>
+      old.color != color;
 }
 
 class _DashedCirclePainter extends CustomPainter {
@@ -142,7 +142,7 @@ class _DashedCirclePainter extends CustomPainter {
       ..strokeWidth = 2.0
       ..style = PaintingStyle.stroke;
 
-    const radius = 54.0;
+    const radius = 64.0;
     final center = Offset(size.width / 2, size.height / 2);
 
     const dashWidth = 6.0;

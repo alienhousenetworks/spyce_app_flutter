@@ -4,6 +4,8 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../theme/spyce_colors.dart';
+
 /// Offline / flaky network banner (production offline UX baseline).
 class ConnectivityBannerHost extends StatefulWidget {
   const ConnectivityBannerHost({super.key, required this.child});
@@ -47,7 +49,7 @@ class _ConnectivityBannerHostState extends State<ConnectivityBannerHost> {
       children: [
         if (_offline)
           Material(
-            color: const Color(0xFF7F1D1D),
+            color: SpyceColors.errorDeep,
             child: SafeArea(
               bottom: false,
               child: Padding(
@@ -56,13 +58,13 @@ class _ConnectivityBannerHostState extends State<ConnectivityBannerHost> {
                 child: Row(
                   children: [
                     const Icon(Icons.wifi_off_rounded,
-                        color: Colors.white, size: 18),
+                        color: SpyceColors.white, size: 18),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
                         'You’re offline — some features need a connection.',
                         style: GoogleFonts.dmSans(
-                          color: Colors.white,
+                          color: SpyceColors.white,
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
                         ),

@@ -1,7 +1,7 @@
 name: spyce
 description: SPYCE — Intent-First Dating. Premium Flutter client.
 publish_to: 'none'
-version: 1.0.3+4
+version: 1.0.6+7
 
 environment:
   sdk: ^3.11.1
@@ -31,6 +31,8 @@ dependencies:
   flutter_webrtc: ^1.5.2
   permission_handler: ^12.0.3
   image_picker: ^1.2.3
+  flutter_image_compress: ^2.4.0
+  path_provider: ^2.1.5
   geolocator: ^14.0.2
   url_launcher: ^6.3.2
   sensors_plus: ^6.1.1
@@ -61,14 +63,15 @@ flutter:
   uses-material-design: true
   assets:
     - assets/backgrounds/
-    - assets/images/
+    - assets/images/spyce_logo.jpg
+    - assets/animations/flame/
 
 # App icon + adaptive icons from neon Spyce wordmark (square master)
 flutter_launcher_icons:
   android: true
   ios: true
   image_path: assets/images/spyce_icon_1024.png
-  adaptive_icon_background: "#1A1410"
+  adaptive_icon_background: "#1A100A"
   adaptive_icon_foreground: assets/images/spyce_icon_1024.png
   remove_alpha_ios: true
   min_sdk_android: 21
