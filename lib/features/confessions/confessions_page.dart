@@ -657,38 +657,27 @@ class _ConfessionsPageState extends ConsumerState<ConfessionsPage> {
         children: [
           Column(
             children: [
-              SafeArea(
-                bottom: false,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 8, 4),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              'Confessions',
-                              style: GoogleFonts.syne(
-                                fontSize: 24,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ),
-                          IconButton(
-                            onPressed: _load,
-                            icon: const Icon(Icons.refresh),
-                          ),
-                        ],
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SpycePageHeader(
+                    title: 'Confessions',
+                    actions: [
+                      SpyceHeaderButton(
+                        icon: Icons.refresh_rounded,
+                        tooltip: 'Refresh',
+                        onPressed: _load,
                       ),
-                      _FeedMineToggle(
-                        showMine: showMine,
-                        onChanged: (mine) => setState(() => showMine = mine),
-                      ),
-                      const SizedBox(height: 4),
                     ],
                   ),
-                ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+                    child: _FeedMineToggle(
+                      showMine: showMine,
+                      onChanged: (mine) => setState(() => showMine = mine),
+                    ),
+                  ),
+                ],
               ),
 
               // Entry card into "My confessions"

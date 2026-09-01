@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/bootstrap/app_preload.dart';
+import '../../core/notifications/push_payload.dart';
+import '../../core/notifications/push_router.dart';
 import '../../core/theme/spyce_colors.dart';
 import '../../data/models/user_models.dart';
 import '../../data/repositories/api_repositories.dart';
@@ -52,6 +54,23 @@ class _SplashPageState extends ConsumerState<SplashPage> {
       ]);
     } catch (_) {}
     if (!mounted) return;
+    final pending = PendingPush.payload;
+    if (pending != null) {
+      await consumePendingPush(ref);
+      if (!mounted) return;
+      if (pending.isIncomingCall) {
+        context.go('/app/chat');
+        return;
+      }
+      context.go(
+        pending.navigationPath,
+        extra: {
+          'title': pending.peerName,
+          'peerUserId': pending.peerUserId,
+        },
+      );
+      return;
+    }
     context.go('/app/discover');
   }
 

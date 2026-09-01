@@ -38,6 +38,13 @@
 	<string>SPYCE may save photos to your library when you take a profile picture.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>SPYCE needs microphone access for voice and video calls.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+		<string>audio</string>
+		<string>voip</string>
+		<string>fetch</string>
+	</array>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>

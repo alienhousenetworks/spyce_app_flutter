@@ -335,6 +335,32 @@ class AuthRepository {
     final data = await _api.post<dynamic>('/users/accept-ugc-eula/');
     return _asMap(data);
   }
+
+  Future<Map<String, dynamic>> getDpdpConsent() async {
+    final data = await _api.get<dynamic>('/users/dpdp-consent/');
+    return _asMap(data);
+  }
+
+  Future<Map<String, dynamic>> submitDpdpConsent({
+    required bool matchmaking,
+    required bool location,
+    required bool sensitive,
+    bool marketing = false,
+    String version = Env.dpdpConsentVersion,
+  }) async {
+    final data = await _api.post<dynamic>(
+      '/users/dpdp-consent/',
+      data: {
+        'consent_version': version,
+        'notice_language': 'en',
+        'matchmaking_consent': matchmaking,
+        'location_processing_consent': location,
+        'sensitive_data_consent': sensitive,
+        'marketing_consent': marketing,
+      },
+    );
+    return _asMap(data);
+  }
 }
 
 // ── Feed ─────────────────────────────────────────────────────
@@ -1067,9 +1093,50 @@ class CallRepository {
 
 // ── Moderation ───────────────────────────────────────────────
 
+class BlockedUser {
+  const BlockedUser({
+    required this.id,
+    this.username,
+    this.displayName,
+    this.blockedAt,
+  });
+
+  final String id;
+  final String? username;
+  final String? displayName;
+  final String? blockedAt;
+
+  factory BlockedUser.fromJson(Map<String, dynamic> json) {
+    return BlockedUser(
+      id: (json['id'] ?? json['user_id'] ?? '').toString(),
+      username: json['username']?.toString(),
+      displayName: json['display_name']?.toString(),
+      blockedAt: json['blocked_at']?.toString(),
+    );
+  }
+}
+
 class ModerationRepository {
   ModerationRepository(this._api);
   final ApiClient _api;
+
+  Future<List<BlockedUser>> listBlocks() async {
+    final data = await _api.get<dynamic>('/moderation/moderation/blocks/');
+    final list = data is List ? data : (data is Map ? data['results'] : null);
+    if (list is! List) return const [];
+    return list
+        .whereType<Map>()
+        .map((e) => BlockedUser.fromJson(Map<String, dynamic>.from(e)))
+        .where((b) => b.id.isNotEmpty)
+        .toList();
+  }
+
+  Future<void> unblockUser(String userId) async {
+    await _api.post(
+      '/moderation/moderation/unblock/',
+      data: {'user_id': userId},
+    );
+  }
 
   Future<void> blockUser(String userId) async {
     await _api.post(

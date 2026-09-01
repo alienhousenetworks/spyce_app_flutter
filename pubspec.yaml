@@ -52,6 +52,8 @@ dependencies:
   google_sign_in: ^7.2.0
   in_app_purchase: ^3.2.0
   recaptcha_enterprise_flutter: ^18.9.1
+  flutter_callkit_incoming: ^2.5.8
+  flutter_local_notifications: ^19.4.2
 
 dev_dependencies:
   flutter_test:

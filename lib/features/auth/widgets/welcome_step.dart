@@ -1,6 +1,8 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../../core/legal/legal_urls.dart';
 import '../../../core/theme/onboarding_theme.dart';
 import '../../../core/theme/spyce_colors.dart';
 import '../../../shared/widgets/onboarding_widgets.dart';
@@ -36,10 +38,16 @@ class WelcomeStep extends StatelessWidget {
                   'Spyce',
                   textAlign: TextAlign.center,
                   style: GoogleFonts.cookie(
-                    fontSize: 64,
+                    fontSize: 72,
                     fontWeight: FontWeight.w400,
                     color: Colors.white,
                     height: 1,
+                    shadows: [
+                      Shadow(
+                        color: SpyceColors.flame.withValues(alpha: 0.45),
+                        blurRadius: 28,
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -49,17 +57,19 @@ class WelcomeStep extends StatelessWidget {
                   style: GoogleFonts.dmSans(
                     fontSize: 15,
                     color: OnboardingColors.textSecondary,
+                    letterSpacing: 0.2,
                   ),
                 ),
-                const SizedBox(height: 28),
+                const SizedBox(height: 32),
                 Text(
                   'Intent-first dating.',
                   textAlign: TextAlign.center,
                   style: GoogleFonts.syne(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w700,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
                     color: Colors.white,
-                    height: 1.25,
+                    height: 1.2,
+                    letterSpacing: -0.3,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -125,14 +135,42 @@ class WelcomeStep extends StatelessWidget {
                 ),
               ],
               const SizedBox(height: 16),
-              Text(
-                'By continuing you agree to SPYCE’s terms. Google, email OTP, or password.',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.dmSans(
-                  color: OnboardingColors.textMuted,
-                  fontSize: 11,
-                  height: 1.35,
+              Text.rich(
+                TextSpan(
+                  style: GoogleFonts.dmSans(
+                    color: OnboardingColors.textMuted,
+                    fontSize: 11,
+                    height: 1.35,
+                  ),
+                  children: [
+                    const TextSpan(
+                      text: 'By continuing you agree to SPYCE’s ',
+                    ),
+                    TextSpan(
+                      text: 'Terms of Service',
+                      style: const TextStyle(
+                        color: SpyceColors.pinkSoft,
+                        decoration: TextDecoration.underline,
+                      ),
+                      recognizer: TapGestureRecognizer()
+                        ..onTap = openTermsOfService,
+                    ),
+                    const TextSpan(text: ' and '),
+                    TextSpan(
+                      text: 'Privacy Policy',
+                      style: const TextStyle(
+                        color: SpyceColors.pinkSoft,
+                        decoration: TextDecoration.underline,
+                      ),
+                      recognizer: TapGestureRecognizer()
+                        ..onTap = openPrivacyPolicy,
+                    ),
+                    const TextSpan(
+                      text: '. Google, email OTP, or password. 18+ only.',
+                    ),
+                  ],
                 ),
+                textAlign: TextAlign.center,
               ),
             ],
           ),

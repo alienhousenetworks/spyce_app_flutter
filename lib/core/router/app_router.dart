@@ -15,11 +15,16 @@ import '../../features/onboarding/onboarding_page.dart';
 import '../../features/premium/subscription_paywall.dart';
 import '../../features/profile/peer_profile_page.dart';
 import '../../features/profile/profile_page.dart';
+import '../../features/settings/dpdp_consent_page.dart';
+import '../../features/settings/identity_verification_page.dart';
+import '../../features/settings/legal_page.dart';
+import '../../features/settings/safety_blocks_page.dart';
 import '../../features/settings/settings_page.dart';
 import '../../features/shell/app_shell.dart';
 import '../../features/splash/splash_page.dart';
 
-final _rootKey = GlobalKey<NavigatorState>();
+final appRootNavigatorKey = GlobalKey<NavigatorState>();
+final _rootKey = appRootNavigatorKey;
 
 /// Tabs: Discover · Confessions · Chat · Profile
 final appRouterProvider = Provider<GoRouter>((ref) {
@@ -143,7 +148,42 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             parentNavigatorKey: _rootKey,
             builder: (c, s) => const NotificationSettingsPage(),
           ),
+          GoRoute(
+            path: 'safety',
+            parentNavigatorKey: _rootKey,
+            builder: (c, s) => const SafetyBlocksPage(),
+          ),
+          GoRoute(
+            path: 'verification',
+            parentNavigatorKey: _rootKey,
+            builder: (c, s) => const IdentityVerificationPage(),
+          ),
+          GoRoute(
+            path: 'consent',
+            parentNavigatorKey: _rootKey,
+            builder: (c, s) => const DpdpConsentPage(),
+          ),
+          GoRoute(
+            path: 'legal/privacy',
+            parentNavigatorKey: _rootKey,
+            builder: (c, s) => const LegalPage(kind: LegalKind.privacy),
+          ),
+          GoRoute(
+            path: 'legal/terms',
+            parentNavigatorKey: _rootKey,
+            builder: (c, s) => const LegalPage(kind: LegalKind.terms),
+          ),
+          GoRoute(
+            path: 'legal/community',
+            parentNavigatorKey: _rootKey,
+            builder: (c, s) => const LegalPage(kind: LegalKind.community),
+          ),
         ],
+      ),
+      GoRoute(
+        path: '/consent',
+        parentNavigatorKey: _rootKey,
+        builder: (c, s) => const DpdpConsentPage(requiredToContinue: true),
       ),
       // Peer profile from chat avatar / match / incoming likes
       GoRoute(

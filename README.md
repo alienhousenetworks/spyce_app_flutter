@@ -40,11 +40,12 @@ flutter run
 
 1. **Splash** → session bootstrap  
 2. **Auth** → Google (Firebase `/auth/firebase-login/`) **or** email OTP (`/auth/register/`, `/auth/otp/verify/`). Magic OTP stays available when backend `USE_TEST_OTP=True`.  
-3. **Onboarding** → username, DOB, identity taxonomies, intent  
-4. **Shell** tabs: Discover · Matches · Chat · Confessions · Profile  
+3. **Onboarding** → username, DOB, identity, intent, face verify, DPDP consent  
+4. **Shell** tabs: Discover · Confessions · Chat · Profile  
 5. **Discover** → vertical `PageView`, SVG card BGs via `bg_id` / `bg_variant_id`  
 6. **Premium paywall** on subscription-gated feed/actions  
-7. Blind Date exists on backend but is **not shipped** in this client  
+7. Blind Date exists on backend but is **not shipped** in this client. Paper Plane is removed.  
+8. Legal: `https://api01.spycenow.com/legal/privacy/` · `/legal/terms/` · `/legal/community-guidelines/`  
 
 ## Assets
 

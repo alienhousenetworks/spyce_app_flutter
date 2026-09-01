@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
 
 import '../../core/theme/spyce_colors.dart';
+import '../../core/theme/spyce_tokens.dart';
 import '../../core/utils/media_url.dart';
 
 class SpyceLogo extends StatelessWidget {
@@ -152,17 +153,22 @@ class NetworkAvatar extends StatelessWidget {
     this.url,
     this.size = 48,
     this.name,
+    this.online,
+    this.ring = false,
   });
 
   final String? url;
   final double size;
   final String? name;
+  final bool? online;
+  final bool ring;
 
   @override
   Widget build(BuildContext context) {
-    final letter = (name?.isNotEmpty == true ? name![0] : '?').toUpperCase();
+    final raw = (name ?? '?').replaceFirst('@', '');
+    final letter = (raw.isNotEmpty ? raw[0] : '?').toUpperCase();
     final resolved = resolveMediaUrl(url);
-    return ClipRRect(
+    final avatar = ClipRRect(
       borderRadius: BorderRadius.circular(size / 2),
       child: resolved != null && resolved.isNotEmpty
           ? CachedNetworkImage(
@@ -178,13 +184,56 @@ class NetworkAvatar extends StatelessWidget {
             )
           : _placeholder(letter),
     );
+
+    Widget child = avatar;
+    if (ring || online == true) {
+      child = Container(
+        padding: const EdgeInsets.all(2),
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: LinearGradient(
+            colors: online == true
+                ? const [SpyceColors.flame, SpyceColors.gold]
+                : const [SpyceColors.dark400, SpyceColors.dark500],
+          ),
+        ),
+        child: avatar,
+      );
+    }
+
+    if (online == null) return child;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        child,
+        Positioned(
+          right: 0,
+          bottom: 0,
+          child: Container(
+            width: size * 0.22,
+            height: size * 0.22,
+            decoration: BoxDecoration(
+              color: online == true ? SpyceColors.online : SpyceColors.dark300,
+              shape: BoxShape.circle,
+              border: Border.all(color: SpyceColors.dark950, width: 2),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   Widget _placeholder(String letter) {
     return Container(
       width: size,
       height: size,
-      color: SpyceColors.dark600,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [SpyceColors.dark500, SpyceColors.blush],
+        ),
+      ),
       alignment: Alignment.center,
       child: Text(
         letter,
@@ -195,6 +244,139 @@ class NetworkAvatar extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class SpycePageHeader extends StatelessWidget {
+  const SpycePageHeader({
+    super.key,
+    required this.title,
+    this.accentTitle = false,
+    this.actions = const [],
+  });
+
+  final String title;
+  final bool accentTitle;
+  final List<Widget> actions;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      bottom: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 6, 10, 6),
+        child: Row(
+          children: [
+            Expanded(
+              child: accentTitle
+                  ? Text.rich(
+                      TextSpan(
+                        style: GoogleFonts.syne(
+                          fontSize: 26,
+                          fontWeight: FontWeight.w800,
+                          color: SpyceColors.white,
+                          letterSpacing: -0.4,
+                        ),
+                        children: [
+                          TextSpan(text: title.substring(0, title.length.clamp(0, 2))),
+                          if (title.length > 2)
+                            TextSpan(
+                              text: title[2],
+                              style: const TextStyle(color: SpyceColors.flame),
+                            ),
+                          if (title.length > 3)
+                            TextSpan(text: title.substring(3)),
+                        ],
+                      ),
+                    )
+                  : Text(
+                      title,
+                      style: GoogleFonts.syne(
+                        fontSize: 26,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.4,
+                        color: SpyceColors.white,
+                      ),
+                    ),
+            ),
+            ...actions,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class SpyceHeaderButton extends StatelessWidget {
+  const SpyceHeaderButton({
+    super.key,
+    required this.icon,
+    required this.onPressed,
+    this.tooltip,
+  });
+
+  final IconData icon;
+  final VoidCallback onPressed;
+  final String? tooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip ?? '',
+      child: Material(
+        color: SpyceColors.dark800,
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onPressed,
+          child: SizedBox(
+            width: 40,
+            height: 40,
+            child: Icon(icon, size: 20, color: SpyceColors.white),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class SpyceSurface extends StatelessWidget {
+  const SpyceSurface({
+    super.key,
+    required this.child,
+    this.onTap,
+    this.padding = const EdgeInsets.all(14),
+    this.margin,
+  });
+
+  final Widget child;
+  final VoidCallback? onTap;
+  final EdgeInsetsGeometry padding;
+  final EdgeInsetsGeometry? margin;
+
+  @override
+  Widget build(BuildContext context) {
+    final body = Container(
+      padding: padding,
+      decoration: BoxDecoration(
+        color: SpyceColors.dark800,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+      ),
+      child: child,
+    );
+    final tappable = onTap == null
+        ? body
+        : Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: onTap,
+              borderRadius: BorderRadius.circular(18),
+              child: body,
+            ),
+          );
+    if (margin == null) return tappable;
+    return Padding(padding: margin!, child: tappable);
   }
 }
 
@@ -301,8 +483,20 @@ class EmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 56, color: SpyceColors.dark300),
-            const SizedBox(height: 16),
+            Container(
+              width: 88,
+              height: 88,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: SpyceColors.flameDim,
+                border: Border.all(
+                  color: SpyceColors.flame.withValues(alpha: 0.25),
+                ),
+                boxShadow: SpyceShadows.flame,
+              ),
+              child: Icon(icon, size: 36, color: SpyceColors.flameSoft),
+            ),
+            const SizedBox(height: 20),
             Text(
               title,
               textAlign: TextAlign.center,

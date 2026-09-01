@@ -1,3 +1,4 @@
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -8,6 +9,9 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'core/amplify/amplify_bootstrap.dart';
 import 'core/auth/firebase_auth_service.dart';
 import 'core/network/connectivity_banner.dart';
+import 'core/notifications/local_push.dart';
+import 'core/notifications/push_notification_service.dart';
+import 'core/notifications/push_router.dart';
 import 'core/observability/sentry_bootstrap.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/spyce_colors.dart';
@@ -16,6 +20,7 @@ import 'features/call/call_overlay.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
   try {
     await WebRTC.initialize(
       options: {
@@ -50,6 +55,12 @@ void main() async {
     debugPrint('[AUTH] Firebase init failed: $e');
   }
 
+  try {
+    await LocalPush.ensureInitialized();
+  } catch (e) {
+    debugPrint('[FCM] Local notification init failed: $e');
+  }
+
   // Optional early Amplify init when COGNITO_* are passed via --dart-define.
   // Face liveness also configures Amplify from GET /verification/status/.
   await AmplifyBootstrap.tryConfigureAtStartup();
@@ -78,8 +89,10 @@ class SpyceApp extends ConsumerWidget {
         GlobalCupertinoLocalizations.delegate,
       ],
       builder: (context, child) {
-        return ConnectivityBannerHost(
-          child: CallOverlayHost(child: child ?? const SizedBox.shrink()),
+        return PushDeepLinkListener(
+          child: ConnectivityBannerHost(
+            child: CallOverlayHost(child: child ?? const SizedBox.shrink()),
+          ),
         );
       },
     );

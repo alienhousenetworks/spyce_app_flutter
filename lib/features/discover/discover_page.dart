@@ -1148,51 +1148,29 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
       children: [
         Column(
           children: [
-            SafeArea(
-              bottom: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 4, 8, 4),
-                child: Row(
-                  children: [
-                    Text.rich(
-                      TextSpan(
-                        style: GoogleFonts.syne(
-                          fontSize: 24,
-                          fontWeight: FontWeight.w800,
-                          color: SpyceColors.white,
-                        ),
-                        children: const [
-                          TextSpan(text: 'sp'),
-                          TextSpan(
-                            text: 'y',
-                            style: TextStyle(color: SpyceColors.pink),
-                          ),
-                          TextSpan(text: 'ce'),
-                        ],
-                      ),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      onPressed: () => context.push('/app/settings/notifications'),
-                      icon: const Icon(Icons.notifications_outlined),
-                      color: SpyceColors.white,
-                      tooltip: 'Notifications',
-                    ),
-                    IconButton(
-                      onPressed: _openFilters,
-                      icon: const Icon(Icons.tune_rounded),
-                      color: SpyceColors.white,
-                      tooltip: 'Filters',
-                    ),
-                    IconButton(
-                      onPressed: () => _load(0),
-                      icon: const Icon(Icons.refresh_rounded),
-                      color: SpyceColors.white,
-                      tooltip: 'Refresh',
-                    ),
-                  ],
+            SpycePageHeader(
+              title: 'spyce',
+              accentTitle: true,
+              actions: [
+                SpyceHeaderButton(
+                  icon: Icons.notifications_outlined,
+                  tooltip: 'Notifications',
+                  onPressed: () =>
+                      context.push('/app/settings/notifications'),
                 ),
-              ),
+                const SizedBox(width: 6),
+                SpyceHeaderButton(
+                  icon: Icons.tune_rounded,
+                  tooltip: 'Filters',
+                  onPressed: _openFilters,
+                ),
+                const SizedBox(width: 6),
+                SpyceHeaderButton(
+                  icon: Icons.refresh_rounded,
+                  tooltip: 'Refresh',
+                  onPressed: () => _load(0),
+                ),
+              ],
             ),
             if (locationBanner != null &&
                 locationBanner!.isNotEmpty &&

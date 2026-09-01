@@ -8,6 +8,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../../core/config/env.dart';
+import '../../core/notifications/incoming_call_kit.dart';
 import '../../data/repositories/api_repositories.dart';
 
 bool get _isAndroid =>
@@ -321,6 +322,48 @@ class CallController extends StateNotifier<CallUiState> {
     }
   }
 
+  /// FCM / CallKit woke the process — show the in-app incoming overlay.
+  Future<void> presentIncomingFromPush({
+    required String callId,
+    String? peerId,
+    String? peerName,
+    CallKind kind = CallKind.voice,
+  }) async {
+    if (state.isLive && state.callId == callId) return;
+    if (state.isLive && state.phase != CallPhase.incoming) {
+      debugPrint('[CALL] ignore push incoming while busy');
+      return;
+    }
+    state = state.copyWith(
+      phase: CallPhase.incoming,
+      callId: callId,
+      peerId: peerId,
+      peerName: peerName ?? 'Incoming',
+      kind: kind,
+      statusText:
+          'Incoming ${kind == CallKind.video ? 'video' : 'voice'} call',
+      clearError: true,
+    );
+    _startRingTimeout();
+    unawaited(startListening());
+  }
+
+  /// User accepted from the native CallKit / full-screen notification.
+  Future<void> acceptIncomingFromPush({
+    required String callId,
+    String? peerId,
+    String? peerName,
+    CallKind kind = CallKind.voice,
+  }) async {
+    await presentIncomingFromPush(
+      callId: callId,
+      peerId: peerId,
+      peerName: peerName,
+      kind: kind,
+    );
+    await acceptIncoming();
+  }
+
   /// Accept inbound call — must not wipe UI on partial failure (felt like a crash).
   Future<void> acceptIncoming() async {
     if (_acceptInFlight) return;
@@ -417,6 +460,7 @@ class CallController extends StateNotifier<CallUiState> {
         _wsSend({'action': 'end', 'call_id': state.callId, 'reason': reason});
       } catch (_) {}
     }
+    unawaited(IncomingCallKit.instance.end(state.callId));
     await _submitCallMetrics(reason);
     await _teardownMedia();
     // Keep call WS alive so next inbound ring works

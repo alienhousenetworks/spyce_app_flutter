@@ -1,7 +1,10 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
+import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/location/location_bootstrap.dart';
@@ -72,7 +75,7 @@ class _AppShellState extends ConsumerState<AppShell> {
             ],
           ),
           content: const Text(
-            'SPYCE uses your location to show nearby people and paper planes.\n\nTurn on Location Services and allow access to continue.',
+            'SPYCE uses your location to show nearby people and confessions.\n\nTurn on Location Services and allow access to continue.',
             style: TextStyle(color: SpyceColors.textSecondary, height: 1.45),
           ),
           actions: [
@@ -123,6 +126,7 @@ class _AppShellState extends ConsumerState<AppShell> {
   }
 
   void _onTap(int index) {
+    HapticFeedback.selectionClick();
     widget.navigationShell.goBranch(
       index,
       initialLocation: index == widget.navigationShell.currentIndex,
@@ -142,50 +146,69 @@ class _AppShellState extends ConsumerState<AppShell> {
 
     return Scaffold(
       body: widget.navigationShell,
-      bottomNavigationBar: Container(
-        decoration: const BoxDecoration(
-          color: SpyceColors.dark900,
-          border: Border(
-            top: BorderSide(color: SpyceColors.dark600, width: 0.5),
-          ),
+      bottomNavigationBar: DecoratedBox(
+        decoration: BoxDecoration(
+          color: SpyceColors.dark950,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.45),
+              blurRadius: 24,
+              offset: const Offset(0, -6),
+            ),
+          ],
         ),
-        child: SafeArea(
-          child: SizedBox(
-            height: 58,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  _NavItem(
-                    icon: Icons.explore_outlined,
-                    activeIcon: Icons.explore,
-                    label: 'Discover',
-                    selected: i == 0,
-                    onTap: () => _onTap(0),
+        child: ClipRect(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+            child: Container(
+              decoration: BoxDecoration(
+                color: SpyceColors.dark900.withValues(alpha: 0.92),
+                border: Border(
+                  top: BorderSide(
+                    color: SpyceColors.flame.withValues(alpha: 0.18),
                   ),
-                  _NavItem(
-                    icon: Icons.nightlight_outlined,
-                    activeIcon: Icons.nightlight,
-                    label: 'Confess',
-                    selected: i == 1,
-                    onTap: () => _onTap(1),
+                ),
+              ),
+              child: SafeArea(
+                top: false,
+                child: SizedBox(
+                  height: 64,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(6, 6, 6, 4),
+                    child: Row(
+                      children: [
+                        _NavItem(
+                          icon: Icons.explore_outlined,
+                          activeIcon: Icons.local_fire_department_rounded,
+                          label: 'Discover',
+                          selected: i == 0,
+                          onTap: () => _onTap(0),
+                        ),
+                        _NavItem(
+                          icon: Icons.nightlight_outlined,
+                          activeIcon: Icons.nightlight_round,
+                          label: 'Confess',
+                          selected: i == 1,
+                          onTap: () => _onTap(1),
+                        ),
+                        _NavItem(
+                          icon: Icons.chat_bubble_outline_rounded,
+                          activeIcon: Icons.chat_bubble_rounded,
+                          label: 'Chat',
+                          selected: i == 2,
+                          onTap: () => _onTap(2),
+                        ),
+                        _NavItem(
+                          icon: Icons.person_outline_rounded,
+                          activeIcon: Icons.person_rounded,
+                          label: 'Profile',
+                          selected: i == 3,
+                          onTap: () => _onTap(3),
+                        ),
+                      ],
+                    ),
                   ),
-                  _NavItem(
-                    icon: Icons.chat_bubble_outline,
-                    activeIcon: Icons.chat_bubble,
-                    label: 'Chat',
-                    selected: i == 2,
-                    onTap: () => _onTap(2),
-                  ),
-                  _NavItem(
-                    icon: Icons.person_outline,
-                    activeIcon: Icons.person,
-                    label: 'Profile',
-                    selected: i == 3,
-                    onTap: () => _onTap(3),
-                  ),
-                ],
+                ),
               ),
             ),
           ),
@@ -214,31 +237,38 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = selected ? SpyceColors.pink : SpyceColors.dark200;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-        decoration: BoxDecoration(
-          color: selected ? SpyceColors.pinkDim : Colors.transparent,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(selected ? activeIcon : icon, color: color, size: 24),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                color: color,
-                fontSize: 11,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+    final color = selected ? SpyceColors.flame : SpyceColors.dark200;
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          decoration: BoxDecoration(
+            color: selected ? SpyceColors.flameDim : Colors.transparent,
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              AnimatedScale(
+                scale: selected ? 1.08 : 1,
+                duration: const Duration(milliseconds: 220),
+                child: Icon(selected ? activeIcon : icon, color: color, size: 22),
               ),
-            ),
-          ],
+              const SizedBox(height: 3),
+              Text(
+                label,
+                style: GoogleFonts.dmSans(
+                  color: color,
+                  fontSize: 11,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

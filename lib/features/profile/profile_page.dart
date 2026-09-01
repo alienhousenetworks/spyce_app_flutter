@@ -22,6 +22,7 @@ import '../../data/models/user_models.dart';
 import '../../data/repositories/api_repositories.dart';
 import '../../shared/widgets/language_picker.dart';
 import '../../shared/widgets/photo_guidelines_sheet.dart';
+import '../../shared/widgets/spyce_loaders.dart';
 import '../../shared/widgets/spyce_widgets.dart';
 import '../../shared/widgets/turn_on_stickers.dart';
 import '../auth/auth_controller.dart';
@@ -1759,7 +1760,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     if (loading) {
       return const Scaffold(
         backgroundColor: SpyceColors.dark950,
-        body: Center(child: CircularProgressIndicator(color: SpyceColors.pink)),
+        body: SpyceLoadingView(message: 'Loading your profile…'),
       );
     }
 

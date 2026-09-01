@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../core/theme/spyce_colors.dart';
+import '../../data/repositories/api_repositories.dart';
 import '../auth/auth_controller.dart';
 
 class SettingsPage extends ConsumerStatefulWidget {
@@ -16,6 +17,7 @@ class SettingsPage extends ConsumerStatefulWidget {
 
 class _SettingsPageState extends ConsumerState<SettingsPage> {
   String version = '';
+  bool? identityVerified;
 
   @override
   void initState() {
@@ -25,6 +27,15 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         setState(() => version = '${info.version}+${info.buildNumber}');
       }
     });
+    _loadVerification();
+  }
+
+  Future<void> _loadVerification() async {
+    try {
+      final cfg = await ref.read(verificationRepositoryProvider).getConfig();
+      if (!mounted) return;
+      setState(() => identityVerified = cfg.verified);
+    } catch (_) {}
   }
 
   Future<void> _logout() async {
@@ -139,7 +150,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             _tile(
               icon: Icons.verified_user_outlined,
               title: 'Identity verification',
-              subtitle: 'Coming soon in this build',
+              subtitle: identityVerified == true
+                  ? 'Verified'
+                  : identityVerified == false
+                      ? 'Required for Discover'
+                      : 'Check status',
+              onTap: () => context.push('/app/settings/verification'),
             ),
           ]),
           const SizedBox(height: 20),
@@ -153,7 +169,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             _tile(
               icon: Icons.shield_outlined,
               title: 'Safety & blocks',
-              onTap: () {},
+              subtitle: 'Blocked people, report & unblock',
+              onTap: () => context.push('/app/settings/safety'),
             ),
             _divider(),
             _tile(
@@ -162,17 +179,50 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               onTap: () => context.push('/app/premium'),
             ),
           ]),
+          const SizedBox(height: 20),
+          _section('Legal', [
+            _tile(
+              icon: Icons.privacy_tip_outlined,
+              title: 'Privacy Policy',
+              onTap: () => context.push('/app/settings/legal/privacy'),
+            ),
+            _divider(),
+            _tile(
+              icon: Icons.gavel_outlined,
+              title: 'Terms of Service',
+              onTap: () => context.push('/app/settings/legal/terms'),
+            ),
+            _divider(),
+            _tile(
+              icon: Icons.menu_book_outlined,
+              title: 'Community Guidelines',
+              onTap: () => context.push('/app/settings/legal/community'),
+            ),
+            _divider(),
+            _tile(
+              icon: Icons.fact_check_outlined,
+              title: 'Privacy consent (DPDP)',
+              subtitle: 'Matchmaking, location, sensitive data',
+              onTap: () => context.push('/app/settings/consent'),
+            ),
+          ]),
           const SizedBox(height: 28),
           OutlinedButton.icon(
             onPressed: _logout,
-            icon: const Icon(Icons.logout, color: Colors.white70),
-            label: const Text(
+            icon: const Icon(Icons.logout_rounded, color: Colors.white70),
+            label: Text(
               'Sign out',
-              style: TextStyle(color: Colors.white),
+              style: GoogleFonts.dmSans(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
             ),
             style: OutlinedButton.styleFrom(
-              side: const BorderSide(color: SpyceColors.dark600),
-              minimumSize: const Size(double.infinity, 50),
+              side: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
+              minimumSize: const Size(double.infinity, 52),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
             ),
           ),
           const SizedBox(height: 12),
@@ -223,8 +273,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         Container(
           decoration: BoxDecoration(
             color: SpyceColors.dark800,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: SpyceColors.dark600),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
           ),
           child: Column(children: children),
         ),
@@ -243,14 +293,31 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     VoidCallback? onTap,
   }) {
     return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
-      leading: Icon(icon, color: SpyceColors.pinkSoft),
-      title: Text(title, style: const TextStyle(color: SpyceColors.white)),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      leading: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: SpyceColors.flameDim,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Icon(icon, color: SpyceColors.flameSoft, size: 20),
+      ),
+      title: Text(
+        title,
+        style: GoogleFonts.dmSans(
+          color: SpyceColors.white,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
       subtitle: subtitle != null
-          ? Text(subtitle, style: const TextStyle(color: SpyceColors.dark200))
+          ? Text(
+              subtitle,
+              style: const TextStyle(color: SpyceColors.dark200, fontSize: 12),
+            )
           : null,
       trailing: onTap != null
-          ? const Icon(Icons.chevron_right, color: SpyceColors.dark300)
+          ? const Icon(Icons.chevron_right_rounded, color: SpyceColors.dark300)
           : null,
       onTap: onTap,
     );

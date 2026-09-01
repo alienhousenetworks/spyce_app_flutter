@@ -151,15 +151,43 @@ abstract final class SpyceTheme {
           side: const BorderSide(color: SpyceColors.dark600),
         ),
       ),
+      splashFactory: InkSparkle.splashFactory,
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: ZoomPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+        },
+      ),
+      switchTheme: SwitchThemeData(
+        thumbColor: WidgetStateProperty.resolveWith((s) {
+          if (s.contains(WidgetState.selected)) return SpyceColors.white;
+          return SpyceColors.dark100;
+        }),
+        trackColor: WidgetStateProperty.resolveWith((s) {
+          if (s.contains(WidgetState.selected)) return SpyceColors.flame;
+          return SpyceColors.dark500;
+        }),
+      ),
       snackBarTheme: SnackBarThemeData(
-        backgroundColor: SpyceColors.dark600,
+        backgroundColor: SpyceColors.dark700,
         contentTextStyle: const TextStyle(color: SpyceColors.white),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         behavior: SnackBarBehavior.floating,
+        elevation: 0,
       ),
       dialogTheme: DialogThemeData(
         backgroundColor: SpyceColors.dark800,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        titleTextStyle: GoogleFonts.syne(
+          color: SpyceColors.white,
+          fontSize: 20,
+          fontWeight: FontWeight.w700,
+        ),
+        contentTextStyle: GoogleFonts.dmSans(
+          color: SpyceColors.dark100,
+          fontSize: 14,
+          height: 1.4,
+        ),
       ),
       bottomSheetTheme: const BottomSheetThemeData(
         backgroundColor: SpyceColors.dark800,

@@ -17,6 +17,7 @@ import '../../shared/widgets/onboarding_widgets.dart';
 import '../../shared/widgets/photo_guidelines_sheet.dart';
 import '../../shared/widgets/spyce_loaders.dart';
 import '../auth/auth_controller.dart';
+import '../settings/dpdp_consent_page.dart';
 import 'face_liveness_screen.dart';
 import 'widgets/bio_photo_step.dart';
 import 'widgets/complete_step.dart';
@@ -815,6 +816,30 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
     payload.addAll(_locationPayload());
 
     try {
+      var consented = false;
+      try {
+        final existing = await ref.read(authRepositoryProvider).getDpdpConsent();
+        consented = existing['has_consented'] == true &&
+            existing['matchmaking_consent'] != false &&
+            existing['location_processing_consent'] != false &&
+            existing['sensitive_data_consent'] != false;
+      } catch (_) {}
+      if (!consented && mounted) {
+        final ok = await Navigator.of(context).push<bool>(
+          MaterialPageRoute(
+            fullscreenDialog: true,
+            builder: (_) => const DpdpConsentPage(requiredToContinue: true),
+          ),
+        );
+        if (ok != true) {
+          if (!mounted) return;
+          setState(() {
+            submitting = false;
+            error = 'Privacy consent is required to use SPYCE.';
+          });
+          return;
+        }
+      }
       await ref.read(profileRepositoryProvider).updateMyProfile(payload);
       ref
           .read(authControllerProvider.notifier)

@@ -538,58 +538,47 @@ class _ConversationsPageState extends ConsumerState<ConversationsPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SafeArea(
-          bottom: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 12, 0),
-            child: Row(
-              children: [
-                Text(
-                  'Chat',
-                  style: GoogleFonts.syne(
-                    fontSize: 26,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const Spacer(),
-                // Only for gender+sexuality combos with can_see_incoming_likes
-                if (canSeeLikes)
-                  Material(
-                    color: SpyceColors.pink.withValues(alpha: 0.18),
+        SpycePageHeader(
+          title: 'Chat',
+          actions: [
+            if (canSeeLikes)
+              Padding(
+                padding: const EdgeInsets.only(right: 6),
+                child: Material(
+                  color: SpyceColors.flameDim,
+                  borderRadius: BorderRadius.circular(22),
+                  child: InkWell(
                     borderRadius: BorderRadius.circular(22),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(22),
-                      onTap: _showIncomingLikes,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.favorite,
-                              size: 18,
-                              color: SpyceColors.pinkSoft,
+                    onTap: _showIncomingLikes,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.favorite_rounded,
+                            size: 16,
+                            color: SpyceColors.flameSoft,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            likesCount > 0 ? 'Likes $likesCount' : 'Likes',
+                            style: GoogleFonts.dmSans(
+                              color: SpyceColors.flameSoft,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
                             ),
-                            const SizedBox(width: 6),
-                            Text(
-                              likesCount > 0 ? 'Likes ($likesCount)' : 'Likes',
-                              style: GoogleFonts.dmSans(
-                                color: SpyceColors.pinkSoft,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
-              ],
-            ),
-          ),
+                ),
+              ),
+          ],
         ),
 
         // Prominent likes entry under header (same permission gate)
@@ -684,31 +673,23 @@ class _ConversationsPageState extends ConsumerState<ConversationsPage> {
                     width: 72,
                     child: Column(
                       children: [
-                        Container(
-                          padding: const EdgeInsets.all(2.5),
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: LinearGradient(
-                              colors: m.isOnline
-                                  ? const [SpyceColors.pink, SpyceColors.gold]
-                                  : const [
-                                      SpyceColors.dark400,
-                                      SpyceColors.dark500,
-                                    ],
-                            ),
-                          ),
-                          child: NetworkAvatar(
-                            url: m.imageUrl,
-                            name: m.shortOrName,
-                            size: 64,
-                          ),
+                        NetworkAvatar(
+                          url: m.imageUrl,
+                          name: m.shortOrName,
+                          size: 58,
+                          online: m.isOnline,
+                          ring: true,
                         ),
                         const SizedBox(height: 6),
                         Text(
                           m.shortOrName,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 12),
+                          style: GoogleFonts.dmSans(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: SpyceColors.white,
+                          ),
                         ),
                       ],
                     ),
@@ -741,13 +722,12 @@ class _ConversationsPageState extends ConsumerState<ConversationsPage> {
                       final time = c.updatedAt != null
                           ? DateFormat.jm().format(c.updatedAt!)
                           : '';
-                      // @username (never fallback letter "C" from "Chat")
                       final displayName = c.displayUsername;
                       return Material(
                         color: SpyceColors.dark800,
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(18),
                         child: InkWell(
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(18),
                           onTap: () => context.push(
                             '/app/chat/${c.id}',
                             extra: {
@@ -759,62 +739,44 @@ class _ConversationsPageState extends ConsumerState<ConversationsPage> {
                             },
                           ),
                           child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 12,
-                            ),
+                            padding: const EdgeInsets.fromLTRB(12, 12, 14, 12),
                             child: Row(
                               children: [
+                                GestureDetector(
+                                  onTap: () {
+                                    final id = c.peerUserId;
+                                    if (id == null || id.isEmpty) return;
+                                    context.push(
+                                      '/app/user/$id',
+                                      extra: {
+                                        'title': displayName,
+                                        'image': c.peerImage,
+                                      },
+                                    );
+                                  },
+                                  child: NetworkAvatar(
+                                    url: c.peerImage,
+                                    name: displayName,
+                                    size: 54,
+                                    online: c.isOnline,
+                                    ring: true,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      // username  ·  [profile pic → open peer profile]
-                                      Row(
-                                        children: [
-                                          Flexible(
-                                            child: Text(
-                                              displayName,
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: GoogleFonts.dmSans(
-                                                fontWeight: FontWeight.w700,
-                                                fontSize: 16,
-                                              ),
-                                            ),
-                                          ),
-                                          const SizedBox(width: 10),
-                                          // Tap avatar → peer profile (does not open chat)
-                                          GestureDetector(
-                                            onTap: () {
-                                              final id = c.peerUserId;
-                                              if (id == null || id.isEmpty) {
-                                                ScaffoldMessenger.of(
-                                                  context,
-                                                ).showSnackBar(
-                                                  const SnackBar(
-                                                    content: Text(
-                                                      'Profile unavailable for this chat',
-                                                    ),
-                                                  ),
-                                                );
-                                                return;
-                                              }
-                                              context.push(
-                                                '/app/user/$id',
-                                                extra: {
-                                                  'title': displayName,
-                                                  'image': c.peerImage,
-                                                },
-                                              );
-                                            },
-                                            child: _ChatListAvatar(
-                                              url: c.peerImage,
-                                              name: displayName,
-                                            ),
-                                          ),
-                                        ],
+                                      Text(
+                                        displayName,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: GoogleFonts.dmSans(
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 16,
+                                          color: SpyceColors.white,
+                                        ),
                                       ),
                                       const SizedBox(height: 4),
                                       Text(
@@ -823,9 +785,14 @@ class _ConversationsPageState extends ConsumerState<ConversationsPage> {
                                             : 'Say hi…',
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
-                                          color: SpyceColors.dark100,
+                                        style: TextStyle(
+                                          color: c.unreadCount > 0
+                                              ? SpyceColors.white
+                                              : SpyceColors.dark100,
                                           fontSize: 13,
+                                          fontWeight: c.unreadCount > 0
+                                              ? FontWeight.w600
+                                              : FontWeight.w400,
                                         ),
                                       ),
                                     ],
@@ -837,29 +804,32 @@ class _ConversationsPageState extends ConsumerState<ConversationsPage> {
                                   children: [
                                     Text(
                                       time,
-                                      style: const TextStyle(
-                                        color: SpyceColors.dark200,
+                                      style: TextStyle(
+                                        color: c.unreadCount > 0
+                                            ? SpyceColors.flameSoft
+                                            : SpyceColors.dark200,
                                         fontSize: 11,
+                                        fontWeight: FontWeight.w600,
                                       ),
                                     ),
                                     if (c.unreadCount > 0) ...[
-                                      const SizedBox(height: 6),
+                                      const SizedBox(height: 8),
                                       Container(
                                         padding: const EdgeInsets.symmetric(
                                           horizontal: 7,
                                           vertical: 2,
                                         ),
                                         decoration: BoxDecoration(
-                                          color: SpyceColors.pink,
-                                          borderRadius: BorderRadius.circular(
-                                            10,
-                                          ),
+                                          color: SpyceColors.flame,
+                                          borderRadius: BorderRadius.circular(10),
                                         ),
                                         child: Text(
                                           '${c.unreadCount}',
+                                          textAlign: TextAlign.center,
                                           style: const TextStyle(
                                             fontSize: 11,
                                             fontWeight: FontWeight.w700,
+                                            color: SpyceColors.white,
                                           ),
                                         ),
                                       ),
@@ -876,58 +846,6 @@ class _ConversationsPageState extends ConsumerState<ConversationsPage> {
                 ),
         ),
       ],
-    );
-  }
-}
-
-/// Small avatar beside username — user upload or admin pool URL.
-class _ChatListAvatar extends StatelessWidget {
-  const _ChatListAvatar({this.url, this.name});
-
-  final String? url;
-  final String? name;
-
-  @override
-  Widget build(BuildContext context) {
-    // Avoid "C" from "Chat" — strip @ for initial
-    final raw = (name ?? '?').replaceFirst('@', '');
-    final letter = raw.isNotEmpty ? raw[0].toUpperCase() : '?';
-    return Container(
-      width: 36,
-      height: 36,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: SpyceColors.dark400),
-        color: SpyceColors.dark600,
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: url != null && url!.isNotEmpty
-          ? CachedNetworkImage(
-              imageUrl: url!,
-              fit: BoxFit.cover,
-              placeholder: (_, _) =>
-                  const ColoredBox(color: SpyceColors.dark600),
-              errorWidget: (_, _, _) => Center(
-                child: Text(
-                  letter,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: SpyceColors.pinkSoft,
-                  ),
-                ),
-              ),
-            )
-          : Center(
-              child: Text(
-                letter,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: SpyceColors.pinkSoft,
-                ),
-              ),
-            ),
     );
   }
 }

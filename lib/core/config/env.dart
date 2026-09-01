@@ -13,6 +13,19 @@ class Env {
 
   static const String apiV1 = '$apiBaseUrl/api/v1';
 
+  /// Public legal pages (also hosted on the API origin for store listings).
+  static const String legalBaseUrl = String.fromEnvironment(
+    'LEGAL_BASE_URL',
+    defaultValue: apiBaseUrl,
+  );
+  static String get privacyPolicyUrl => '$legalBaseUrl/legal/privacy/';
+  static String get termsOfServiceUrl => '$legalBaseUrl/legal/terms/';
+  static String get communityGuidelinesUrl =>
+      '$legalBaseUrl/legal/community-guidelines/';
+  static const String legalEmail = 'legal@spycenow.com';
+  static const String safetyEmail = 'safety@spycenow.com';
+  static const String dpdpConsentVersion = '1.0';
+
   /// FastAPI discovery feed (and future high-scale HTTP endpoints).
   static const String apiV2 = '$apiBaseUrl/api/v2';
 
