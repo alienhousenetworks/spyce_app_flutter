@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../core/bootstrap/app_preload.dart';
@@ -75,7 +76,30 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
       }
       _seedFiltersFromProfile();
     });
-    _load(0);
+    unawaited(_startFeed());
+  }
+
+  Future<void> _startFeed() async {
+    await _restoreLiked();
+    if (mounted) await _load(0);
+  }
+
+  static const _likedPrefsKey = 'spyce_liked_profile_ids';
+
+  Future<void> _restoreLiked() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getStringList(_likedPrefsKey) ?? const [];
+      if (saved.isEmpty || !mounted) return;
+      setState(() => _liked.addAll(saved));
+    } catch (_) {}
+  }
+
+  Future<void> _persistLiked() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList(_likedPrefsKey, _liked.toList());
+    } catch (_) {}
   }
 
   /// Seed age prefs from profile only.
@@ -203,10 +227,25 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
     _isProfileIncomplete = false;
     _missingFields = [];
 
-    final resolved = _withResolvedLanguages(res.results);
+    var resolved = _withResolvedLanguages(res.results);
     showPaywall = false;
+    // Keep session + persisted likes. Never wipe on refresh — the API may
+    // omit is_liked even when Redis still has the like (already-liked on tap).
+    resolved = [
+      for (final p in resolved)
+        (_isLiked(p) || p.isLiked)
+            ? p.copyWith(isLiked: true)
+            : p,
+    ];
+    for (final p in resolved) {
+      if (p.isLiked) {
+        _liked.add(p.id);
+        final key = p.userId ?? p.id;
+        if (key.isNotEmpty) _liked.add(key);
+      }
+    }
+    unawaited(_persistLiked());
     if (!append) {
-      _liked.clear();
       profiles = resolved;
     } else {
       final existing = profiles.map((p) => p.id).toSet();
@@ -214,13 +253,6 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
         ...profiles,
         ...resolved.where((p) => !existing.contains(p.id)),
       ];
-    }
-    for (final p in resolved) {
-      if (p.isLiked) {
-        _liked.add(p.id);
-        final key = p.userId ?? p.id;
-        if (key.isNotEmpty) _liked.add(key);
-      }
     }
     nextCursor = res.nextCursor;
     hasMore = res.nextCursor != null;
@@ -471,6 +503,7 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
         ];
       }
     });
+    unawaited(_persistLiked());
 
     try {
       final res = await ref.read(feedRepositoryProvider).like(uid);

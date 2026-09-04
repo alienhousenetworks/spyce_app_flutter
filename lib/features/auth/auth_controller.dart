@@ -280,6 +280,8 @@ class AuthController extends StateNotifier<AuthState> {
       isNewUser: isNewUser,
     );
 
+    _ref.read(sessionExpiredProvider.notifier).state = false;
+
     state = state.copyWith(
       loading: false,
       user: user,

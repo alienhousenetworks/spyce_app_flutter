@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -12,10 +11,12 @@ class NotificationSettingsPage extends ConsumerStatefulWidget {
   const NotificationSettingsPage({super.key});
 
   @override
-  ConsumerState<NotificationSettingsPage> createState() => _NotificationSettingsPageState();
+  ConsumerState<NotificationSettingsPage> createState() =>
+      _NotificationSettingsPageState();
 }
 
-class _NotificationSettingsPageState extends ConsumerState<NotificationSettingsPage> {
+class _NotificationSettingsPageState
+    extends ConsumerState<NotificationSettingsPage> {
   bool _matchAlerts = true;
   bool _messageAlerts = true;
   bool _likeAlerts = true;
@@ -36,10 +37,12 @@ class _NotificationSettingsPageState extends ConsumerState<NotificationSettingsP
       return;
     }
     try {
-      final settings = await FirebaseMessaging.instance.getNotificationSettings();
+      final settings = await FirebaseMessaging.instance
+          .getNotificationSettings();
       if (mounted) {
         setState(() {
-          _permissionGranted = settings.authorizationStatus == AuthorizationStatus.authorized ||
+          _permissionGranted =
+              settings.authorizationStatus == AuthorizationStatus.authorized ||
               settings.authorizationStatus == AuthorizationStatus.provisional;
           _checkingPermission = false;
         });
@@ -57,10 +60,14 @@ class _NotificationSettingsPageState extends ConsumerState<NotificationSettingsP
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(_permissionGranted
-                ? 'Push notifications enabled successfully!'
-                : 'Notification permission was not granted. Please check system settings.'),
-            backgroundColor: _permissionGranted ? SpyceColors.teal : SpyceColors.pink,
+            content: Text(
+              _permissionGranted
+                  ? 'Push notifications enabled successfully!'
+                  : 'Notification permission was not granted. Please check system settings.',
+            ),
+            backgroundColor: _permissionGranted
+                ? SpyceColors.teal
+                : SpyceColors.pink,
           ),
         );
       }
@@ -92,14 +99,22 @@ class _NotificationSettingsPageState extends ConsumerState<NotificationSettingsP
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: _permissionGranted
-                    ? [SpyceColors.teal.withValues(alpha: 0.15), SpyceColors.dark800]
-                    : [SpyceColors.pink.withValues(alpha: 0.15), SpyceColors.dark800],
+                    ? [
+                        SpyceColors.teal.withValues(alpha: 0.15),
+                        SpyceColors.dark800,
+                      ]
+                    : [
+                        SpyceColors.pink.withValues(alpha: 0.15),
+                        SpyceColors.dark800,
+                      ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: _permissionGranted ? SpyceColors.teal.withValues(alpha: 0.4) : SpyceColors.pink.withValues(alpha: 0.4),
+                color: _permissionGranted
+                    ? SpyceColors.teal.withValues(alpha: 0.4)
+                    : SpyceColors.pink.withValues(alpha: 0.4),
               ),
             ),
             child: Column(
@@ -108,13 +123,19 @@ class _NotificationSettingsPageState extends ConsumerState<NotificationSettingsP
                 Row(
                   children: [
                     Icon(
-                      _permissionGranted ? Icons.notifications_active : Icons.notifications_off_outlined,
-                      color: _permissionGranted ? SpyceColors.teal : SpyceColors.pink,
+                      _permissionGranted
+                          ? Icons.notifications_active
+                          : Icons.notifications_off_outlined,
+                      color: _permissionGranted
+                          ? SpyceColors.teal
+                          : SpyceColors.pink,
                       size: 24,
                     ),
                     const SizedBox(width: 10),
                     Text(
-                      _permissionGranted ? 'Push Notifications Enabled' : 'Notifications Disabled',
+                      _permissionGranted
+                          ? 'Push Notifications Enabled'
+                          : 'Notifications Disabled',
                       style: GoogleFonts.syne(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
@@ -128,7 +149,11 @@ class _NotificationSettingsPageState extends ConsumerState<NotificationSettingsP
                   _permissionGranted
                       ? 'You are receiving real-time alerts for new matches, messages, and calls.'
                       : 'Enable notifications so you never miss a new match or message.',
-                  style: const TextStyle(color: SpyceColors.dark200, fontSize: 13, height: 1.4),
+                  style: const TextStyle(
+                    color: SpyceColors.dark200,
+                    fontSize: 13,
+                    height: 1.4,
+                  ),
                 ),
                 if (!_permissionGranted) ...[
                   const SizedBox(height: 14),
@@ -140,7 +165,9 @@ class _NotificationSettingsPageState extends ConsumerState<NotificationSettingsP
                       backgroundColor: SpyceColors.pink,
                       foregroundColor: Colors.white,
                       minimumSize: const Size(double.infinity, 44),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
                   ),
                 ],
@@ -195,52 +222,6 @@ class _NotificationSettingsPageState extends ConsumerState<NotificationSettingsP
               ],
             ),
           ),
-
-          const SizedBox(height: 24),
-          _sectionHeader('Device Token Sync'),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: SpyceColors.dark800,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: SpyceColors.dark600),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'FCM Device Sync',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white),
-                ),
-                const SizedBox(height: 4),
-                const Text(
-                  'Re-synchronize your phone push token with the server if you are experiencing delivery delays.',
-                  style: TextStyle(color: SpyceColors.dark200, fontSize: 12),
-                ),
-                const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  onPressed: () async {
-                    final service = ref.read(pushNotificationServiceProvider);
-                    await service.syncTokenWithBackend();
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Push notification token synced with server!'),
-                          backgroundColor: SpyceColors.teal,
-                        ),
-                      );
-                    }
-                  },
-                  icon: const Icon(Icons.sync, size: 18, color: SpyceColors.teal),
-                  label: const Text('Sync Push Token', style: TextStyle(color: SpyceColors.teal)),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: SpyceColors.teal),
-                    minimumSize: const Size(double.infinity, 44),
-                  ),
-                ),
-              ],
-            ),
-          ),
         ],
       ),
     );
@@ -269,8 +250,18 @@ class _NotificationSettingsPageState extends ConsumerState<NotificationSettingsP
   }) {
     return SwitchListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      title: Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 14)),
-      subtitle: Text(subtitle, style: const TextStyle(color: SpyceColors.dark200, fontSize: 12)),
+      title: Text(
+        title,
+        style: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w600,
+          fontSize: 14,
+        ),
+      ),
+      subtitle: Text(
+        subtitle,
+        style: const TextStyle(color: SpyceColors.dark200, fontSize: 12),
+      ),
       value: value,
       activeColor: SpyceColors.pink,
       onChanged: onChanged,

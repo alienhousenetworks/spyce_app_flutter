@@ -18,12 +18,15 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
     if (Firebase.apps.isEmpty) {
-      await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
     }
   } catch (_) {}
   final payload = PushPayload.fromMap({
     ...message.data,
-    if (message.notification?.title != null) 'title': message.notification!.title,
+    if (message.notification?.title != null)
+      'title': message.notification!.title,
     if (message.notification?.body != null) 'body': message.notification!.body,
   });
   if (payload.isIncomingCall) {
@@ -41,7 +44,9 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   }
 }
 
-final pushNotificationServiceProvider = Provider<PushNotificationService>((ref) {
+final pushNotificationServiceProvider = Provider<PushNotificationService>((
+  ref,
+) {
   return PushNotificationService(ref);
 });
 
@@ -53,10 +58,10 @@ class PushNotificationService {
 
   AuthRepository get _auth => _ref.read(authRepositoryProvider);
 
-  /// Initialize Firebase Cloud Messaging permissions and listeners.
+  /// Request permission (if needed) and register this device with the backend.
+  /// Token sync is automatic — no manual "sync FCM" step.
   Future<void> initialize() async {
-    if (_initialized || kIsWeb) return;
-    _initialized = true;
+    if (kIsWeb) return;
 
     try {
       await LocalPush.ensureInitialized();
@@ -74,22 +79,26 @@ class PushNotificationService {
         sound: true,
       );
 
-      final fcmOk = settings.authorizationStatus ==
-              AuthorizationStatus.authorized ||
+      final fcmOk =
+          settings.authorizationStatus == AuthorizationStatus.authorized ||
           settings.authorizationStatus == AuthorizationStatus.provisional;
       if (fcmOk || androidGranted) {
-        debugPrint('[FCM] Push notification permission granted (android=$androidGranted fcm=$fcmOk).');
+        debugPrint(
+          '[FCM] Push notification permission granted (android=$androidGranted fcm=$fcmOk).',
+        );
+        await syncTokenWithBackend();
       } else {
         debugPrint('[FCM] Push notification permission denied/declined.');
       }
+
+      if (_initialized) return;
+      _initialized = true;
 
       await messaging.setForegroundNotificationPresentationOptions(
         alert: true,
         badge: true,
         sound: true,
       );
-
-      await syncTokenWithBackend();
 
       messaging.onTokenRefresh.listen((newToken) {
         debugPrint('[FCM] Token refreshed: $newToken');
@@ -117,8 +126,10 @@ class PushNotificationService {
   Future<void> _onForeground(RemoteMessage message) async {
     final payload = PushPayload.fromMap({
       ...message.data,
-      if (message.notification?.title != null) 'title': message.notification!.title,
-      if (message.notification?.body != null) 'body': message.notification!.body,
+      if (message.notification?.title != null)
+        'title': message.notification!.title,
+      if (message.notification?.body != null)
+        'body': message.notification!.body,
     });
     debugPrint('[FCM] foreground type=${payload.type}');
     if (payload.isIncomingCall) {
@@ -140,7 +151,9 @@ class PushNotificationService {
 
   Future<void> _onOpened(RemoteMessage message) async {
     final payload = PushPayload.fromMap(message.data);
-    debugPrint('[FCM] opened type=${payload.type} route=${payload.navigationPath}');
+    debugPrint(
+      '[FCM] opened type=${payload.type} route=${payload.navigationPath}',
+    );
     PendingPush.payload = payload;
     await PushBridge.dispatch?.call(payload);
   }
@@ -160,9 +173,14 @@ class PushNotificationService {
   }
 
   Future<void> _sendTokenToBackend(String token) async {
-    final deviceType = defaultTargetPlatform == TargetPlatform.iOS ? 'IOS' : 'ANDROID';
+    final deviceType = defaultTargetPlatform == TargetPlatform.iOS
+        ? 'IOS'
+        : 'ANDROID';
     try {
-      final success = await _auth.registerPushToken(token, deviceType: deviceType);
+      final success = await _auth.registerPushToken(
+        token,
+        deviceType: deviceType,
+      );
       if (success) {
         debugPrint('[FCM] Registered FCM token successfully with backend.');
       } else {

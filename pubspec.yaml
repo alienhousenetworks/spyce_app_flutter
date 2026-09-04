@@ -67,6 +67,7 @@ flutter:
     - assets/backgrounds/
     - assets/images/spyce_logo.jpg
     - assets/animations/flame/
+    - assets/icons/
 
 # App icon + adaptive icons from neon Spyce wordmark (square master)
 flutter_launcher_icons:

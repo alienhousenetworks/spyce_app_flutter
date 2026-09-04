@@ -136,7 +136,8 @@ class _AppShellState extends ConsumerState<AppShell> {
   @override
   Widget build(BuildContext context) {
     ref.listen(sessionExpiredProvider, (prev, next) {
-      if (next == true) {
+      if (next == true && prev != true) {
+        ref.read(sessionExpiredProvider.notifier).state = false;
         ref.read(authControllerProvider.notifier).logout();
         context.go('/auth');
       }
@@ -192,8 +193,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                           onTap: () => _onTap(1),
                         ),
                         _NavItem(
-                          icon: Icons.chat_bubble_outline_rounded,
-                          activeIcon: Icons.chat_bubble_rounded,
+                          asset: 'assets/icons/nav_chat.png',
                           label: 'Chat',
                           selected: i == 2,
                           onTap: () => _onTap(2),
@@ -222,18 +222,57 @@ final _moodPromptedProvider = StateProvider<bool>((ref) => false);
 
 class _NavItem extends StatelessWidget {
   const _NavItem({
-    required this.icon,
-    required this.activeIcon,
+    this.icon,
+    this.activeIcon,
+    this.asset,
     required this.label,
     required this.selected,
     required this.onTap,
   });
 
-  final IconData icon;
-  final IconData activeIcon;
+  final IconData? icon;
+  final IconData? activeIcon;
+  final String? asset;
   final String label;
   final bool selected;
   final VoidCallback onTap;
+
+  static const _greyscale = ColorFilter.matrix(<double>[
+    0.2126,
+    0.7152,
+    0.0722,
+    0,
+    0,
+    0.2126,
+    0.7152,
+    0.0722,
+    0,
+    0,
+    0.2126,
+    0.7152,
+    0.0722,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0.72,
+    0,
+  ]);
+
+  Widget _glyph(Color color) {
+    if (asset != null) {
+      final img = Image.asset(
+        asset!,
+        width: 26,
+        height: 26,
+        filterQuality: FilterQuality.high,
+      );
+      if (selected) return img;
+      return ColorFiltered(colorFilter: _greyscale, child: img);
+    }
+    return Icon(selected ? (activeIcon ?? icon) : icon, color: color, size: 22);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -256,7 +295,7 @@ class _NavItem extends StatelessWidget {
               AnimatedScale(
                 scale: selected ? 1.08 : 1,
                 duration: const Duration(milliseconds: 220),
-                child: Icon(selected ? activeIcon : icon, color: color, size: 22),
+                child: _glyph(color),
               ),
               const SizedBox(height: 3),
               Text(

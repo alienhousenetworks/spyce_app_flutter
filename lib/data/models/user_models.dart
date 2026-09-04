@@ -507,10 +507,10 @@ class FeedProfile {
               json['favorite_track'] ??
               json['spotify_track'])
           ?.toString(),
-      isLiked: json['is_liked'] == true ||
-          json['already_liked'] == true ||
-          json['is_fallback_liked'] == true,
-      isFallbackLiked: json['is_fallback_liked'] == true,
+      isLiked: _truthy(json['is_liked']) ||
+          _truthy(json['already_liked']) ||
+          _truthy(json['is_fallback_liked']),
+      isFallbackLiked: _truthy(json['is_fallback_liked']),
     );
   }
 
@@ -545,12 +545,12 @@ class FeedProfile {
     map['moods'] ??= r['moods'];
     map['has_active_mood'] ??= r['has_active_mood'];
     // Liked state: profile_card flag and/or feed envelope fallback
-    map['is_liked'] = map['is_liked'] == true ||
-        r['is_liked'] == true ||
-        r['is_fallback_liked'] == true ||
-        map['is_fallback_liked'] == true;
+    map['is_liked'] = _truthy(map['is_liked']) ||
+        _truthy(r['is_liked']) ||
+        _truthy(r['is_fallback_liked']) ||
+        _truthy(map['is_fallback_liked']);
     map['is_fallback_liked'] =
-        r['is_fallback_liked'] == true || map['is_fallback_liked'] == true;
+        _truthy(r['is_fallback_liked']) || _truthy(map['is_fallback_liked']);
     return FeedProfile.fromJson(map);
   }
 
@@ -558,6 +558,16 @@ class FeedProfile {
     if (v == null) return null;
     if (v is Map) return (v['name'] ?? v['label'] ?? v['title'])?.toString();
     return v.toString();
+  }
+
+  static bool _truthy(dynamic v) {
+    if (v == true || v == 1) return true;
+    if (v is num && v != 0) return true;
+    if (v is String) {
+      final s = v.toLowerCase().trim();
+      return s == 'true' || s == '1' || s == 'yes';
+    }
+    return false;
   }
 
   static final _uuidRe = RegExp(

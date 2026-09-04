@@ -27,6 +27,7 @@ class FeedProfileCard extends ConsumerStatefulWidget {
 
   final FeedProfile profile;
   final VoidCallback onLike;
+
   /// Shown beside like when gender+sexuality DM matrix allows messaging.
   final VoidCallback? onMessage;
   final VoidCallback? onPass;
@@ -95,19 +96,19 @@ class _FeedProfileCardState extends ConsumerState<FeedProfileCard> {
                 itemBuilder: (context, index) {
                   return switch (pages[index]) {
                     _FeedPage.hero => _HeroPage(
-                        profile: p,
-                        liked: widget.liked,
-                        onLike: widget.onLike,
-                        onMessage: widget.onMessage,
-                        viewerUsername: viewerUsername,
-                      ),
+                      profile: p,
+                      liked: widget.liked,
+                      onLike: widget.onLike,
+                      onMessage: widget.onMessage,
+                      viewerUsername: viewerUsername,
+                    ),
                     _FeedPage.photos => _PhotosPage(
-                        images: p.galleryImages,
-                        selected: _photoIdx,
-                        onSelect: (i) => setState(() => _photoIdx = i),
-                        username: viewerUsername,
-                        intent: p.intent,
-                      ),
+                      images: p.galleryImages,
+                      selected: _photoIdx,
+                      onSelect: (i) => setState(() => _photoIdx = i),
+                      username: viewerUsername,
+                      intent: p.intent,
+                    ),
                     _FeedPage.details => _DetailsPage(profile: p),
                     _FeedPage.turnOns => _TurnOnsPage(profile: p),
                   };
@@ -158,8 +159,10 @@ class _MoodChips extends StatelessWidget {
           children: [
             for (final mood in shown)
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 5,
+                ),
                 decoration: BoxDecoration(
                   color: SpyceColors.pink.withValues(alpha: 0.32),
                   borderRadius: BorderRadius.circular(20),
@@ -192,10 +195,7 @@ class _MoodChips extends StatelessWidget {
 
 /// Intent chip (used on photos / details pages).
 class _IntentChip extends StatelessWidget {
-  const _IntentChip({
-    required this.intent,
-    this.onDark = true,
-  });
+  const _IntentChip({required this.intent, this.onDark = true});
 
   final String intent;
   final bool onDark;
@@ -259,7 +259,9 @@ class _PageDots extends StatelessWidget {
           height: 7,
           margin: const EdgeInsets.symmetric(horizontal: 3),
           decoration: BoxDecoration(
-            color: on ? SpyceColors.white : SpyceColors.white.withValues(alpha: 0.35),
+            color: on
+                ? SpyceColors.white
+                : SpyceColors.white.withValues(alpha: 0.35),
             borderRadius: BorderRadius.circular(8),
           ),
         );
@@ -283,6 +285,7 @@ class _HeroPage extends StatelessWidget {
   final bool liked;
   final VoidCallback onLike;
   final VoidCallback? onMessage;
+
   /// Logged-in viewer username for anti-leak watermark (not the profile owner).
   final String? viewerUsername;
 
@@ -312,7 +315,9 @@ class _HeroPage extends StatelessWidget {
                   physics: const ClampingScrollPhysics(),
                   primary: false,
                   child: ConstrainedBox(
-                    constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                    constraints: BoxConstraints(
+                      minHeight: constraints.maxHeight,
+                    ),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
@@ -337,11 +342,15 @@ class _HeroPage extends StatelessWidget {
                                     width: photoW,
                                     height: h,
                                     memCacheWidth:
-                                        (photoW * MediaQuery.devicePixelRatioOf(context))
+                                        (photoW *
+                                                MediaQuery.devicePixelRatioOf(
+                                                  context,
+                                                ))
                                             .round()
                                             .clamp(200, 1600),
-                                    fadeInDuration:
-                                        const Duration(milliseconds: 150),
+                                    fadeInDuration: const Duration(
+                                      milliseconds: 150,
+                                    ),
                                     placeholder: (_, _) => const Center(
                                       child: SizedBox(
                                         width: 28,
@@ -396,14 +405,17 @@ class _HeroPage extends StatelessWidget {
                               Icon(
                                 Icons.location_on,
                                 size: 16,
-                                color: SpyceColors.white.withValues(alpha: 0.85),
+                                color: SpyceColors.white.withValues(
+                                  alpha: 0.85,
+                                ),
                               ),
                               const SizedBox(width: 4),
                               Flexible(
                                 child: Text(
                                   () {
-                                    final dist =
-                                        generalizedDistanceLabel(p.distanceKm);
+                                    final dist = generalizedDistanceLabel(
+                                      p.distanceKm,
+                                    );
                                     final city = p.city?.trim();
                                     if (city != null &&
                                         city.isNotEmpty &&
@@ -417,8 +429,9 @@ class _HeroPage extends StatelessWidget {
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
-                                    color: SpyceColors.white
-                                        .withValues(alpha: 0.9),
+                                    color: SpyceColors.white.withValues(
+                                      alpha: 0.9,
+                                    ),
                                     fontSize: 14,
                                   ),
                                 ),
@@ -447,8 +460,10 @@ class _HeroPage extends StatelessWidget {
               children: [
                 if (liked) ...[
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 5,
+                    ),
                     decoration: BoxDecoration(
                       color: SpyceColors.pink.withValues(alpha: 0.35),
                       borderRadius: BorderRadius.circular(20),
@@ -480,11 +495,7 @@ class _HeroPage extends StatelessWidget {
                       ),
                       const SizedBox(width: 20),
                     ],
-                    _RoundAction(
-                      icon: liked ? Icons.favorite : Icons.favorite_border,
-                      filled: liked,
-                      onTap: onLike,
-                    ),
+                    _LikeButton(liked: liked, onTap: onLike),
                   ],
                 ),
               ],
@@ -632,6 +643,48 @@ class _PresenceStatusChip extends StatelessWidget {
   }
 }
 
+class _LikeButton extends StatelessWidget {
+  const _LikeButton({required this.liked, required this.onTap});
+
+  final bool liked;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedScale(
+        scale: liked ? 1.06 : 1,
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutBack,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          width: 72,
+          height: 72,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: SpyceColors.flame.withValues(alpha: liked ? 0.45 : 0.18),
+                blurRadius: liked ? 16 : 10,
+              ),
+            ],
+          ),
+          child: Opacity(
+            opacity: liked ? 1 : 0.82,
+            child: Image.asset(
+              'assets/icons/like_button.png',
+              width: 72,
+              height: 72,
+              filterQuality: FilterQuality.high,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _RoundAction extends StatelessWidget {
   const _RoundAction({
     required this.icon,
@@ -666,11 +719,7 @@ class _RoundAction extends StatelessWidget {
             ),
           ],
         ),
-        child: Icon(
-          icon,
-          color: SpyceColors.paperInk,
-          size: 30,
-        ),
+        child: Icon(icon, color: SpyceColors.paperInk, size: 30),
       ),
     );
   }
@@ -870,9 +919,13 @@ class _DetailsPage extends StatelessWidget {
                     ],
                     if (p.height != null) ...[
                       const SizedBox(height: 6),
-                      Text(p.height!,
-                          style: const TextStyle(
-                              color: SpyceColors.dark500, fontSize: 15)),
+                      Text(
+                        p.height!,
+                        style: const TextStyle(
+                          color: SpyceColors.dark500,
+                          fontSize: 15,
+                        ),
+                      ),
                     ],
                     if (p.locationSummary.isNotEmpty) ...[
                       const SizedBox(height: 6),
@@ -886,15 +939,22 @@ class _DetailsPage extends StatelessWidget {
                     ],
                     if (p.sexuality != null) ...[
                       const SizedBox(height: 6),
-                      Text(p.sexuality!,
-                          style: const TextStyle(
-                              color: SpyceColors.dark500, fontSize: 15)),
+                      Text(
+                        p.sexuality!,
+                        style: const TextStyle(
+                          color: SpyceColors.dark500,
+                          fontSize: 15,
+                        ),
+                      ),
                     ],
                   ],
                 ),
               ),
-              Icon(Icons.inventory_2_outlined,
-                  color: SpyceColors.dark300, size: 40),
+              Icon(
+                Icons.inventory_2_outlined,
+                color: SpyceColors.dark300,
+                size: 40,
+              ),
             ],
           ),
         ),
@@ -1028,7 +1088,9 @@ class _DetailsPage extends StatelessWidget {
                       .map(
                         (lang) => Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 7),
+                            horizontal: 12,
+                            vertical: 7,
+                          ),
                           decoration: BoxDecoration(
                             color: SpyceColors.paperChip,
                             borderRadius: BorderRadius.circular(20),
@@ -1071,7 +1133,9 @@ class _DetailsPage extends StatelessWidget {
                       .map(
                         (i) => Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 7),
+                            horizontal: 12,
+                            vertical: 7,
+                          ),
                           decoration: BoxDecoration(
                             color: SpyceColors.paperWarm,
                             borderRadius: BorderRadius.circular(20),
@@ -1109,9 +1173,7 @@ class _TurnOnsPage extends StatelessWidget {
     // Prefer structured stickers (id + name + image_url from R2)
     final stickerItems = p.turnOnItems.isNotEmpty
         ? p.turnOnItems
-        : p.turnOns
-            .map((n) => TurnOnItem(id: n, name: n))
-            .toList();
+        : p.turnOns.map((n) => TurnOnItem(id: n, name: n)).toList();
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 28, 20, 16),
