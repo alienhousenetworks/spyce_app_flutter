@@ -507,9 +507,7 @@ class FeedProfile {
               json['favorite_track'] ??
               json['spotify_track'])
           ?.toString(),
-      isLiked: _truthy(json['is_liked']) ||
-          _truthy(json['already_liked']) ||
-          _truthy(json['is_fallback_liked']),
+      isLiked: _truthy(json['is_liked']) || _truthy(json['already_liked']),
       isFallbackLiked: _truthy(json['is_fallback_liked']),
     );
   }
@@ -544,11 +542,8 @@ class FeedProfile {
     map['current_moods_detail'] ??= r['current_moods_detail'];
     map['moods'] ??= r['moods'];
     map['has_active_mood'] ??= r['has_active_mood'];
-    // Liked state: profile_card flag and/or feed envelope fallback
-    map['is_liked'] = _truthy(map['is_liked']) ||
-        _truthy(r['is_liked']) ||
-        _truthy(r['is_fallback_liked']) ||
-        _truthy(map['is_fallback_liked']);
+    // Liked state follows the 36h TTL flag — not "shown because feed was empty"
+    map['is_liked'] = _truthy(map['is_liked']) || _truthy(r['is_liked']);
     map['is_fallback_liked'] =
         _truthy(r['is_fallback_liked']) || _truthy(map['is_fallback_liked']);
     return FeedProfile.fromJson(map);

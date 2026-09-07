@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -29,6 +30,7 @@ class DiscoverPage extends ConsumerStatefulWidget {
 class _DiscoverPageState extends ConsumerState<DiscoverPage> {
   final _pageCtrl = PageController();
   final _liked = <String>{};
+  final _likedAtMs = <String, int>{};
 
   List<FeedProfile> profiles = [];
   bool loading = true;
@@ -84,22 +86,91 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
     if (mounted) await _load(0);
   }
 
-  static const _likedPrefsKey = 'spyce_liked_profile_ids';
+  static const _likedPrefsKey = 'spyce_liked_profile_ids_v2';
+  static const _likedPrefsLegacyKey = 'spyce_liked_profile_ids';
+  static const _likeTtl = Duration(hours: 36);
 
   Future<void> _restoreLiked() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final saved = prefs.getStringList(_likedPrefsKey) ?? const [];
-      if (saved.isEmpty || !mounted) return;
-      setState(() => _liked.addAll(saved));
+      // Legacy list had no timestamps and blocked relikes forever.
+      await prefs.remove(_likedPrefsLegacyKey);
+      final raw = prefs.getString(_likedPrefsKey);
+      if (raw == null || raw.isEmpty || !mounted) return;
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return;
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final cutoff = now - _likeTtl.inMilliseconds;
+      final restored = <String, int>{};
+      decoded.forEach((key, value) {
+        final id = key.toString();
+        final ts = value is int ? value : int.tryParse('$value') ?? 0;
+        if (id.isNotEmpty && ts >= cutoff) restored[id] = ts;
+      });
+      if (!mounted) return;
+      setState(() {
+        _likedAtMs
+          ..clear()
+          ..addAll(restored);
+        _liked
+          ..clear()
+          ..addAll(restored.keys);
+      });
     } catch (_) {}
   }
 
   Future<void> _persistLiked() async {
     try {
+      _pruneLiked();
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setStringList(_likedPrefsKey, _liked.toList());
+      await prefs.setString(_likedPrefsKey, jsonEncode(_likedAtMs));
     } catch (_) {}
+  }
+
+  void _pruneLiked() {
+    final cutoff =
+        DateTime.now().millisecondsSinceEpoch - _likeTtl.inMilliseconds;
+    _likedAtMs.removeWhere((_, ts) => ts < cutoff);
+    _liked
+      ..clear()
+      ..addAll(_likedAtMs.keys);
+  }
+
+  void _rememberLiked(FeedProfile p, {int? retryAfterSeconds}) {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final remainingMs = ((retryAfterSeconds ?? _likeTtl.inSeconds) * 1000)
+        .clamp(0, _likeTtl.inMilliseconds)
+        .toInt();
+    final likedAt = now - (_likeTtl.inMilliseconds - remainingMs);
+    void put(String id) {
+      if (id.isEmpty) return;
+      _liked.add(id);
+      _likedAtMs[id] = likedAt;
+    }
+
+    put(p.id);
+    final uid = p.userId ?? p.id;
+    put(uid);
+  }
+
+  void _forgetLiked(FeedProfile p) {
+    void drop(String? id) {
+      if (id == null || id.isEmpty) return;
+      _liked.remove(id);
+      _likedAtMs.remove(id);
+    }
+
+    drop(p.id);
+    drop(p.userId);
+    final uid = p.userId ?? p.id;
+    final i = profiles.indexWhere((x) => x.id == p.id || x.userId == uid);
+    if (i >= 0 && profiles[i].isLiked) {
+      profiles = [
+        ...profiles.sublist(0, i),
+        profiles[i].copyWith(isLiked: false),
+        ...profiles.sublist(i + 1),
+      ];
+    }
   }
 
   /// Seed age prefs from profile only.
@@ -229,19 +300,14 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
 
     var resolved = _withResolvedLanguages(res.results);
     showPaywall = false;
-    // Keep session + persisted likes. Never wipe on refresh — the API may
-    // omit is_liked even when Redis still has the like (already-liked on tap).
-    resolved = [
-      for (final p in resolved)
-        (_isLiked(p) || p.isLiked)
-            ? p.copyWith(isLiked: true)
-            : p,
-    ];
+    _pruneLiked();
+    // Server like:ts TTL is the source of truth. Do not keep a card liked
+    // from stale local prefs after the 36h window.
     for (final p in resolved) {
       if (p.isLiked) {
-        _liked.add(p.id);
-        final key = p.userId ?? p.id;
-        if (key.isNotEmpty) _liked.add(key);
+        _rememberLiked(p);
+      } else {
+        _forgetLiked(p);
       }
     }
     unawaited(_persistLiked());
@@ -376,10 +442,16 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
 
   bool _isLiked(FeedProfile p) {
     if (p.isLiked) return true;
-    if (_liked.contains(p.id)) return true;
-    final uid = p.userId;
-    if (uid != null && uid.isNotEmpty && _liked.contains(uid)) return true;
-    return false;
+    final cutoff =
+        DateTime.now().millisecondsSinceEpoch - _likeTtl.inMilliseconds;
+    bool live(String? id) {
+      if (id == null || id.isEmpty) return false;
+      final ts = _likedAtMs[id];
+      if (ts != null) return ts >= cutoff;
+      return _liked.contains(id);
+    }
+
+    return live(p.id) || live(p.userId);
   }
 
   Future<void> _message(FeedProfile p) async {
@@ -491,9 +563,7 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
     final id = p.id;
     final uid = p.userId ?? p.id;
     setState(() {
-      _liked.add(id);
-      if (uid.isNotEmpty) _liked.add(uid);
-      // Keep profile in feed; mark as liked so UI shows "Already liked"
+      _rememberLiked(p);
       final i = profiles.indexWhere((x) => x.id == id || x.userId == uid);
       if (i >= 0) {
         profiles = [
@@ -508,42 +578,55 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
     try {
       final res = await ref.read(feedRepositoryProvider).like(uid);
       final status = res['status']?.toString() ?? '';
+      final retryAfter = int.tryParse('${res['retry_after_seconds'] ?? ''}');
       if (status == 'match') {
         _showToast("It's a match! 💖");
       } else if (status == 'cooldown' || status == 'already_liked') {
-        // Still keep as liked until TTL expires — do not remove from feed
+        setState(() => _rememberLiked(p, retryAfterSeconds: retryAfter));
+        unawaited(_persistLiked());
         _showToast(
           res['message']?.toString() ?? 'Already liked ${p.shortName}',
         );
+      } else if (status == 'error') {
+        setState(() => _forgetLiked(p));
+        unawaited(_persistLiked());
+        _showToast(res['message']?.toString() ?? 'Could not like. Try again.');
       } else {
         _showToast('Liked ${p.shortName}');
       }
     } on ApiException catch (e) {
+      final status = e.data?['status']?.toString() ?? '';
+      final retryAfter =
+          int.tryParse('${e.data?['retry_after_seconds'] ?? ''}');
+      final msg = e.message.toLowerCase();
+      final isCooldown = status == 'cooldown' ||
+          status == 'already_liked' ||
+          msg.contains('already') ||
+          msg.contains('cooldown');
       if (e.isSubscriptionRequired) {
-        // Revert optimistic like only for paywall
-        setState(() {
-          _liked.remove(id);
-          _liked.remove(uid);
-        });
+        setState(() => _forgetLiked(p));
         setState(() => showPaywall = true);
+      } else if (isCooldown) {
+        setState(() => _rememberLiked(p, retryAfterSeconds: retryAfter));
+        unawaited(_persistLiked());
+        _showToast(
+          e.data?['message']?.toString() ??
+              (e.message == 'Something went wrong'
+                  ? 'Already liked ${p.shortName}'
+                  : e.message),
+        );
       } else {
-        final msg = e.message.toLowerCase();
-        if (msg.contains('already') || msg.contains('cooldown')) {
-          // Keep liked state — profile stays in feed
-          _showToast(e.message);
-        } else {
-          setState(() {
-            _liked.remove(id);
-            _liked.remove(uid);
-          });
-          _showToast(e.message);
-        }
+        setState(() => _forgetLiked(p));
+        unawaited(_persistLiked());
+        _showToast(
+          e.message == 'Something went wrong'
+              ? 'Could not like. Try again.'
+              : e.message,
+        );
       }
     } catch (_) {
-      setState(() {
-        _liked.remove(id);
-        _liked.remove(uid);
-      });
+      setState(() => _forgetLiked(p));
+      unawaited(_persistLiked());
       _showToast('Could not like. Try again.');
     }
   }
