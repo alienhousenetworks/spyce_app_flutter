@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/theme/spyce_colors.dart';
+import '../../core/utils/media_url.dart';
 import '../../data/models/user_models.dart';
 import '../../data/repositories/api_repositories.dart';
 import '../../shared/widgets/spyce_widgets.dart';
@@ -145,9 +146,11 @@ class _MatchTile extends StatelessWidget {
                       borderRadius: const BorderRadius.vertical(
                         top: Radius.circular(20),
                       ),
-                      child: match.imageUrl != null && match.imageUrl!.isNotEmpty
+                      child: () {
+                        final photo = resolveMediaUrl(match.imageUrl);
+                        return photo != null && photo.isNotEmpty
                           ? CachedNetworkImage(
-                              imageUrl: match.imageUrl!,
+                              imageUrl: photo,
                               fit: BoxFit.cover,
                               errorWidget: (_, _, _) => Container(
                                 color: SpyceColors.dark600,
@@ -173,7 +176,8 @@ class _MatchTile extends StatelessWidget {
                                   fontWeight: FontWeight.w700,
                                 ),
                               ),
-                            ),
+                            );
+                      }(),
                     ),
                     if (match.isOnline)
                       const Positioned(

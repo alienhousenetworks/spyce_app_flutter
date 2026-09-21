@@ -6,6 +6,15 @@ import '../../core/utils/presence_labels.dart';
 double? _parseDouble(dynamic v) => parseDouble(v);
 int? _parseInt(dynamic v) => parseInt(v);
 
+/// http(s), app-relative /media, or a local file. Not an R2 object key.
+bool _isLoadableMediaRef(String raw) {
+  if (raw.isEmpty || raw == 'null' || raw == 'None') return false;
+  return raw.startsWith('http://') ||
+      raw.startsWith('https://') ||
+      raw.startsWith('/') ||
+      raw.startsWith('file:');
+}
+
 /// Turn relative `/media/...` paths into absolute API URLs.
 /// Leaves http(s), local device paths, and storage keys as-is.
 String? resolveChatMediaUrl(String? url) {
@@ -177,13 +186,19 @@ class ProfileImage {
   final int order;
 
   factory ProfileImage.fromJson(Map<String, dynamic> json) {
-    final raw = (json['image_url'] ??
-            json['url'] ??
-            json['image'] ??
-            json['storage_path'] ??
-            '')
-        .toString()
-        .trim();
+    // storage_path is an object key (users/...), not a URL. Using it as
+    // imageUrl makes CachedNetworkImage fail and hides the admin avatar
+    // behind a black box.
+    String raw = '';
+    for (final key in ['image_url', 'url', 'image']) {
+      final value = json[key];
+      if (value is Map) continue;
+      final s = (value ?? '').toString().trim();
+      if (_isLoadableMediaRef(s)) {
+        raw = s;
+        break;
+      }
+    }
     return ProfileImage(
       id: (json['id'] ?? '').toString(),
       imageUrl: raw,
@@ -1021,8 +1036,11 @@ class MatchItem {
     final hasCustom =
         photoStatus == null || photoStatus.toUpperCase() != 'AVATAR';
     if (hasCustom && images is List && images.isNotEmpty && images.first is Map) {
-      imageUrl =
+      final raw =
           (images.first['image_url'] ?? images.first['url'])?.toString();
+      if (raw != null && _isLoadableMediaRef(raw.trim())) {
+        imageUrl = raw.trim();
+      }
     }
     if (imageUrl == null || imageUrl.isEmpty) {
       final avatar = o['avatar_detail'] ?? o['avatar'] ?? json['avatar_detail'];
@@ -1036,6 +1054,11 @@ class MatchItem {
             o['photo'] ??
             json['image_url'])
         ?.toString();
+    if (imageUrl != null && !_isLoadableMediaRef(imageUrl.trim())) {
+      imageUrl = null;
+    } else {
+      imageUrl = imageUrl?.trim();
+    }
     DateTime? matchedAt;
     final rawDate = json['matched_at'] ?? json['created_at'];
     if (rawDate != null) matchedAt = DateTime.tryParse(rawDate.toString());
@@ -2473,7 +2496,7 @@ String? resolveDisplayImageUrl({
     for (final item in images) {
       if (item is Map) {
         final u = (item['image_url'] ?? item['url'] ?? item['image'])?.toString();
-        if (u != null && u.isNotEmpty) return u;
+        if (u != null && _isLoadableMediaRef(u.trim())) return u.trim();
       }
     }
   }
@@ -2482,10 +2505,14 @@ String? resolveDisplayImageUrl({
             avatarDetail['image_url'] ??
             avatarDetail['url'])
         ?.toString();
-    if (u != null && u.isNotEmpty) return u;
+    if (u != null && _isLoadableMediaRef(u.trim())) return u.trim();
   }
-  if (avatarUrl != null && avatarUrl.isNotEmpty) return avatarUrl;
-  if (imageUrl != null && imageUrl.isNotEmpty) return imageUrl;
+  if (avatarUrl != null && _isLoadableMediaRef(avatarUrl.trim())) {
+    return avatarUrl.trim();
+  }
+  if (imageUrl != null && _isLoadableMediaRef(imageUrl.trim())) {
+    return imageUrl.trim();
+  }
   return null;
 }
 

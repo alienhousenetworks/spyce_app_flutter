@@ -14,6 +14,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/storage/chat_local_store.dart';
 import '../../core/theme/spyce_colors.dart';
+import '../../core/utils/media_url.dart';
 import '../../core/utils/presence_labels.dart';
 import '../../data/models/user_models.dart';
 import '../../data/repositories/api_repositories.dart';
@@ -403,7 +404,8 @@ class _ConversationsPageState extends ConsumerState<ConversationsPage> {
                                                 sigmaY: 0,
                                               ),
                                         child: CachedNetworkImage(
-                                          imageUrl: l.imageUrl!,
+                                          imageUrl: resolveMediaUrl(l.imageUrl) ??
+                                              l.imageUrl!,
                                           fit: BoxFit.cover,
                                           errorWidget: (_, _, _) =>
                                               const ColoredBox(

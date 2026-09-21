@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../core/theme/feed_backgrounds.dart';
 import '../../../core/theme/spyce_colors.dart';
 import '../../../core/utils/distance_display.dart';
+import '../../../core/utils/media_url.dart';
 import '../../../core/utils/presence_labels.dart';
 import '../../../data/models/user_models.dart';
 import '../../../shared/widgets/media_user_id_watermark.dart';
@@ -292,7 +293,7 @@ class _HeroPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = profile;
-    final hero = p.heroImageUrl;
+    final hero = resolveMediaUrl(p.heroImageUrl);
     final size = MediaQuery.sizeOf(context);
     final hasBio = p.bio != null && p.bio!.trim().isNotEmpty;
     // Adaptive photo: shrink slightly when bio is present so name/details/bio
@@ -810,7 +811,7 @@ class _PhotosPage extends StatelessWidget {
               child: MediaUserIdWatermark(
                 username: username,
                 child: CachedNetworkImage(
-                  imageUrl: current.imageUrl,
+                  imageUrl: resolveMediaUrl(current.imageUrl) ?? current.imageUrl,
                   fit: BoxFit.cover,
                   width: double.infinity,
                   height: double.infinity,
@@ -846,7 +847,8 @@ class _PhotosPage extends StatelessWidget {
                     clipBehavior: Clip.antiAlias,
                     // Thumbnails: no watermark (keep overlays only on main media)
                     child: CachedNetworkImage(
-                      imageUrl: images[i].imageUrl,
+                      imageUrl:
+                          resolveMediaUrl(images[i].imageUrl) ?? images[i].imageUrl,
                       fit: BoxFit.cover,
                       width: 72,
                       height: 72,
