@@ -596,10 +596,12 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
       }
     } on ApiException catch (e) {
       final status = e.data?['status']?.toString() ?? '';
-      final retryAfter =
-          int.tryParse('${e.data?['retry_after_seconds'] ?? ''}');
+      final retryAfter = int.tryParse(
+        '${e.data?['retry_after_seconds'] ?? ''}',
+      );
       final msg = e.message.toLowerCase();
-      final isCooldown = status == 'cooldown' ||
+      final isCooldown =
+          status == 'cooldown' ||
           status == 'already_liked' ||
           msg.contains('already') ||
           msg.contains('cooldown');
@@ -823,7 +825,7 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                       values: RangeValues(minAge, maxAge),
                       min: 18,
                       max: 80,
-                      activeColor: SpyceColors.pink,
+                      activeColor: SpyceColors.feedFlame,
                       onChanged: (v) => setModal(() {
                         minAge = v.start;
                         maxAge = v.end;
@@ -850,7 +852,7 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                             color: anywhere ? Colors.white : Colors.white70,
                           ),
                           selected: anywhere,
-                          selectedColor: SpyceColors.pink,
+                          selectedColor: SpyceColors.feedFlame,
                           labelStyle: TextStyle(
                             color: anywhere ? Colors.white : Colors.white70,
                             fontWeight: FontWeight.w600,
@@ -868,7 +870,7 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                             color: !anywhere ? Colors.white : Colors.white70,
                           ),
                           selected: !anywhere,
-                          selectedColor: SpyceColors.pink,
+                          selectedColor: SpyceColors.feedFlame,
                           labelStyle: TextStyle(
                             color: !anywhere ? Colors.white : Colors.white70,
                             fontWeight: FontWeight.w600,
@@ -906,7 +908,7 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                         min: 1,
                         max: screenMaxDist,
                         divisions: 999,
-                        activeColor: SpyceColors.pink,
+                        activeColor: SpyceColors.feedFlame,
                         label: '${distance.round()} km',
                         onChanged: (v) => setModal(() {
                           anywhere = false;
@@ -962,7 +964,7 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                         fillColor: Colors.black26,
                         prefixIcon: const Icon(
                           Icons.location_city,
-                          color: SpyceColors.pinkSoft,
+                          color: SpyceColors.feedFlameSoft,
                         ),
                         suffixIcon: cityLoading
                             ? const Padding(
@@ -972,7 +974,7 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                                   height: 18,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
-                                    color: SpyceColors.pinkSoft,
+                                    color: SpyceColors.feedFlameSoft,
                                   ),
                                 ),
                               )
@@ -1037,7 +1039,7 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                               dense: true,
                               leading: const Icon(
                                 Icons.place_outlined,
-                                color: SpyceColors.pinkSoft,
+                                color: SpyceColors.feedFlameSoft,
                                 size: 20,
                               ),
                               title: Text(
@@ -1117,7 +1119,7 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                               fontSize: 12,
                             ),
                           ),
-                          backgroundColor: SpyceColors.pink.withValues(
+                          backgroundColor: SpyceColors.feedFlame.withValues(
                             alpha: 0.35,
                           ),
                           side: BorderSide.none,
@@ -1156,7 +1158,7 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                           ChoiceChip(
                             label: const Text('Any Intent'),
                             selected: selectedIntent.isEmpty,
-                            selectedColor: SpyceColors.pink,
+                            selectedColor: SpyceColors.feedFlame,
                             labelStyle: TextStyle(
                               color: selectedIntent.isEmpty
                                   ? Colors.white
@@ -1172,7 +1174,7 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                             return ChoiceChip(
                               label: Text(opt.name),
                               selected: isSel,
-                              selectedColor: SpyceColors.pink,
+                              selectedColor: SpyceColors.feedFlame,
                               labelStyle: TextStyle(
                                 color: isSel ? Colors.white : Colors.white70,
                               ),
@@ -1192,7 +1194,7 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                         style: TextStyle(color: Colors.white),
                       ),
                       value: online,
-                      activeThumbColor: SpyceColors.pink,
+                      activeThumbColor: SpyceColors.feedFlame,
                       onChanged: (v) => setModal(() => online = v),
                     ),
                     const SizedBox(height: 16),
@@ -1271,8 +1273,7 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                 SpyceHeaderButton(
                   icon: Icons.notifications_outlined,
                   tooltip: 'Notifications',
-                  onPressed: () =>
-                      context.push('/app/settings/notifications'),
+                  onPressed: () => context.push('/app/settings/notifications'),
                 ),
                 const SizedBox(width: 6),
                 SpyceHeaderButton(
@@ -1292,7 +1293,7 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                 locationBanner!.isNotEmpty &&
                 profiles.isNotEmpty)
               Material(
-                color: SpyceColors.pink.withValues(alpha: 0.15),
+                color: SpyceColors.feedFlame.withValues(alpha: 0.15),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16,
@@ -1302,7 +1303,7 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                     children: [
                       const Icon(
                         Icons.place_outlined,
-                        color: SpyceColors.pinkSoft,
+                        color: SpyceColors.feedFlameSoft,
                         size: 18,
                       ),
                       const SizedBox(width: 8),
@@ -1370,14 +1371,18 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                             },
                             child: const Text(
                               'Refresh',
-                              style: TextStyle(color: SpyceColors.pinkSoft),
+                              style: TextStyle(
+                                color: SpyceColors.feedFlameSoft,
+                              ),
                             ),
                           ),
                           TextButton(
                             onPressed: _openFilters,
                             child: const Text(
                               'Adjust filters',
-                              style: TextStyle(color: SpyceColors.pinkSoft),
+                              style: TextStyle(
+                                color: SpyceColors.feedFlameSoft,
+                              ),
                             ),
                           ),
                         ],
@@ -1486,12 +1491,12 @@ class _ProfileIncompleteView extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: SpyceColors.pink.withValues(alpha: 0.15),
+                color: SpyceColors.feedFlame.withValues(alpha: 0.15),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
                 Icons.assignment_late_outlined,
-                color: SpyceColors.pinkSoft,
+                color: SpyceColors.feedFlameSoft,
                 size: 40,
               ),
             ),
@@ -1530,7 +1535,7 @@ class _ProfileIncompleteView extends StatelessWidget {
                   Text(
                     'Required Fields (${missing.length} missing):',
                     style: const TextStyle(
-                      color: SpyceColors.pinkSoft,
+                      color: SpyceColors.feedFlameSoft,
                       fontWeight: FontWeight.w700,
                       fontSize: 13,
                     ),
@@ -1624,7 +1629,7 @@ class _VarietyBridgePage extends StatelessWidget {
               style: GoogleFonts.dmSans(
                 fontSize: 16,
                 fontWeight: FontWeight.w500,
-                color: SpyceColors.pinkSoft,
+                color: SpyceColors.feedFlameSoft,
                 height: 1.35,
               ),
             ),

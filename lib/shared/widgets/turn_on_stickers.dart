@@ -33,7 +33,7 @@ class TurnOnStickerCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(radius),
         border: Border.all(
           color: selected
-              ? SpyceColors.pink
+              ? SpyceColors.feedFlame
               : Colors.black.withValues(alpha: 0.06),
           width: selected ? 2.5 : 1,
         ),
@@ -88,7 +88,7 @@ class TurnOnStickerCard extends StatelessWidget {
                 vertical: compact ? 5 : 7,
               ),
               decoration: BoxDecoration(
-                color: selected ? SpyceColors.pink : Colors.black87,
+                color: selected ? SpyceColors.feedFlame : Colors.black87,
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(
@@ -112,7 +112,7 @@ class TurnOnStickerCard extends StatelessWidget {
                 width: 22,
                 height: 22,
                 decoration: const BoxDecoration(
-                  color: SpyceColors.pink,
+                  color: SpyceColors.feedFlame,
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(Icons.check, size: 14, color: Colors.white),
@@ -153,7 +153,8 @@ class _FallbackIcon extends StatelessWidget {
     final l = label.toLowerCase();
     if (l.contains('kiss')) return Icons.favorite;
     if (l.contains('cuddle')) return Icons.hotel;
-    if (l.contains('cosplay') || l.contains('costume')) return Icons.theater_comedy;
+    if (l.contains('cosplay') || l.contains('costume'))
+      return Icons.theater_comedy;
     if (l.contains('spank')) return Icons.back_hand_outlined;
     if (l.contains('music')) return Icons.music_note;
     if (l.contains('food') || l.contains('cook')) return Icons.restaurant;

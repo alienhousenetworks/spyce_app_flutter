@@ -19,12 +19,22 @@ abstract final class SpyceColors {
   static const dark100 = Color(0xFFA0A0A0);
 
   /// Sampled from `assets/animations/flame` (bright fill #E07E42).
-  static const flame = Color(0xFFE07E42);
-  static const flameMid = Color(0xFFD26A39);
-  static const flameSoft = Color(0xFFF0A066);
-  static const flamePale = Color(0xFFF6C9A8);
-  static const flameDim = Color(0x1FE07E42);
-  static const flameGlow = Color(0x40E07E42);
+  // New brand orange (buttons, accents, everything except Feed)
+  static const brand = Color(0xFFFF5122);
+  static const flame = brand;
+  static const flameMid = Color(0xFFE63E10);
+  static const flameSoft = Color(0xFFFF7A52);
+  static const flamePale = Color(0xFFFFB9A3);
+  static const flameDim = Color(0x1FFF5122);
+  static const flameGlow = Color(0x40FF5122);
+
+  // Original orange, used ONLY by the Feed
+  static const feedFlame = Color(0xFFE07E42);
+  static const feedFlameMid = Color(0xFFD26A39);
+  static const feedFlameSoft = Color(0xFFF0A066);
+  static const feedFlamePale = Color(0xFFF6C9A8);
+  static const feedFlameDim = Color(0x1FE07E42);
+  static const feedFlameGlow = Color(0x40E07E42);
 
   /// Back-compat aliases — same flame. Do not reintroduce magenta.
   static const pink = flame;
@@ -76,14 +86,14 @@ abstract final class SpyceColors {
     'sunset': Color(0xFFFF6B35),
     'ocean': Color(0xFF0077B6),
     'midnight': Color(0xFF3D348B),
-    'pink': flame,
+    'pink': feedFlame,
     'teal': teal,
     'violet': Color(0xFFA855F7),
     'gold': gold,
-    'coral': flameSoft,
+    'coral': feedFlameSoft,
     'ice': Color(0xFFA5F3FC),
     'emerald': Color(0xFF10B981),
-    'rose': flame,
+    'rose': feedFlame,
     'slate': Color(0xFF64748B),
     'amber': Color(0xFFF59E0B),
     'cyan': Color(0xFF06B6D4),
@@ -92,18 +102,18 @@ abstract final class SpyceColors {
     'peach': Color(0xFFFDBA74),
     'lavender': Color(0xFFC084FC),
     'mint': Color(0xFF6EE7B7),
-    'spyce': flame,
+    'spyce': feedFlame,
     'cool': Color(0xFF3B82F6),
-    'warm': flame,
+    'warm': feedFlame,
     'dark1': Color(0xFF1E1B4B),
     'dark2': Color(0xFF312E81),
   };
 
   static Color accentForVariant(String? variantId) {
-    if (variantId == null || variantId.isEmpty) return flame;
+    if (variantId == null || variantId.isEmpty) return feedFlame;
     final token = variantId.contains('-')
         ? variantId.split('-').last
         : variantId;
-    return variantAccents[token.toLowerCase()] ?? flame;
+    return variantAccents[token.toLowerCase()] ?? feedFlame;
   }
 }

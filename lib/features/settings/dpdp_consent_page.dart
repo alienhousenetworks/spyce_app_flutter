@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../widgets/spyce_toggle.dart';
 import '../../core/config/env.dart';
 import '../../core/legal/legal_urls.dart';
 import '../../core/network/api_exception.dart';
@@ -11,10 +12,7 @@ import '../../core/theme/spyce_colors.dart';
 import '../../data/repositories/api_repositories.dart';
 
 class DpdpConsentPage extends ConsumerStatefulWidget {
-  const DpdpConsentPage({
-    super.key,
-    this.requiredToContinue = false,
-  });
+  const DpdpConsentPage({super.key, this.requiredToContinue = false});
 
   final bool requiredToContinue;
 
@@ -69,7 +67,9 @@ class _DpdpConsentPageState extends ConsumerState<DpdpConsentPage> {
       error = null;
     });
     try {
-      await ref.read(authRepositoryProvider).submitDpdpConsent(
+      await ref
+          .read(authRepositoryProvider)
+          .submitDpdpConsent(
             matchmaking: matchmaking,
             location: location,
             sensitive: sensitive,
@@ -79,9 +79,9 @@ class _DpdpConsentPageState extends ConsumerState<DpdpConsentPage> {
       if (widget.requiredToContinue) {
         Navigator.of(context).pop(true);
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Consent saved')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Consent saved')));
         context.pop();
       }
     } on ApiException catch (e) {
@@ -188,13 +188,17 @@ class _DpdpConsentPageState extends ConsumerState<DpdpConsentPage> {
                 ),
                 _switch(
                   title: 'Product updates (optional)',
-                  subtitle: 'Occasional emails or pushes about SPYCE. Off by default.',
+                  subtitle:
+                      'Occasional emails or pushes about SPYCE. Off by default.',
                   value: marketing,
                   onChanged: (v) => setState(() => marketing = v),
                 ),
                 if (error != null) ...[
                   const SizedBox(height: 12),
-                  Text(error!, style: const TextStyle(color: SpyceColors.error)),
+                  Text(
+                    error!,
+                    style: const TextStyle(color: SpyceColors.error),
+                  ),
                 ],
                 const SizedBox(height: 20),
                 ElevatedButton(
@@ -210,7 +214,10 @@ class _DpdpConsentPageState extends ConsumerState<DpdpConsentPage> {
                 Text(
                   'Consent version ${Env.dpdpConsentVersion}. Withdraw by deleting your account.',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: SpyceColors.dark300, fontSize: 11),
+                  style: const TextStyle(
+                    color: SpyceColors.dark300,
+                    fontSize: 11,
+                  ),
                 ),
               ],
             ),
@@ -223,13 +230,18 @@ class _DpdpConsentPageState extends ConsumerState<DpdpConsentPage> {
     required bool value,
     required ValueChanged<bool> onChanged,
   }) {
-    return SwitchListTile(
+    return ListTile(
       contentPadding: EdgeInsets.zero,
       title: Text(title, style: const TextStyle(color: SpyceColors.white)),
-      subtitle: Text(subtitle, style: const TextStyle(color: SpyceColors.dark200, fontSize: 12)),
-      value: value,
-      activeThumbColor: SpyceColors.pink,
-      onChanged: onChanged,
+      subtitle: Text(
+        subtitle,
+        style: const TextStyle(color: SpyceColors.dark200, fontSize: 12),
+      ),
+      trailing: SpyceToggle(
+        value: value,
+        onChanged: onChanged,
+        activeColor: const Color(0xFFE07F3F),
+      ),
     );
   }
 }

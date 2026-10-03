@@ -164,10 +164,10 @@ class _MoodChips extends StatelessWidget {
                   vertical: 5,
                 ),
                 decoration: BoxDecoration(
-                  color: SpyceColors.pink.withValues(alpha: 0.32),
+                  color: SpyceColors.feedFlame.withValues(alpha: 0.32),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: SpyceColors.pinkSoft.withValues(alpha: 0.65),
+                    color: SpyceColors.feedFlameSoft.withValues(alpha: 0.65),
                   ),
                 ),
                 child: Row(
@@ -206,11 +206,11 @@ class _IntentChip extends StatelessWidget {
     if (text.isEmpty) return const SizedBox.shrink();
     final bg = onDark
         ? SpyceColors.white.withValues(alpha: 0.16)
-        : SpyceColors.pink.withValues(alpha: 0.12);
+        : SpyceColors.feedFlame.withValues(alpha: 0.12);
     final fg = onDark ? SpyceColors.white : SpyceColors.dark900;
     final border = onDark
         ? SpyceColors.white.withValues(alpha: 0.35)
-        : SpyceColors.pink.withValues(alpha: 0.35);
+        : SpyceColors.feedFlame.withValues(alpha: 0.35);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -357,7 +357,7 @@ class _HeroPage extends StatelessWidget {
                                         height: 28,
                                         child: CircularProgressIndicator(
                                           strokeWidth: 2,
-                                          color: SpyceColors.pinkSoft,
+                                          color: SpyceColors.feedFlameSoft,
                                         ),
                                       ),
                                     ),
@@ -465,10 +465,10 @@ class _HeroPage extends StatelessWidget {
                       vertical: 5,
                     ),
                     decoration: BoxDecoration(
-                      color: SpyceColors.pink.withValues(alpha: 0.35),
+                      color: SpyceColors.feedFlame.withValues(alpha: 0.35),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: SpyceColors.pinkSoft.withValues(alpha: 0.6),
+                        color: SpyceColors.feedFlameSoft.withValues(alpha: 0.6),
                       ),
                     ),
                     child: Text(
@@ -560,7 +560,7 @@ class _HeroBioBlockState extends State<_HeroBioBlock> {
               child: Text(
                 _expanded ? 'Show less' : 'Show more',
                 style: GoogleFonts.dmSans(
-                  color: SpyceColors.pinkSoft,
+                  color: SpyceColors.feedFlameSoft,
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.2,
@@ -665,7 +665,9 @@ class _LikeButton extends StatelessWidget {
             shape: BoxShape.circle,
             boxShadow: [
               BoxShadow(
-                color: SpyceColors.flame.withValues(alpha: liked ? 0.45 : 0.18),
+                color: SpyceColors.feedFlame.withValues(
+                  alpha: liked ? 0.45 : 0.18,
+                ),
                 blurRadius: liked ? 16 : 10,
               ),
             ],
@@ -710,7 +712,7 @@ class _RoundAction extends StatelessWidget {
             width: 1.5,
           ),
           color: filled
-              ? SpyceColors.pink.withValues(alpha: 0.35)
+              ? SpyceColors.feedFlame.withValues(alpha: 0.35)
               : Colors.black.withValues(alpha: 0.25),
           boxShadow: [
             BoxShadow(
@@ -738,7 +740,7 @@ class _AvatarPlaceholder extends StatelessWidget {
         name.isNotEmpty ? name[0].toUpperCase() : '?',
         style: GoogleFonts.playfairDisplay(
           fontSize: 72,
-          color: SpyceColors.pinkSoft,
+          color: SpyceColors.feedFlameSoft,
           fontWeight: FontWeight.w600,
         ),
       ),
@@ -985,10 +987,14 @@ class _DetailsPage extends StatelessWidget {
                             vertical: 6,
                           ),
                           decoration: BoxDecoration(
-                            color: SpyceColors.pink.withValues(alpha: 0.12),
+                            color: SpyceColors.feedFlame.withValues(
+                              alpha: 0.12,
+                            ),
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(
-                              color: SpyceColors.pink.withValues(alpha: 0.35),
+                              color: SpyceColors.feedFlame.withValues(
+                                alpha: 0.35,
+                              ),
                             ),
                           ),
                           child: Text(
@@ -1032,7 +1038,7 @@ class _DetailsPage extends StatelessWidget {
                         vertical: 3,
                       ),
                       decoration: BoxDecoration(
-                        color: SpyceColors.pink.withValues(alpha: 0.12),
+                        color: SpyceColors.feedFlame.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Text(
@@ -1040,7 +1046,7 @@ class _DetailsPage extends StatelessWidget {
                         style: GoogleFonts.dmSans(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
-                          color: SpyceColors.pink,
+                          color: SpyceColors.feedFlame,
                         ),
                       ),
                     ),
@@ -1253,7 +1259,7 @@ class _HotTakeTile extends StatelessWidget {
           style: GoogleFonts.dmSans(
             fontWeight: FontWeight.w700,
             fontSize: 13,
-            color: SpyceColors.pink.withValues(alpha: 0.9),
+            color: SpyceColors.feedFlame.withValues(alpha: 0.9),
             letterSpacing: 0.2,
           ),
         ),

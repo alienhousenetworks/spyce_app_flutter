@@ -22,7 +22,9 @@ class LocalPush {
 
   static Future<void> ensureInitialized() async {
     if (_ready || kIsWeb) return;
-    const androidInit = AndroidInitializationSettings('@drawable/ic_stat_spyce');
+    const androidInit = AndroidInitializationSettings(
+      '@drawable/ic_stat_spyce',
+    );
     await _plugin.initialize(
       const InitializationSettings(
         android: androidInit,
@@ -31,8 +33,10 @@ class LocalPush {
       onDidReceiveNotificationResponse: _onTap,
     );
 
-    final android = _plugin.resolvePlatformSpecificImplementation<
-        AndroidFlutterLocalNotificationsPlugin>();
+    final android = _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
     await android?.createNotificationChannel(
       const AndroidNotificationChannel(
         androidCallChannelId,
@@ -61,8 +65,10 @@ class LocalPush {
     await ensureInitialized();
     var granted = false;
     try {
-      final android = _plugin.resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin>();
+      final android = _plugin
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >();
       granted = await android?.requestNotificationsPermission() ?? false;
     } catch (_) {}
     try {
@@ -92,7 +98,7 @@ class LocalPush {
       importance: Importance.high,
       priority: Priority.high,
       icon: 'ic_stat_spyce',
-      color: Color(0xFFE07E42),
+      color: Color(0xFFFF5122),
       playSound: true,
       enableVibration: true,
     );
@@ -107,7 +113,8 @@ class LocalPush {
   }
 
   static int _idFor(PushPayload payload) {
-    final key = payload.conversationId ??
+    final key =
+        payload.conversationId ??
         payload.callId ??
         (payload.type.isEmpty
             ? DateTime.now().millisecondsSinceEpoch.toString()

@@ -43,8 +43,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   UserProfile? profile;
   bool loading = true;
   bool saving = false;
+  bool isPremium = false;
   bool locationLoading = false;
   String? error;
+
   /// Local path shown immediately after pick while server processes upload.
   String? pendingLocalPhotoPath;
 
@@ -85,8 +87,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       ]);
       setState(() {
         profile = loaded.copyWith(
-          languageLabels:
-              fixedLangs.isNotEmpty ? fixedLangs : loaded.languageLabels,
+          languageLabels: fixedLangs.isNotEmpty
+              ? fixedLangs
+              : loaded.languageLabels,
         );
         sexualityOpts = results[1] as List<CatalogOption>;
         intentOpts = results[2] as List<CatalogOption>;
@@ -100,6 +103,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         // ignore: unawaited_futures
         _detectAndSaveLocation(silent: true);
       }
+      _loadPremiumStatus();
     } catch (_) {
       final user = ref.read(authControllerProvider).user;
       if (!mounted) return;
@@ -120,29 +124,30 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   Future<void> _patch(Map<String, dynamic> fields) async {
     setState(() => saving = true);
     try {
-      final updated =
-          await ref.read(profileRepositoryProvider).updateMyProfile(fields);
+      final updated = await ref
+          .read(profileRepositoryProvider)
+          .updateMyProfile(fields);
       if (!mounted) return;
       setState(() {
         profile = updated;
         saving = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Saved')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Saved')));
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() => saving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.message)));
     } catch (_) {
       // Offline optimistic merge
       if (!mounted) return;
       setState(() => saving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Saved locally (offline)')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Saved locally (offline)')));
     }
   }
 
@@ -158,23 +163,32 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       );
     });
     try {
-      final updated =
-          await ref.read(profileRepositoryProvider).updateMyProfile({
-        field: value,
-      });
+      final updated = await ref.read(profileRepositoryProvider).updateMyProfile(
+        {field: value},
+      );
       if (!mounted) return;
       setState(() => profile = updated);
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() => profile = prev);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.message)));
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Saved locally (offline)')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Saved locally (offline)')));
+    }
+  }
+
+  Future<void> _loadPremiumStatus() async {
+    try {
+      final status = await ref.read(subscriptionRepositoryProvider).getStatus();
+      if (!mounted) return;
+      setState(() => isPremium = status.hasAccess);
+    } catch (_) {
+      // stay as-is (locked) if the check fails — safer default
     }
   }
 
@@ -294,8 +308,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           'country': country,
       };
 
-      final updated =
-          await ref.read(profileRepositoryProvider).updateMyProfile(payload);
+      final updated = await ref
+          .read(profileRepositoryProvider)
+          .updateMyProfile(payload);
       if (!mounted) return;
       setState(() {
         profile = updated;
@@ -316,8 +331,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       if (!mounted) return;
       setState(() => locationLoading = false);
       if (!silent) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(e.message)));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(e.message)));
       }
     } catch (e) {
       if (!mounted) return;
@@ -394,9 +410,13 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text(title,
-                        style: GoogleFonts.syne(
-                            fontSize: 18, fontWeight: FontWeight.w700)),
+                    Text(
+                      title,
+                      style: GoogleFonts.syne(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                     const SizedBox(height: 12),
                     ConstrainedBox(
                       constraints: BoxConstraints(
@@ -446,7 +466,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       return;
     }
     final selected = {...currentIds};
-    final useStickers = field == 'turn_ons' &&
+    final useStickers =
+        field == 'turn_ons' &&
         options.any((o) => o.imageUrl != null && o.imageUrl!.isNotEmpty);
     final ok = await showModalBottomSheet<bool>(
       context: context,
@@ -465,9 +486,13 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text(title,
-                        style: GoogleFonts.syne(
-                            fontSize: 18, fontWeight: FontWeight.w700)),
+                    Text(
+                      title,
+                      style: GoogleFonts.syne(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                     if (field == 'turn_ons') ...[
                       const SizedBox(height: 4),
                       Text(
@@ -537,7 +562,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     var maxA = (profile?.agePreferenceMax ?? 45).toDouble();
     // Default Anywhere (worldwide / no radius). 1–1000 km when limited.
     var anywhere = profile?.isDiscoveryAnywhere ?? true;
-    var dist = (profile?.effectiveDistanceKm ?? 50).toDouble().clamp(1.0, 1000.0);
+    var dist = (profile?.effectiveDistanceKm ?? 50).toDouble().clamp(
+      1.0,
+      1000.0,
+    );
 
     final ok = await showModalBottomSheet<bool>(
       context: context,
@@ -551,9 +579,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           builder: (ctx, setLocal) {
             final distLabel = anywhere
                 ? 'Anywhere · Worldwide'
-                : (dist >= 1000
-                    ? 'Up to 1000 km'
-                    : 'Up to ${dist.round()} km');
+                : (dist >= 1000 ? 'Up to 1000 km' : 'Up to ${dist.round()} km');
             return Padding(
               padding: EdgeInsets.fromLTRB(
                 20,
@@ -671,14 +697,20 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('1 km',
-                            style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.4),
-                                fontSize: 11)),
-                        Text('1000 km',
-                            style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.4),
-                                fontSize: 11)),
+                        Text(
+                          '1 km',
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.4),
+                            fontSize: 11,
+                          ),
+                        ),
+                        Text(
+                          '1000 km',
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.4),
+                            fontSize: 11,
+                          ),
+                        ),
                       ],
                     ),
                   ],
@@ -717,9 +749,15 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     final existing = profile?.hottakes;
     List<String> list = [];
     if (existing is List) {
-      list = existing.map((e) => e.toString()).where((e) => e.isNotEmpty).toList();
+      list = existing
+          .map((e) => e.toString())
+          .where((e) => e.isNotEmpty)
+          .toList();
     } else if (existing is Map) {
-      list = existing.values.map((e) => e.toString()).where((e) => e.isNotEmpty).toList();
+      list = existing.values
+          .map((e) => e.toString())
+          .where((e) => e.isNotEmpty)
+          .toList();
     } else if (existing is String && existing.isNotEmpty) {
       list = [existing];
     }
@@ -733,13 +771,22 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       builder: (ctx) => AlertDialog(
         backgroundColor: SpyceColors.dark800,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('Hot Takes (Up to 3)', style: GoogleFonts.syne(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: Text(
+          'Hot Takes (Up to 3)',
+          style: GoogleFonts.syne(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Share up to 3 hot takes for your profile:', style: TextStyle(color: Colors.white70, fontSize: 13)),
+              const Text(
+                'Share up to 3 hot takes for your profile:',
+                style: TextStyle(color: Colors.white70, fontSize: 13),
+              ),
               const SizedBox(height: 14),
               TextField(
                 controller: c1,
@@ -748,10 +795,15 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   labelText: 'Hot Take #1',
                   labelStyle: const TextStyle(color: SpyceColors.pinkSoft),
                   hintText: 'e.g., Pineapple belongs on pizza',
-                  hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
+                  hintStyle: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.3),
+                  ),
                   filled: true,
                   fillColor: Colors.black26,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
                 ),
               ),
               const SizedBox(height: 12),
@@ -762,10 +814,15 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   labelText: 'Hot Take #2',
                   labelStyle: const TextStyle(color: SpyceColors.pinkSoft),
                   hintText: 'e.g., Dark mode is overrated',
-                  hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
+                  hintStyle: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.3),
+                  ),
                   filled: true,
                   fillColor: Colors.black26,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
                 ),
               ),
               const SizedBox(height: 12),
@@ -776,17 +833,28 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   labelText: 'Hot Take #3',
                   labelStyle: const TextStyle(color: SpyceColors.pinkSoft),
                   hintText: 'e.g., Coffee is better than tea',
-                  hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
+                  hintStyle: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.3),
+                  ),
                   filled: true,
                   fillColor: Colors.black26,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
                 ),
               ),
             ],
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel', style: TextStyle(color: Colors.white54))),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: Colors.white54),
+            ),
+          ),
           ElevatedButton(
             onPressed: () {
               final out = <String>[];
@@ -795,7 +863,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               if (c3.text.trim().isNotEmpty) out.add(c3.text.trim());
               Navigator.pop(ctx, out);
             },
-            style: ElevatedButton.styleFrom(backgroundColor: SpyceColors.pink, foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: SpyceColors.pink,
+              foregroundColor: Colors.white,
+            ),
             child: const Text('Save Takes'),
           ),
         ],
@@ -812,9 +883,15 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     final raw = p.hottakes;
     List<String> list = [];
     if (raw is List) {
-      list = raw.map((e) => e.toString()).where((e) => e.trim().isNotEmpty).toList();
+      list = raw
+          .map((e) => e.toString())
+          .where((e) => e.trim().isNotEmpty)
+          .toList();
     } else if (raw is Map) {
-      list = raw.values.map((e) => e.toString()).where((e) => e.trim().isNotEmpty).toList();
+      list = raw.values
+          .map((e) => e.toString())
+          .where((e) => e.trim().isNotEmpty)
+          .toList();
     } else if (raw is String && raw.trim().isNotEmpty) {
       list = [raw.trim()];
     }
@@ -826,10 +903,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
   String _formatLanguageValue(UserProfile? p) {
     if (p == null) return 'Select languages';
-    final raw = <String>[
-      ...p.languageLabels,
-      ...p.languageIds,
-    ];
+    final raw = <String>[...p.languageLabels, ...p.languageIds];
     final labels = LanguageLabels.resolveAll(raw);
     if (labels.isEmpty) return 'Select languages';
     return labels.join(', ');
@@ -843,10 +917,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       return;
     }
     LanguageLabels.setCatalog(languageOpts);
-    final selected = LanguageLabels.selectedOptionIds(
-      [...?profile?.languageLabels, ...?profile?.languageIds],
-      languageOpts,
-    );
+    final selected = LanguageLabels.selectedOptionIds([
+      ...?profile?.languageLabels,
+      ...?profile?.languageIds,
+    ], languageOpts);
     final ok = await showModalBottomSheet<bool>(
       context: context,
       backgroundColor: SpyceColors.dark800,
@@ -922,7 +996,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   }
 
   String _formatPreferredGendersValue(UserProfile? p) {
-    if (p == null || p.preferredGenderIds.isEmpty) return 'Select preferred genders';
+    if (p == null || p.preferredGenderIds.isEmpty)
+      return 'Select preferred genders';
     final names = p.preferredGenderIds.map((id) {
       final opt = genderOpts.firstWhere(
         (o) => o.id == id,
@@ -985,13 +1060,14 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         bgVariantId: result.bgVariantId,
       );
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Theme saved')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Theme saved')));
   }
 
   Future<void> _addOrChangeImage({String? replaceImageId}) async {
-    final currentCount = profile?.images
+    final currentCount =
+        profile?.images
             .where((i) => i.imageUrl.isNotEmpty || i.id.isNotEmpty)
             .length ??
         0;
@@ -999,7 +1075,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('You can upload up to 5 photos. Tap one to replace or delete.'),
+          content: Text(
+            'You can upload up to 5 photos. Tap one to replace or delete.',
+          ),
         ),
       );
       return;
@@ -1053,11 +1131,17 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     color: SpyceColors.pink.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(Icons.photo_camera, color: SpyceColors.pink),
+                  child: const Icon(
+                    Icons.photo_camera,
+                    color: SpyceColors.pink,
+                  ),
                 ),
                 title: const Text(
                   'Take photo',
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 subtitle: const Text(
                   'Open camera',
@@ -1074,11 +1158,17 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     color: SpyceColors.teal.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(Icons.photo_library, color: SpyceColors.teal),
+                  child: const Icon(
+                    Icons.photo_library,
+                    color: SpyceColors.teal,
+                  ),
                 ),
                 title: const Text(
                   'Choose from gallery',
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 subtitle: const Text(
                   'Pick an existing photo',
@@ -1089,7 +1179,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               const SizedBox(height: 8),
               TextButton(
                 onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+                child: const Text(
+                  'Cancel',
+                  style: TextStyle(color: Colors.white54),
+                ),
               ),
             ],
           ),
@@ -1137,8 +1230,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
     final beforeIds =
         profile?.images.map((i) => i.id).where((id) => id.isNotEmpty).toSet() ??
-            {};
-    final beforeCount = profile?.images
+        {};
+    final beforeCount =
+        profile?.images
             .where((i) => i.imageUrl.isNotEmpty || i.id.isNotEmpty)
             .length ??
         0;
@@ -1172,7 +1266,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       final status = (uploadRes['status'] ?? '').toString().toLowerCase();
       final newId = (uploadRes['id'] ?? '').toString();
       final jobId = (uploadRes['job_id'] ?? '').toString();
-      final readyImmediately = status == 'ok' ||
+      final readyImmediately =
+          status == 'ok' ||
           status == 'success' ||
           (newId.isNotEmpty && uploadRes['image_url'] != null);
 
@@ -1190,14 +1285,14 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           if (u != null) await CachedNetworkImage.evictFromCache(u);
         }
         setState(() => pendingLocalPhotoPath = null);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Photo ready ✓')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Photo ready ✓')));
       } else {
         // Async path (202 processing) — poll job status, then profile
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Uploading photo…')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Uploading photo…')));
         var ready = false;
         String? processError;
         if (jobId.isNotEmpty) {
@@ -1212,8 +1307,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                 await CachedNetworkImage.evictFromCache(url);
               }
             } else if (js == 'failed') {
-              processError =
-                  (job['error'] ?? 'Photo processing failed').toString();
+              processError = (job['error'] ?? 'Photo processing failed')
+                  .toString();
             }
           }
         }
@@ -1232,9 +1327,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             if (u != null) await CachedNetworkImage.evictFromCache(u);
           }
           setState(() => pendingLocalPhotoPath = null);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Photo ready ✓')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Photo ready ✓')));
         } else {
           setState(() => pendingLocalPhotoPath = null);
           ScaffoldMessenger.of(context).showSnackBar(
@@ -1276,9 +1371,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   Future<Map<String, dynamic>?> _pollUploadJob(String jobId) async {
     final repo = ref.read(profileRepositoryProvider);
     for (var attempt = 0; attempt < 16; attempt++) {
-      await Future.delayed(
-        Duration(milliseconds: attempt == 0 ? 600 : 1200),
-      );
+      await Future.delayed(Duration(milliseconds: attempt == 0 ? 600 : 1200));
       if (!mounted) return null;
       try {
         final status = await repo.getImageUploadStatus(jobId);
@@ -1302,18 +1395,19 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     Object? lastPollError;
     // Celery may take a few seconds; poll longer so success is visible
     for (var attempt = 0; attempt < 14; attempt++) {
-      await Future.delayed(
-        Duration(milliseconds: attempt == 0 ? 1000 : 1400),
-      );
+      await Future.delayed(Duration(milliseconds: attempt == 0 ? 1000 : 1400));
       if (!mounted) return false;
       try {
         final updated = await repo.getMyProfile();
         if (!mounted) return false;
         setState(() => profile = updated);
-        final afterIds =
-            updated.images.map((i) => i.id).where((id) => id.isNotEmpty).toSet();
+        final afterIds = updated.images
+            .map((i) => i.id)
+            .where((id) => id.isNotEmpty)
+            .toSet();
         final newId = afterIds.difference(beforeIds).isNotEmpty;
-        final moreSlots = updated.images
+        final moreSlots =
+            updated.images
                 .where((i) => i.imageUrl.isNotEmpty || i.id.isNotEmpty)
                 .length >
             beforeCount;
@@ -1374,9 +1468,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     } on ApiException catch (e) {
       if (!mounted) return;
       await _load();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.message)));
     } catch (_) {
       if (!mounted) return;
       await _load();
@@ -1403,9 +1497,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     next.insert(0, item);
     await _applyPhotoOrder(next);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Main profile photo updated')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Main profile photo updated')));
   }
 
   Future<void> _movePhoto(ProfileImage image, {required int delta}) async {
@@ -1480,7 +1574,11 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                         width: 40,
                         height: 40,
                         color: SpyceColors.dark700,
-                        child: const Icon(Icons.broken_image, size: 18, color: Colors.white38),
+                        child: const Icon(
+                          Icons.broken_image,
+                          size: 18,
+                          color: Colors.white38,
+                        ),
                       ),
                     ),
                   ),
@@ -1492,7 +1590,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                 ),
               TextButton(
                 onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+                child: const Text(
+                  'Cancel',
+                  style: TextStyle(color: Colors.white54),
+                ),
               ),
             ],
           ),
@@ -1502,9 +1603,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     if (target == null || !mounted) return;
     await _swapPhotos(image, target);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Photos swapped')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Photos swapped')));
   }
 
   Future<void> _onPhotoTap(ProfileImage image) async {
@@ -1527,13 +1628,22 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
-                leading: const Icon(Icons.visibility_outlined, color: Colors.white70),
-                title: const Text('View photo', style: TextStyle(color: Colors.white)),
+                leading: const Icon(
+                  Icons.visibility_outlined,
+                  color: Colors.white70,
+                ),
+                title: const Text(
+                  'View photo',
+                  style: TextStyle(color: Colors.white),
+                ),
                 onTap: () => Navigator.pop(ctx, 'view'),
               ),
               if (!isMain)
                 ListTile(
-                  leading: const Icon(Icons.star_rounded, color: SpyceColors.pink),
+                  leading: const Icon(
+                    Icons.star_rounded,
+                    color: SpyceColors.pink,
+                  ),
                   title: const Text(
                     'Set as main profile photo',
                     style: TextStyle(color: Colors.white),
@@ -1546,35 +1656,68 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                 ),
               if (canMoveLeft)
                 ListTile(
-                  leading: const Icon(Icons.arrow_back, color: SpyceColors.pinkSoft),
-                  title: const Text('Move left', style: TextStyle(color: Colors.white)),
+                  leading: const Icon(
+                    Icons.arrow_back,
+                    color: SpyceColors.pinkSoft,
+                  ),
+                  title: const Text(
+                    'Move left',
+                    style: TextStyle(color: Colors.white),
+                  ),
                   onTap: () => Navigator.pop(ctx, 'left'),
                 ),
               if (canMoveRight)
                 ListTile(
-                  leading: const Icon(Icons.arrow_forward, color: SpyceColors.pinkSoft),
-                  title: const Text('Move right', style: TextStyle(color: Colors.white)),
+                  leading: const Icon(
+                    Icons.arrow_forward,
+                    color: SpyceColors.pinkSoft,
+                  ),
+                  title: const Text(
+                    'Move right',
+                    style: TextStyle(color: Colors.white),
+                  ),
                   onTap: () => Navigator.pop(ctx, 'right'),
                 ),
               if (photos.length > 1)
                 ListTile(
-                  leading: const Icon(Icons.swap_horiz, color: SpyceColors.teal),
-                  title: const Text('Swap with another photo', style: TextStyle(color: Colors.white)),
+                  leading: const Icon(
+                    Icons.swap_horiz,
+                    color: SpyceColors.teal,
+                  ),
+                  title: const Text(
+                    'Swap with another photo',
+                    style: TextStyle(color: Colors.white),
+                  ),
                   onTap: () => Navigator.pop(ctx, 'swap'),
                 ),
               ListTile(
-                leading: const Icon(Icons.photo_camera_outlined, color: SpyceColors.pinkSoft),
-                title: const Text('Replace photo', style: TextStyle(color: Colors.white)),
+                leading: const Icon(
+                  Icons.photo_camera_outlined,
+                  color: SpyceColors.pinkSoft,
+                ),
+                title: const Text(
+                  'Replace photo',
+                  style: TextStyle(color: Colors.white),
+                ),
                 onTap: () => Navigator.pop(ctx, 'replace'),
               ),
               ListTile(
-                leading: const Icon(Icons.delete_outline, color: SpyceColors.error),
-                title: const Text('Delete photo', style: TextStyle(color: SpyceColors.error)),
+                leading: const Icon(
+                  Icons.delete_outline,
+                  color: SpyceColors.error,
+                ),
+                title: const Text(
+                  'Delete photo',
+                  style: TextStyle(color: SpyceColors.error),
+                ),
                 onTap: () => Navigator.pop(ctx, 'delete'),
               ),
               TextButton(
                 onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+                child: const Text(
+                  'Cancel',
+                  style: TextStyle(color: Colors.white54),
+                ),
               ),
             ],
           ),
@@ -1586,7 +1729,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
     if (action == 'view') {
       final viewUrl = resolveMediaUrl(image.imageUrl);
-      debugPrint('🔍 [PhotoView] Opening photo id=${image.id}, rawUrl=${image.imageUrl}, resolvedUrl=$viewUrl');
+      debugPrint(
+        '🔍 [PhotoView] Opening photo id=${image.id}, rawUrl=${image.imageUrl}, resolvedUrl=$viewUrl',
+      );
       await showDialog<void>(
         context: context,
         builder: (ctx) => Dialog(
@@ -1602,18 +1747,27 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.broken_image,
-                              color: Colors.white38, size: 48),
+                          const Icon(
+                            Icons.broken_image,
+                            color: Colors.white38,
+                            size: 48,
+                          ),
                           const SizedBox(height: 12),
                           const Text(
                             'Invalid or empty photo URL',
-                            style: TextStyle(color: Colors.white70, fontSize: 13),
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 13,
+                            ),
                           ),
                           const SizedBox(height: 6),
                           Text(
                             'Raw: "${image.imageUrl}"',
                             textAlign: TextAlign.center,
-                            style: const TextStyle(color: Colors.white38, fontSize: 11),
+                            style: const TextStyle(
+                              color: Colors.white38,
+                              fontSize: 11,
+                            ),
                           ),
                         ],
                       ),
@@ -1629,15 +1783,20 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                         ),
                       ),
                       errorWidget: (_, failedUrl, err) {
-                        debugPrint('🔴 [PhotoViewDialog] Error loading "$failedUrl": $err');
+                        debugPrint(
+                          '🔴 [PhotoViewDialog] Error loading "$failedUrl": $err',
+                        );
                         return Container(
                           color: SpyceColors.dark800,
                           padding: const EdgeInsets.all(24),
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(Icons.broken_image,
-                                  color: Colors.white38, size: 48),
+                              const Icon(
+                                Icons.broken_image,
+                                color: Colors.white38,
+                                size: 48,
+                              ),
                               const SizedBox(height: 12),
                               const Text(
                                 'Could not load photo',
@@ -1704,7 +1863,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         context: context,
         builder: (ctx) => AlertDialog(
           backgroundColor: SpyceColors.dark800,
-          title: const Text('Delete this photo?', style: TextStyle(color: Colors.white)),
+          title: const Text(
+            'Delete this photo?',
+            style: TextStyle(color: Colors.white),
+          ),
           content: const Text(
             'This removes it from your profile. Remaining photos stay in order — the first becomes your main photo.',
             style: TextStyle(color: Colors.white70),
@@ -1716,7 +1878,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             ),
             TextButton(
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Delete', style: TextStyle(color: SpyceColors.error)),
+              child: const Text(
+                'Delete',
+                style: TextStyle(color: SpyceColors.error),
+              ),
             ),
           ],
         ),
@@ -1727,25 +1892,24 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         await ref.read(profileRepositoryProvider).deleteImage(image.id);
         await _load();
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Photo deleted')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Photo deleted')));
       } on ApiException catch (e) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.message)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(e.message)));
       } catch (_) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not delete photo')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Could not delete photo')));
       } finally {
         if (mounted) setState(() => saving = false);
       }
     }
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -1801,10 +1965,15 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                             Container(
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                border: Border.all(color: SpyceColors.pink, width: 2.5),
+                                border: Border.all(
+                                  color: SpyceColors.pink,
+                                  width: 2.5,
+                                ),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: SpyceColors.pink.withValues(alpha: 0.4),
+                                    color: SpyceColors.pink.withValues(
+                                      alpha: 0.4,
+                                    ),
                                     blurRadius: 16,
                                     spreadRadius: 2,
                                   ),
@@ -1836,9 +2005,16 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                                   decoration: BoxDecoration(
                                     color: SpyceColors.pink,
                                     shape: BoxShape.circle,
-                                    border: Border.all(color: Colors.white, width: 1.5),
+                                    border: Border.all(
+                                      color: Colors.white,
+                                      width: 1.5,
+                                    ),
                                   ),
-                                  child: const Icon(Icons.camera_alt, size: 14, color: Colors.white),
+                                  child: const Icon(
+                                    Icons.camera_alt,
+                                    size: 14,
+                                    color: Colors.white,
+                                  ),
                                 ),
                               ),
                             ),
@@ -1851,7 +2027,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(
-                                p?.username != null ? '@${p!.username}' : (user?.email ?? 'You'),
+                                p?.username != null
+                                    ? '@${p!.username}'
+                                    : (user?.email ?? 'You'),
                                 style: GoogleFonts.syne(
                                   fontSize: 22,
                                   fontWeight: FontWeight.w800,
@@ -1862,18 +2040,28 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                               if (p?.city != null)
                                 Row(
                                   children: [
-                                    const Icon(Icons.location_on, size: 13, color: SpyceColors.pinkSoft),
+                                    const Icon(
+                                      Icons.location_on,
+                                      size: 13,
+                                      color: SpyceColors.pinkSoft,
+                                    ),
                                     const SizedBox(width: 3),
                                     Text(
                                       '${p!.city}${p.country != null ? ', ${p.country}' : ''}',
-                                      style: const TextStyle(color: Colors.white70, fontSize: 13),
+                                      style: const TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 13,
+                                      ),
                                     ),
                                   ],
                                 ),
                               if (p?.genderLabel != null)
                                 Text(
                                   '${p!.genderLabel}${p.age != null ? ' · ${p.age}' : ''}',
-                                  style: const TextStyle(color: SpyceColors.dark200, fontSize: 12),
+                                  style: const TextStyle(
+                                    color: SpyceColors.dark200,
+                                    fontSize: 12,
+                                  ),
                                 ),
                             ],
                           ),
@@ -1887,7 +2075,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             actions: [
               IconButton(
                 onPressed: _chooseThemeBg,
-                icon: const Icon(Icons.palette_outlined, color: SpyceColors.pink),
+                icon: const Icon(
+                  Icons.palette_outlined,
+                  color: SpyceColors.pink,
+                ),
                 tooltip: 'Change Theme',
               ),
               if (saving)
@@ -1896,7 +2087,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   child: SizedBox(
                     width: 18,
                     height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: SpyceColors.pink),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: SpyceColors.pink,
+                    ),
                   ),
                 ),
               IconButton(
@@ -1904,7 +2098,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                 icon: const Icon(Icons.settings_outlined, color: Colors.white),
               ),
             ],
-
           ),
           SliverToBoxAdapter(
             child: Padding(
@@ -2026,7 +2219,11 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                         locked: true,
                         onTap: () {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Gender cannot be changed once set.')),
+                            const SnackBar(
+                              content: Text(
+                                'Gender cannot be changed once set.',
+                              ),
+                            ),
                           );
                         },
                       ),
@@ -2069,7 +2266,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     children: [
                       _EditTile(
                         label: 'Bio',
-                        value: p?.bio?.isNotEmpty == true ? p!.bio! : 'Add bio…',
+                        value: p?.bio?.isNotEmpty == true
+                            ? p!.bio!
+                            : 'Add bio…',
                         onTap: () => _editText(
                           title: 'Bio',
                           field: 'bio',
@@ -2122,8 +2321,11 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                                       color: SpyceColors.pinkSoft,
                                     ),
                                   )
-                                : const Icon(Icons.my_location,
-                                    color: SpyceColors.pinkSoft, size: 18),
+                                : const Icon(
+                                    Icons.my_location,
+                                    color: SpyceColors.pinkSoft,
+                                    size: 18,
+                                  ),
                             label: Text(
                               locationLoading
                                   ? 'Detecting…'
@@ -2135,8 +2337,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                             ),
                             style: OutlinedButton.styleFrom(
                               side: BorderSide(
-                                color:
-                                    SpyceColors.pink.withValues(alpha: 0.45),
+                                color: SpyceColors.pink.withValues(alpha: 0.45),
                               ),
                               padding: const EdgeInsets.symmetric(vertical: 12),
                               shape: RoundedRectangleBorder(
@@ -2161,23 +2362,28 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                         label: 'City',
                         value: p?.city ?? '—',
                         onTap: () => _editText(
-                            title: 'City', field: 'city', initial: p?.city),
+                          title: 'City',
+                          field: 'city',
+                          initial: p?.city,
+                        ),
                       ),
                       _EditTile(
                         label: 'State',
                         value: p?.state ?? '—',
                         onTap: () => _editText(
-                            title: 'State',
-                            field: 'state',
-                            initial: p?.state),
+                          title: 'State',
+                          field: 'state',
+                          initial: p?.state,
+                        ),
                       ),
                       _EditTile(
                         label: 'Country',
                         value: p?.country ?? '—',
                         onTap: () => _editText(
-                            title: 'Country',
-                            field: 'country',
-                            initial: p?.country),
+                          title: 'Country',
+                          field: 'country',
+                          initial: p?.country,
+                        ),
                       ),
                     ],
                   ),
@@ -2208,6 +2414,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                         label: 'Hide Age',
                         value: p?.hideAge ?? false,
                         onChanged: (v) => _toggleFlag('hide_age', v),
+                        locked: !isPremium,
+                        onLockedTap: () => context.push('/app/premium'),
                       ),
                     ],
                   ),
@@ -2216,22 +2424,55 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.mood, color: SpyceColors.teal),
-                    title: const Text('Update Mood', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-                    trailing: const Icon(Icons.chevron_right, color: Colors.white54),
+                    title: const Text(
+                      'Update Mood',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    trailing: const Icon(
+                      Icons.chevron_right,
+                      color: Colors.white54,
+                    ),
                     onTap: () => context.push('/app/mood'),
                   ),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.workspace_premium, color: SpyceColors.gold),
-                    title: const Text('SPYCE Premium', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-                    trailing: const Icon(Icons.chevron_right, color: Colors.white54),
+                    leading: const Icon(
+                      Icons.workspace_premium,
+                      color: SpyceColors.gold,
+                    ),
+                    title: const Text(
+                      'SPYCE Premium',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    trailing: const Icon(
+                      Icons.chevron_right,
+                      color: Colors.white54,
+                    ),
                     onTap: () => context.push('/app/premium'),
                   ),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.settings_outlined, color: SpyceColors.pinkSoft),
-                    title: const Text('Settings & Notifications', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-                    trailing: const Icon(Icons.chevron_right, color: Colors.white54),
+                    leading: const Icon(
+                      Icons.settings_outlined,
+                      color: SpyceColors.pinkSoft,
+                    ),
+                    title: const Text(
+                      'Settings & Notifications',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    trailing: const Icon(
+                      Icons.chevron_right,
+                      color: Colors.white54,
+                    ),
                     onTap: () => context.push('/app/settings'),
                   ),
                   const SizedBox(height: 12),
@@ -2241,7 +2482,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                         context: context,
                         builder: (ctx) => AlertDialog(
                           title: const Text('Sign out?'),
-                          content: const Text('You will need an OTP to sign back in.'),
+                          content: const Text(
+                            'You will need an OTP to sign back in.',
+                          ),
                           actions: [
                             TextButton(
                               onPressed: () => Navigator.pop(ctx, false),
@@ -2249,13 +2492,18 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                             ),
                             TextButton(
                               onPressed: () => Navigator.pop(ctx, true),
-                              child: const Text('Sign out', style: TextStyle(color: SpyceColors.pink)),
+                              child: const Text(
+                                'Sign out',
+                                style: TextStyle(color: SpyceColors.pink),
+                              ),
                             ),
                           ],
                         ),
                       );
                       if (ok == true) {
-                        await ref.read(authControllerProvider.notifier).logout();
+                        await ref
+                            .read(authControllerProvider.notifier)
+                            .logout();
                         if (!mounted) return;
                         context.go('/auth');
                       }
@@ -2263,12 +2511,17 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     icon: const Icon(Icons.logout, color: Colors.white70),
                     label: const Text(
                       'Sign out',
-                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     style: OutlinedButton.styleFrom(
                       side: const BorderSide(color: SpyceColors.dark600),
                       minimumSize: const Size(double.infinity, 50),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 10),
@@ -2284,7 +2537,11 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                           ),
                           title: Row(
                             children: const [
-                              Icon(Icons.warning_amber_rounded, color: SpyceColors.pink, size: 24),
+                              Icon(
+                                Icons.warning_amber_rounded,
+                                color: SpyceColors.pink,
+                                size: 24,
+                              ),
                               SizedBox(width: 8),
                               Text('Delete Account?'),
                             ],
@@ -2292,12 +2549,19 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                           content: const Text(
                             'Your profile, matches, and chats will be immediately deactivated and hidden.\n\n'
                             'You have a 30-day grace period to restore your account by simply logging in again with your email.',
-                            style: TextStyle(color: SpyceColors.dark100, fontSize: 13, height: 1.4),
+                            style: TextStyle(
+                              color: SpyceColors.dark100,
+                              fontSize: 13,
+                              height: 1.4,
+                            ),
                           ),
                           actions: [
                             TextButton(
                               onPressed: () => Navigator.pop(ctx, false),
-                              child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+                              child: const Text(
+                                'Cancel',
+                                style: TextStyle(color: Colors.white70),
+                              ),
                             ),
                             ElevatedButton(
                               onPressed: () => Navigator.pop(ctx, true),
@@ -2312,11 +2576,15 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                       );
                       if (confirmed == true) {
                         try {
-                          await ref.read(authControllerProvider.notifier).deleteAccount();
+                          await ref
+                              .read(authControllerProvider.notifier)
+                              .deleteAccount();
                           if (!mounted) return;
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text('Account scheduled for deletion. You can restore within 30 days by signing in.'),
+                              content: Text(
+                                'Account scheduled for deletion. You can restore within 30 days by signing in.',
+                              ),
                               backgroundColor: SpyceColors.pink,
                             ),
                           );
@@ -2324,28 +2592,39 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                         } catch (e) {
                           if (!mounted) return;
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Error deleting account: $e')),
+                            SnackBar(
+                              content: Text('Error deleting account: $e'),
+                            ),
                           );
                           context.go('/auth');
                         }
                       }
                     },
-                    icon: const Icon(Icons.delete_forever, color: SpyceColors.pink),
+                    icon: const Icon(
+                      Icons.delete_forever,
+                      color: SpyceColors.pink,
+                    ),
                     label: const Text(
                       'Delete Account',
-                      style: TextStyle(color: SpyceColors.pink, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        color: SpyceColors.pink,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     style: OutlinedButton.styleFrom(
-                      side: BorderSide(color: SpyceColors.pink.withValues(alpha: 0.5)),
+                      side: BorderSide(
+                        color: SpyceColors.pink.withValues(alpha: 0.5),
+                      ),
                       minimumSize: const Size(double.infinity, 50),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
           ),
-
         ],
       ),
     );
@@ -2454,7 +2733,9 @@ class _ProfilePhotoSlot extends StatelessWidget {
                   ),
                 ),
                 errorWidget: (_, failedUrl, err) {
-                  debugPrint('🔴 [_ProfilePhotoSlot] Slot $index load failed! url=$failedUrl error=$err');
+                  debugPrint(
+                    '🔴 [_ProfilePhotoSlot] Slot $index load failed! url=$failedUrl error=$err',
+                  );
                   return Container(
                     color: SpyceColors.dark800,
                     alignment: Alignment.center,
@@ -2642,6 +2923,8 @@ class _ToggleTile extends StatelessWidget {
     required this.value,
     required this.onChanged,
     this.subtitle,
+    this.locked = false,
+    this.onLockedTap,
   });
 
   final String label;
@@ -2649,42 +2932,91 @@ class _ToggleTile extends StatelessWidget {
   final bool value;
   final ValueChanged<bool> onChanged;
 
+  /// When true, the switch is grayed out, a "PREMIUM" badge appears next
+  /// to [label], and any tap (row or switch) fires [onLockedTap] instead
+  /// of toggling the value.
+  final bool locked;
+  final VoidCallback? onLockedTap;
+
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    final row = Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label, style: const TextStyle(fontSize: 14)),
-                if (subtitle != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Text(
-                      subtitle!,
-                      style: const TextStyle(
-                        color: SpyceColors.dark200,
-                        fontSize: 11,
+      child: Opacity(
+        opacity: locked ? 0.5 : 1,
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(label, style: const TextStyle(fontSize: 14)),
+                      if (locked) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: SpyceColors.gold.withValues(alpha: 0.18),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: SpyceColors.gold.withValues(alpha: 0.6),
+                            ),
+                          ),
+                          child: const Text(
+                            'PREMIUM',
+                            style: TextStyle(
+                              color: SpyceColors.gold,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.4,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  if (subtitle != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        subtitle!,
+                        style: const TextStyle(
+                          color: SpyceColors.dark200,
+                          fontSize: 11,
+                        ),
                       ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
-          ),
-          Switch.adaptive(
-            value: value,
-            onChanged: onChanged,
-            activeThumbColor: SpyceColors.pink,
-            activeTrackColor: SpyceColors.pink.withValues(alpha: 0.45),
-            inactiveThumbColor: Colors.white70,
-            inactiveTrackColor: Colors.white24,
-            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          ),
-        ],
+            IgnorePointer(
+              ignoring: locked,
+              child: Switch.adaptive(
+                value: value,
+                onChanged: onChanged,
+                activeThumbColor: SpyceColors.pink,
+                activeTrackColor: SpyceColors.pink.withValues(alpha: 0.45),
+                inactiveThumbColor: Colors.white70,
+                inactiveTrackColor: Colors.white24,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+          ],
+        ),
       ),
+    );
+
+    if (!locked) return row;
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onLockedTap,
+      child: row,
     );
   }
 }
@@ -2692,10 +3024,7 @@ class _ToggleTile extends StatelessWidget {
 // ── Theme picker (API: GET /theme/options/ + PATCH /theme/me/) ─
 
 class _ThemePickerSheet extends StatefulWidget {
-  const _ThemePickerSheet({
-    required this.repo,
-    required this.initial,
-  });
+  const _ThemePickerSheet({required this.repo, required this.initial});
 
   final ProfileRepository repo;
   final DiscoveryTheme initial;
@@ -2798,26 +3127,21 @@ class _ThemePickerSheetState extends State<_ThemePickerSheet> {
       _apply({'bg_id': bg.bgId});
       return;
     }
-    _apply({
-      'bg_id': bg.bgId,
-      'bg_variant_id': first.bgVariantId,
-    });
+    _apply({'bg_id': bg.bgId, 'bg_variant_id': first.bgVariantId});
   }
 
   void _selectVariant(String bgId, String bgVariantId) {
     if (theme?.bgVariantId == bgVariantId) return;
-    _apply({
-      'bg_id': bgId,
-      'bg_variant_id': bgVariantId,
-    });
+    _apply({'bg_id': bgId, 'bg_variant_id': bgVariantId});
   }
 
   Color _swatchColor(ThemeVariantOption v) {
-    final token = (v.colorToken ??
-            (v.bgVariantId.contains('-')
-                ? v.bgVariantId.split('-').last
-                : v.bgVariantId))
-        .toLowerCase();
+    final token =
+        (v.colorToken ??
+                (v.bgVariantId.contains('-')
+                    ? v.bgVariantId.split('-').last
+                    : v.bgVariantId))
+            .toLowerCase();
     return SpyceColors.variantAccents[token] ?? SpyceColors.pink;
   }
 
@@ -2842,9 +3166,7 @@ class _ThemePickerSheetState extends State<_ThemePickerSheet> {
           final selected = theme?.bgVariantId == v.bgVariantId;
           final color = _swatchColor(v);
           return GestureDetector(
-            onTap: saving
-                ? null
-                : () => _selectVariant(bg.bgId, v.bgVariantId),
+            onTap: saving ? null : () => _selectVariant(bg.bgId, v.bgVariantId),
             child: Tooltip(
               message: v.name,
               child: AnimatedContainer(
@@ -2955,7 +3277,10 @@ class _ThemePickerSheetState extends State<_ThemePickerSheet> {
                 padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
                 child: Text(
                   error!,
-                  style: const TextStyle(color: SpyceColors.error, fontSize: 12),
+                  style: const TextStyle(
+                    color: SpyceColors.error,
+                    fontSize: 12,
+                  ),
                 ),
               ),
             const SizedBox(height: 12),
@@ -2973,8 +3298,11 @@ class _ThemePickerSheetState extends State<_ThemePickerSheet> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.palette_outlined,
-                            size: 40, color: Colors.white38),
+                        const Icon(
+                          Icons.palette_outlined,
+                          size: 40,
+                          color: Colors.white38,
+                        ),
                         const SizedBox(height: 12),
                         const Text(
                           'No themes available from the server.',
@@ -3150,8 +3478,7 @@ class _ThemePickerSheetState extends State<_ThemePickerSheet> {
                           borderRadius: BorderRadius.circular(12),
                           child: InkWell(
                             borderRadius: BorderRadius.circular(12),
-                            onTap:
-                                saving ? null : () => _selectBackground(bg),
+                            onTap: saving ? null : () => _selectBackground(bg),
                             child: Container(
                               padding: const EdgeInsets.all(10),
                               decoration: BoxDecoration(

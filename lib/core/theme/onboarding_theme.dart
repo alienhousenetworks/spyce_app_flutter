@@ -11,7 +11,7 @@ abstract final class OnboardingColors {
   static const bgWaveTeal = SpyceColors.blush;
 
   static const surfaceCard = Color(0xE0141414);
-  static const cardBorder = Color(0x33E07E42);
+  static const cardBorder = Color(0x33FF5122);
 
   static const inputFill = SpyceColors.dark700;
   static const inputFillFocused = SpyceColors.dark600;
