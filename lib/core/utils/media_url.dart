@@ -15,8 +15,21 @@ String? resolveMediaUrl(String? raw) {
       ? '${apiUri.scheme}://${apiUri.host}${apiUri.hasPort ? ':${apiUri.port}' : ''}'
       : Env.apiBaseUrl.replaceAll(RegExp(r'/api/v1/?$'), '').replaceAll(RegExp(r'/+$'), '');
 
-  // Rewrite internal Docker / localhost endpoints if returned
-  if (url.contains('minio:9000') || url.contains('localhost:9000')) {
+  // Rewrite internal WireGuard / private IP endpoints to public MinIO host
+  if (url.contains('10.88.0.2:9000') || url.contains('10.88.0.1:9000')) {
+    url = url.replaceAll('10.88.0.2:9000', '109.122.56.132:9000')
+             .replaceAll('10.88.0.1:9000', '109.122.56.132:9000');
+  }
+
+  // Rewrite internal Docker endpoints if the API returns them.
+  // Phones cannot resolve minio / fastapi_ws, so CachedNetworkImage fails
+  // and the card stays a black placeholder.
+  final internal = url.contains('minio:9000') ||
+      url.contains('localhost:9000') ||
+      url.contains('://fastapi_ws') ||
+      url.contains('://fastapi:') ||
+      url.contains('://backend:');
+  if (internal) {
     final parsed = Uri.tryParse(url);
     if (parsed != null) {
       final query = parsed.hasQuery ? '?${parsed.query}' : '';
@@ -35,8 +48,14 @@ String? resolveMediaUrl(String? raw) {
     return url;
   }
 
-  // Root-relative path (/media/..., /api/...) -> attach to host root
+  // Root-relative API path (/media/..., /api/...). Leave device files alone.
   if (url.startsWith('/')) {
+    if (url.startsWith('/data/') ||
+        url.startsWith('/storage/') ||
+        url.startsWith('/var/') ||
+        url.startsWith('/private/')) {
+      return url;
+    }
     return '$hostRoot$url';
   }
 

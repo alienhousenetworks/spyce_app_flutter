@@ -86,15 +86,21 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
     if (mounted) await _load(0);
   }
 
-  static const _likedPrefsKey = 'spyce_liked_profile_ids_v2';
-  static const _likedPrefsLegacyKey = 'spyce_liked_profile_ids';
+  String get _likedPrefsKey {
+    final uid = ref.read(authControllerProvider).user?.id;
+    return (uid != null && uid.isNotEmpty)
+        ? 'spyce_liked_${uid}_v3'
+        : 'spyce_liked_profile_ids_v3';
+  }
   static const _likeTtl = Duration(hours: 36);
+  final Set<String> _likingInProgress = {};
 
   Future<void> _restoreLiked() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      // Legacy list had no timestamps and blocked relikes forever.
-      await prefs.remove(_likedPrefsLegacyKey);
+      // Legacy un-scoped device keys blocked other test accounts on same phone
+      await prefs.remove('spyce_liked_profile_ids');
+      await prefs.remove('spyce_liked_profile_ids_v2');
       final raw = prefs.getString(_likedPrefsKey);
       if (raw == null || raw.isEmpty || !mounted) return;
       final decoded = jsonDecode(raw);
@@ -554,14 +560,13 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
   }
 
   Future<void> _like(FeedProfile p) async {
-    // Already liked within TTL — keep card, show status, do not remove
-    if (_isLiked(p)) {
-      _showToast('Already liked ${p.shortName}');
-      return;
-    }
-
     final id = p.id;
     final uid = p.userId ?? p.id;
+    if (uid.isEmpty) return;
+
+    if (_likingInProgress.contains(uid)) return;
+    _likingInProgress.add(uid);
+
     setState(() {
       _rememberLiked(p);
       final i = profiles.indexWhere((x) => x.id == id || x.userId == uid);
@@ -630,6 +635,8 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
       setState(() => _forgetLiked(p));
       unawaited(_persistLiked());
       _showToast('Could not like. Try again.');
+    } finally {
+      _likingInProgress.remove(uid);
     }
   }
 
