@@ -17,9 +17,6 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_17.toString()
-    }
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
@@ -81,7 +78,11 @@ dependencies {
 flutter {
     source = "../.."
 }
-
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+    }
+}
 // Drop Amplify worker source maps after Flutter copies package assets.
 tasks.configureEach {
     if (name == "compileFlutterBuildRelease") {
