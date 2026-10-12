@@ -304,9 +304,8 @@ class _HeroPage extends StatelessWidget {
     final hasBio = p.bio != null && p.bio!.trim().isNotEmpty;
     // Adaptive photo: shrink slightly when bio is present so name/details/bio
     // sit higher and the like CTA never collides with the card bottom / bg.
-    final photoH = size.height * (hasBio ? 0.34 : 0.40);
-    final photoW = size.width * 0.78;
-    final h = photoH.clamp(hasBio ? 200.0 : 220.0, hasBio ? 300.0 : 360.0);
+    final photoW = size.width * 0.59;
+    final h = photoW * 1.2;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 10, 20, 4),
@@ -330,7 +329,7 @@ class _HeroPage extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         // Small top inset so content sits higher than before
-                        SizedBox(height: hasBio ? 4 : 10),
+                        SizedBox(height: hasBio ? 20 : 28),
                         // Frameless hero — fills box, transparent areas show feed bg
                         Container(
                           width: photoW,
