@@ -256,7 +256,7 @@ class _OtpStepState extends State<OtpStep> with WidgetsBindingObserver {
                             controller: _otpCtrl,
                             focusNode: _focusNode,
                             autofocus: true,
-                            showCursor: true,
+                            showCursor: false,
                             enableInteractiveSelection: true,
                             enableSuggestions: false,
                             autocorrect: false,
@@ -274,7 +274,7 @@ class _OtpStepState extends State<OtpStep> with WidgetsBindingObserver {
                               letterSpacing: 32,
                               height: 1,
                             ),
-                            cursorColor: Colors.white,
+                            cursorColor: Colors.transparent,
                             decoration: const InputDecoration(
                               counterText: '',
                               border: InputBorder.none,

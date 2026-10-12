@@ -16,6 +16,7 @@ import '../../data/models/user_models.dart';
 import '../../data/repositories/api_repositories.dart';
 import '../../shared/widgets/spyce_loaders.dart';
 import '../../shared/widgets/spyce_widgets.dart';
+import '../../shared/widgets/feed_vignette.dart';
 import '../auth/auth_controller.dart';
 import '../premium/subscription_paywall.dart';
 import 'widgets/feed_profile_card.dart';
@@ -92,6 +93,7 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
         ? 'spyce_liked_${uid}_v3'
         : 'spyce_liked_profile_ids_v3';
   }
+
   static const _likeTtl = Duration(hours: 36);
   final Set<String> _likingInProgress = {};
 
@@ -1395,55 +1397,61 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                         ],
                       ),
                     )
-                  : PageView.builder(
-                      controller: _pageCtrl,
-                      scrollDirection: Axis.vertical,
-                      itemCount: _pageCount,
-                      onPageChanged: (i) {
-                        final profIdx = _profileIndexForPage(i);
-                        final nearEnd =
-                            profIdx != null && profIdx >= profiles.length - 3;
-                        if (hasMore &&
-                            !loadingMore &&
-                            nearEnd &&
-                            nextCursor != null) {
-                          _load(nextCursor!, append: true);
-                        } else if (!hasMore &&
-                            !_varietyMode &&
-                            !_enteringVariety &&
-                            profiles.isNotEmpty &&
-                            (profIdx == null
-                                ? false
-                                : profIdx >= profiles.length - 2)) {
-                          // Near the end of filtered results → relax & keep going
-                          _enterVarietyAndContinue(keepProfiles: true);
-                        }
-                      },
-                      itemBuilder: (context, index) {
-                        if (_showEndLoader && index == _pageCount - 1) {
-                          return const _FeedEndLoadingPage();
-                        }
-                        final profIdx = _profileIndexForPage(index);
-                        if (profIdx == null) {
-                          // Compact two-line bridge — not a full empty screen
-                          return const _VarietyBridgePage();
-                        }
-                        if (profIdx < 0 || profIdx >= profiles.length) {
-                          return const SizedBox.shrink();
-                        }
-                        final p = profiles[profIdx];
-                        return Padding(
-                          padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
-                          child: FeedProfileCard(
-                            profile: p,
-                            liked: _isLiked(p),
-                            onLike: () => _like(p),
-                            onMessage: p.canDirectMessage
-                                ? () => _message(p)
-                                : null,
-                          ),
-                        );
-                      },
+                  : Stack(
+                      children: [
+                        PageView.builder(
+                          controller: _pageCtrl,
+                          scrollDirection: Axis.vertical,
+                          itemCount: _pageCount,
+                          onPageChanged: (i) {
+                            final profIdx = _profileIndexForPage(i);
+                            final nearEnd =
+                                profIdx != null &&
+                                profIdx >= profiles.length - 3;
+                            if (hasMore &&
+                                !loadingMore &&
+                                nearEnd &&
+                                nextCursor != null) {
+                              _load(nextCursor!, append: true);
+                            } else if (!hasMore &&
+                                !_varietyMode &&
+                                !_enteringVariety &&
+                                profiles.isNotEmpty &&
+                                (profIdx == null
+                                    ? false
+                                    : profIdx >= profiles.length - 2)) {
+                              // Near the end of filtered results → relax & keep going
+                              _enterVarietyAndContinue(keepProfiles: true);
+                            }
+                          },
+                          itemBuilder: (context, index) {
+                            if (_showEndLoader && index == _pageCount - 1) {
+                              return const _FeedEndLoadingPage();
+                            }
+                            final profIdx = _profileIndexForPage(index);
+                            if (profIdx == null) {
+                              // Compact two-line bridge — not a full empty screen
+                              return const _VarietyBridgePage();
+                            }
+                            if (profIdx < 0 || profIdx >= profiles.length) {
+                              return const SizedBox.shrink();
+                            }
+                            final p = profiles[profIdx];
+                            return Padding(
+                              padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
+                              child: FeedProfileCard(
+                                profile: p,
+                                liked: _isLiked(p),
+                                onLike: () => _like(p),
+                                onMessage: p.canDirectMessage
+                                    ? () => _message(p)
+                                    : null,
+                              ),
+                            );
+                          },
+                        ),
+                        Positioned.fill(child: FeedVignette(height: 130)),
+                      ],
                     ),
             ),
           ],

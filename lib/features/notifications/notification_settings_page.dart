@@ -263,7 +263,8 @@ class _NotificationSettingsPageState
         style: const TextStyle(color: SpyceColors.dark200, fontSize: 12),
       ),
       value: value,
-      activeColor: SpyceColors.pink,
+      activeThumbColor: SpyceColors.flame,
+      activeTrackColor: SpyceColors.flame.withValues(alpha: 0.35),
       onChanged: onChanged,
     );
   }

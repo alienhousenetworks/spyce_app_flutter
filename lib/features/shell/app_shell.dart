@@ -264,8 +264,8 @@ class _NavItem extends StatelessWidget {
     if (asset != null) {
       final img = Image.asset(
         asset!,
-        width: 26,
-        height: 26,
+        width: 22,
+        height: 22,
         filterQuality: FilterQuality.high,
       );
       if (selected) return img;

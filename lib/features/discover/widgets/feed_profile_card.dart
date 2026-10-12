@@ -96,20 +96,22 @@ class _FeedProfileCardState extends ConsumerState<FeedProfileCard> {
                 onPageChanged: (i) => setState(() => _page = i),
                 itemBuilder: (context, index) {
                   return switch (pages[index]) {
-                    _FeedPage.hero => _HeroPage(
-                      profile: p,
-                      liked: widget.liked,
-                      onLike: widget.onLike,
-                      onMessage: widget.onMessage,
-                      viewerUsername: viewerUsername,
-                    ),
-                    _FeedPage.photos => _PhotosPage(
-                      images: p.galleryImages,
-                      selected: _photoIdx,
-                      onSelect: (i) => setState(() => _photoIdx = i),
-                      username: viewerUsername,
-                      intent: p.intent,
-                    ),
+                    _FeedPage.hero =>
+                        _HeroPage(
+                          profile: p,
+                          liked: widget.liked,
+                          onLike: widget.onLike,
+                          onMessage: widget.onMessage,
+                          viewerUsername: viewerUsername,
+                        ),
+                    _FeedPage.photos =>
+                        _PhotosPage(
+                          images: p.galleryImages,
+                          selected: _photoIdx,
+                          onSelect: (i) => setState(() => _photoIdx = i),
+                          username: viewerUsername,
+                          intent: p.intent,
+                        ),
                     _FeedPage.details => _DetailsPage(profile: p),
                     _FeedPage.turnOns => _TurnOnsPage(profile: p),
                   };
@@ -137,7 +139,10 @@ class _MoodChips extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final shown = moods.where((m) => m.trim().isNotEmpty).take(3).toList();
+    final shown = moods.where((m) =>
+    m
+        .trim()
+        .isNotEmpty).take(3).toList();
     if (shown.isEmpty) return const SizedBox.shrink();
 
     return Column(
@@ -245,6 +250,7 @@ class _IntentChip extends StatelessWidget {
 
 class _PageDots extends StatelessWidget {
   const _PageDots({required this.count, required this.index});
+
   final int count;
   final int index;
 
@@ -326,9 +332,13 @@ class _HeroPage extends StatelessWidget {
                         // Small top inset so content sits higher than before
                         SizedBox(height: hasBio ? 4 : 10),
                         // Frameless hero — fills box, transparent areas show feed bg
-                        SizedBox(
+                        Container(
                           width: photoW,
                           height: h,
+                          clipBehavior: Clip.antiAlias,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
                           child: Stack(
                             fit: StackFit.expand,
                             alignment: Alignment.center,
@@ -338,21 +348,22 @@ class _HeroPage extends StatelessWidget {
                                   username: viewerUsername,
                                   child: CachedNetworkImage(
                                     imageUrl: hero,
-                                    fit: BoxFit.contain,
-                                    alignment: Alignment.center,
+                                    fit: BoxFit.cover,
+                                    alignment: Alignment.topCenter,
                                     width: photoW,
                                     height: h,
                                     memCacheWidth:
-                                        (photoW *
-                                                MediaQuery.devicePixelRatioOf(
-                                                  context,
-                                                ))
-                                            .round()
-                                            .clamp(200, 1600),
+                                    (photoW *
+                                        MediaQuery.devicePixelRatioOf(
+                                          context,
+                                        ))
+                                        .round()
+                                        .clamp(200, 1600),
                                     fadeInDuration: const Duration(
                                       milliseconds: 150,
                                     ),
-                                    placeholder: (_, _) => const Center(
+                                    placeholder: (_, _) =>
+                                    const Center(
                                       child: SizedBox(
                                         width: 28,
                                         height: 28,
@@ -413,7 +424,7 @@ class _HeroPage extends StatelessWidget {
                               const SizedBox(width: 4),
                               Flexible(
                                 child: Text(
-                                  () {
+                                      () {
                                     final dist = generalizedDistanceLabel(
                                       p.distanceKm,
                                     );
@@ -512,6 +523,7 @@ class _HeroPage extends StatelessWidget {
 /// Short bios stay compact; long ones clamp then expand in-place.
 class _HeroBioBlock extends StatefulWidget {
   const _HeroBioBlock({required this.bio});
+
   final String bio;
 
   @override
@@ -619,11 +631,11 @@ class _PresenceStatusChip extends StatelessWidget {
                   : SpyceColors.white.withValues(alpha: 0.45),
               boxShadow: online
                   ? [
-                      BoxShadow(
-                        color: SpyceColors.online.withValues(alpha: 0.55),
-                        blurRadius: 6,
-                      ),
-                    ]
+                BoxShadow(
+                  color: SpyceColors.online.withValues(alpha: 0.55),
+                  blurRadius: 6,
+                ),
+              ]
                   : null,
             ),
           ),
@@ -730,6 +742,7 @@ class _RoundAction extends StatelessWidget {
 
 class _AvatarPlaceholder extends StatelessWidget {
   const _AvatarPlaceholder({required this.name});
+
   final String name;
 
   @override
@@ -813,14 +826,15 @@ class _PhotosPage extends StatelessWidget {
               child: MediaUserIdWatermark(
                 username: username,
                 child: CachedNetworkImage(
-                  imageUrl: resolveMediaUrl(current.imageUrl) ?? current.imageUrl,
+                  imageUrl: resolveMediaUrl(current.imageUrl) ??
+                      current.imageUrl,
                   fit: BoxFit.cover,
                   width: double.infinity,
                   height: double.infinity,
                   placeholder: (_, _) =>
-                      const ColoredBox(color: SpyceColors.dark700),
+                  const ColoredBox(color: SpyceColors.dark700),
                   errorWidget: (_, _, _) =>
-                      const ColoredBox(color: SpyceColors.dark600),
+                  const ColoredBox(color: SpyceColors.dark600),
                 ),
               ),
             ),
@@ -850,12 +864,12 @@ class _PhotosPage extends StatelessWidget {
                     // Thumbnails: no watermark (keep overlays only on main media)
                     child: CachedNetworkImage(
                       imageUrl:
-                          resolveMediaUrl(images[i].imageUrl) ?? images[i].imageUrl,
+                      resolveMediaUrl(images[i].imageUrl) ?? images[i].imageUrl,
                       fit: BoxFit.cover,
                       width: 72,
                       height: 72,
                       errorWidget: (_, _, _) =>
-                          const ColoredBox(color: SpyceColors.dark600),
+                      const ColoredBox(color: SpyceColors.dark600),
                     ),
                   ),
                 );
@@ -880,6 +894,7 @@ class _PhotosPage extends StatelessWidget {
 
 class _DetailsPage extends StatelessWidget {
   const _DetailsPage({required this.profile});
+
   final FeedProfile profile;
 
   @override
@@ -900,7 +915,8 @@ class _DetailsPage extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '${p.gender ?? 'Someone'}${p.pronouns != null ? ' (${p.pronouns})' : ''}',
+                      '${p.gender ?? 'Someone'}${p.pronouns != null ? ' (${p
+                          .pronouns})' : ''}',
                       style: GoogleFonts.dmSans(
                         fontWeight: FontWeight.w700,
                         fontSize: 16,
@@ -962,7 +978,12 @@ class _DetailsPage extends StatelessWidget {
             ],
           ),
         ),
-        if (p.moods.where((m) => m.trim().isNotEmpty).isNotEmpty) ...[
+        if (p.moods
+            .where((m) =>
+        m
+            .trim()
+            .isNotEmpty)
+            .isNotEmpty) ...[
           const SizedBox(height: 12),
           _CreamCard(
             child: Column(
@@ -982,7 +1003,9 @@ class _DetailsPage extends StatelessWidget {
                   runSpacing: 8,
                   children: [
                     for (final mood in p.moods.take(3))
-                      if (mood.trim().isNotEmpty)
+                      if (mood
+                          .trim()
+                          .isNotEmpty)
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 10,
@@ -1094,7 +1117,8 @@ class _DetailsPage extends StatelessWidget {
                   runSpacing: 8,
                   children: p.languages
                       .map(
-                        (lang) => Container(
+                        (lang) =>
+                        Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 12,
                             vertical: 7,
@@ -1112,7 +1136,7 @@ class _DetailsPage extends StatelessWidget {
                             ),
                           ),
                         ),
-                      )
+                  )
                       .toList(),
                 ),
               ],
@@ -1139,7 +1163,8 @@ class _DetailsPage extends StatelessWidget {
                   runSpacing: 8,
                   children: p.interests
                       .map(
-                        (i) => Container(
+                        (i) =>
+                        Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 12,
                             vertical: 7,
@@ -1157,7 +1182,7 @@ class _DetailsPage extends StatelessWidget {
                             ),
                           ),
                         ),
-                      )
+                  )
                       .toList(),
                 ),
               ],
@@ -1173,6 +1198,7 @@ class _DetailsPage extends StatelessWidget {
 
 class _TurnOnsPage extends StatelessWidget {
   const _TurnOnsPage({required this.profile});
+
   final FeedProfile profile;
 
   @override
@@ -1209,20 +1235,21 @@ class _TurnOnsPage extends StatelessWidget {
                     color: SpyceColors.dark500,
                   ),
                 ),
-              ] else ...[
-                const SizedBox(height: 8),
-                Text(
-                  stickerItems.take(3).map((t) => t.name).join(' · '),
-                  style: GoogleFonts.dmSans(
-                    fontSize: 14,
-                    fontStyle: FontStyle.italic,
-                    color: SpyceColors.dark700,
-                    height: 1.4,
+              ] else
+                ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    stickerItems.take(3).map((t) => t.name).join(' · '),
+                    style: GoogleFonts.dmSans(
+                      fontSize: 14,
+                      fontStyle: FontStyle.italic,
+                      color: SpyceColors.dark700,
+                      height: 1.4,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+                ],
             ],
           ),
         ),
@@ -1283,6 +1310,7 @@ class _HotTakeTile extends StatelessWidget {
 
 class _CreamCard extends StatelessWidget {
   const _CreamCard({required this.child});
+
   final Widget child;
 
   @override
