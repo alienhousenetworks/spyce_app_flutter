@@ -135,6 +135,13 @@ abstract final class FeedBackgrounds {
     'b12spyce': '$_base/SpyderSpyce.svg',
     'b12cool': '$_base/SpyderCool.svg',
     'b12warm': '$_base/SpyderWarm.svg',
+    // B13 Topo Splash (3 SVGs)
+    'topo': '$_base/TopoSplashLavender.svg',
+    'b13': '$_base/TopoSplashLavender.svg',
+    'b13lavenderdark': '$_base/TopoSplashLavender.svg',
+    'b13lavenderlight': '$_base/TopoSplashLavender.svg',
+    'b13cool': '$_base/TopoSplashBlue.svg',
+    'b13warm': '$_base/TopoSplashOrange.svg',
   };
 
   /// All shipped SVG assets (picker order).
@@ -162,6 +169,9 @@ abstract final class FeedBackgrounds {
     '$_base/SpyderCool.svg',
     '$_base/SpyderSpyce.svg',
     '$_base/SpyderWarm.svg',
+    '$_base/TopoSplashBlue.svg',
+    '$_base/TopoSplashLavender.svg',
+    '$_base/TopoSplashOrange.svg',
   ];
 
   /// Human-readable idea labels for pickers / debug.
@@ -173,6 +183,7 @@ abstract final class FeedBackgrounds {
     'B05': 'Star Splash',
     'B06': 'Square Splash',
     'B12': 'Spyder Splash',
+    'B13': 'Topo Splash',
   };
 
   /// Resolve SVG path for a feed profile theme.

@@ -107,6 +107,8 @@ abstract final class SpyceColors {
     'warm': feedFlame,
     'dark1': Color(0xFF1E1B4B),
     'dark2': Color(0xFF312E81),
+    'lavenderdark': Color(0xFF37184C),
+    'lavenderlight': Color(0xFF661F66),
   };
 
   static Color accentForVariant(String? variantId) {
