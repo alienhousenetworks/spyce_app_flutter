@@ -286,15 +286,19 @@ class AuthRepository {
     await _storage.clearTokens();
   }
 
-  Future<Map<String, dynamic>> deleteAccount() async {
-    try {
-      await _api.delete('/users/delete-account/');
-      await _storage.clearTokens();
-      return {'status': 'deleted'};
-    } catch (e) {
-      await _storage.clearTokens();
-      rethrow;
-    }
+  /// Emails a 6-digit confirmation code for account deletion.
+  Future<void> requestDeleteOtp() async {
+    await _api.post<dynamic>('/users/request-delete-otp/');
+  }
+
+  /// Deletes the account. Tokens are cleared only on success, so a wrong
+  /// code does not log the user out.
+  Future<Map<String, dynamic>> deleteAccount(String code) async {
+    await _api.delete(
+      '/users/delete-account/?code=${Uri.encodeQueryComponent(code.trim())}',
+    );
+    await _storage.clearTokens();
+    return {'status': 'deleted'};
   }
 
   Future<AuthUser?> getMe() async {

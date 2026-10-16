@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../core/theme/onboarding_theme.dart';
-import '../../shared/widgets/onboarding_widgets.dart';
 import 'auth_controller.dart';
 import 'widgets/email_step.dart';
 import 'widgets/otp_step.dart';
@@ -60,7 +59,10 @@ class AuthPage extends ConsumerWidget {
                     ? 'assets/backgrounds/OnboardingWelcomeBg.svg'
                     : 'assets/backgrounds/OnboardingFlowBg.svg',
                 key: ValueKey(step == AuthStep.welcome),
+                width: double.infinity,
+                height: double.infinity,
                 fit: BoxFit.cover,
+                alignment: Alignment.center,
               ),
             ),
           ),

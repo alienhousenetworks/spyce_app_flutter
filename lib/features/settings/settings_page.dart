@@ -7,6 +7,8 @@ import 'package:package_info_plus/package_info_plus.dart';
 import '../../core/theme/spyce_colors.dart';
 import '../../data/repositories/api_repositories.dart';
 import '../auth/auth_controller.dart';
+import '../../shared/widgets/delete_account_flow.dart';
+
 
 class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({super.key});
@@ -66,64 +68,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     }
   }
 
-  Future<void> _deleteAccount() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: SpyceColors.dark900,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: SpyceColors.pink),
-        ),
-        title: Row(
-          children: const [
-            Icon(Icons.warning_amber_rounded, color: SpyceColors.pink, size: 24),
-            SizedBox(width: 8),
-            Text('Delete Account?'),
-          ],
-        ),
-        content: const Text(
-          'Your profile, matches, and chats will be immediately deactivated and hidden.\n\n'
-          'You have a 30-day grace period to restore your account by simply logging in again with your email. After 30 days, your data will be permanently wiped.',
-          style: TextStyle(color: SpyceColors.dark100, fontSize: 13, height: 1.4),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: SpyceColors.pink,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Delete Account'),
-          ),
-        ],
-      ),
-    );
 
-    if (confirmed == true) {
-      try {
-        await ref.read(authControllerProvider.notifier).deleteAccount();
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Account scheduled for deletion. You can restore within 30 days by signing in.'),
-            backgroundColor: SpyceColors.pink,
-          ),
-        );
-        context.go('/auth');
-      } catch (e) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error deleting account: $e')),
-        );
-        context.go('/auth');
-      }
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -227,7 +172,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           ),
           const SizedBox(height: 12),
           OutlinedButton.icon(
-            onPressed: _deleteAccount,
+            onPressed: () => startDeleteAccountFlow(context, ref),
             icon: const Icon(Icons.delete_forever, color: SpyceColors.pink),
             label: const Text(
               'Delete Account',

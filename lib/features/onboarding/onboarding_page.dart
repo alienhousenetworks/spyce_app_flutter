@@ -14,6 +14,7 @@ import '../../core/utils/onboarding.dart';
 import '../../data/models/user_models.dart';
 import '../../data/repositories/api_repositories.dart';
 import '../../shared/widgets/onboarding_widgets.dart';
+import '../../shared/widgets/onboarding_svg_background.dart';
 import '../../shared/widgets/photo_guidelines_sheet.dart';
 import '../../shared/widgets/spyce_loaders.dart';
 import '../auth/auth_controller.dart';
@@ -928,7 +929,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
     if (loadingOpts) {
       return const Scaffold(
         backgroundColor: SpyceColors.dark950,
-        body: OnboardingWaveBackground(
+        body: OnboardingSvgBackground(
           child: SpyceLoadingView(message: 'Setting things up…'),
         ),
       );

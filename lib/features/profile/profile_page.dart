@@ -21,6 +21,7 @@ import '../../core/utils/media_url.dart';
 import '../../data/models/user_models.dart';
 import '../../data/repositories/api_repositories.dart';
 import '../../shared/widgets/language_picker.dart';
+import '../../shared/widgets/delete_account_flow.dart';
 import '../../shared/widgets/photo_guidelines_sheet.dart';
 import '../../shared/widgets/spyce_loaders.dart';
 import '../../shared/widgets/spyce_widgets.dart';
@@ -2526,80 +2527,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   ),
                   const SizedBox(height: 10),
                   OutlinedButton.icon(
-                    onPressed: () async {
-                      final confirmed = await showDialog<bool>(
-                        context: context,
-                        builder: (ctx) => AlertDialog(
-                          backgroundColor: SpyceColors.dark900,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            side: const BorderSide(color: SpyceColors.pink),
-                          ),
-                          title: Row(
-                            children: const [
-                              Icon(
-                                Icons.warning_amber_rounded,
-                                color: SpyceColors.pink,
-                                size: 24,
-                              ),
-                              SizedBox(width: 8),
-                              Text('Delete Account?'),
-                            ],
-                          ),
-                          content: const Text(
-                            'Your profile, matches, and chats will be immediately deactivated and hidden.\n\n'
-                            'You have a 30-day grace period to restore your account by simply logging in again with your email.',
-                            style: TextStyle(
-                              color: SpyceColors.dark100,
-                              fontSize: 13,
-                              height: 1.4,
-                            ),
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(ctx, false),
-                              child: const Text(
-                                'Cancel',
-                                style: TextStyle(color: Colors.white70),
-                              ),
-                            ),
-                            ElevatedButton(
-                              onPressed: () => Navigator.pop(ctx, true),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: SpyceColors.pink,
-                                foregroundColor: Colors.white,
-                              ),
-                              child: const Text('Delete Account'),
-                            ),
-                          ],
-                        ),
-                      );
-                      if (confirmed == true) {
-                        try {
-                          await ref
-                              .read(authControllerProvider.notifier)
-                              .deleteAccount();
-                          if (!mounted) return;
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Account scheduled for deletion. You can restore within 30 days by signing in.',
-                              ),
-                              backgroundColor: SpyceColors.pink,
-                            ),
-                          );
-                          context.go('/auth');
-                        } catch (e) {
-                          if (!mounted) return;
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Error deleting account: $e'),
-                            ),
-                          );
-                          context.go('/auth');
-                        }
-                      }
-                    },
+                    onPressed: () => startDeleteAccountFlow(context, ref),
                     icon: const Icon(
                       Icons.delete_forever,
                       color: SpyceColors.pink,
@@ -2843,6 +2771,7 @@ class _ProfilePhotoSlot extends StatelessWidget {
 
 class _SectionCard extends StatelessWidget {
   const _SectionCard({required this.title, required this.children});
+
   final String title;
   final List<Widget> children;
 

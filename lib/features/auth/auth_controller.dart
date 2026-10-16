@@ -739,22 +739,20 @@ class AuthController extends StateNotifier<AuthState> {
     state = const AuthState(bootstrapped: true);
   }
 
-  Future<Map<String, dynamic>> deleteAccount() async {
-    state = state.copyWith(loading: true);
+  /// Sends a 6-digit deletion confirmation code to the user's email.
+  Future<void> requestDeleteOtp() async {
+    await _auth.requestDeleteOtp();
+  }
+
+  /// Deletes the account with the emailed code. The user is signed out
+  /// only if the delete succeeds, so a wrong code keeps them logged in.
+  Future<Map<String, dynamic>> deleteAccount(String code) async {
+    final result = await _auth.deleteAccount(code);
     try {
-      final result = await _auth.deleteAccount();
-      try {
-        await FirebaseAuthService.signOut();
-      } catch (_) {}
-      state = const AuthState(bootstrapped: true);
-      return result;
-    } catch (e) {
-      try {
-        await FirebaseAuthService.signOut();
-      } catch (_) {}
-      state = const AuthState(bootstrapped: true);
-      rethrow;
-    }
+      await FirebaseAuthService.signOut();
+    } catch (_) {}
+    state = const AuthState(bootstrapped: true);
+    return result;
   }
 
   void markOnboardingComplete({String? username}) {

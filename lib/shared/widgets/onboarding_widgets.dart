@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/theme/onboarding_theme.dart';
 import '../../core/theme/spyce_colors.dart';
+import 'onboarding_svg_background.dart';
 
 /// Organic wave painter — charcoal + ember atmosphere matching the flame.
 class OnboardingWaveBackground extends StatelessWidget {
@@ -226,7 +227,7 @@ class OnboardingScaffold extends StatelessWidget {
     return Scaffold(
       resizeToAvoidBottomInset: true,
       backgroundColor: OnboardingColors.bgDark,
-      body: OnboardingWaveBackground(
+      body: OnboardingSvgBackground(
         child: SafeArea(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
