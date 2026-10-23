@@ -140,6 +140,7 @@ class AuthRepository {
   Future<({bool ok, Map<String, dynamic> data})> registerWithPassword(
     String email,
     String password, {
+    String? otp,
     String? captchaToken,
   }) async {
     final deviceId = await _storage.getOrCreateDeviceId();
@@ -151,6 +152,7 @@ class AuthRepository {
           'email': email.trim().toLowerCase(),
           'password': password,
           'device_id': deviceId,
+          if (otp != null && otp.trim().isNotEmpty) 'otp': otp.trim(),
           if (token != null && token.isNotEmpty) 'captcha_token': token,
         },
       );
@@ -160,7 +162,7 @@ class AuthRepository {
       if (access != null && refresh != null) {
         await _storage.saveTokens(access: access, refresh: refresh);
       }
-      return (ok: access != null, data: map);
+      return (ok: access != null || map['requires_otp'] == true, data: map);
     } catch (e) {
       rethrow;
     }
@@ -190,6 +192,26 @@ class AuthRepository {
         await _storage.saveTokens(access: access, refresh: refresh);
       }
       return (ok: access != null, data: map);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<({bool ok, Map<String, dynamic> data})> changePassword(
+    String newPassword, {
+    String? oldPassword,
+  }) async {
+    try {
+      final data = await _api.post<dynamic>(
+        '/auth/password/change/',
+        data: {
+          'new_password': newPassword,
+          if (oldPassword != null && oldPassword.isNotEmpty)
+            'old_password': oldPassword,
+        },
+      );
+      final map = _asMap(data);
+      return (ok: true, data: map);
     } catch (e) {
       rethrow;
     }

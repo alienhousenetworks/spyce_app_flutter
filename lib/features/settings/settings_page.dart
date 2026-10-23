@@ -68,7 +68,183 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     }
   }
 
+  Future<void> _showChangePasswordDialog() async {
+    final oldPassCtrl = TextEditingController();
+    final newPassCtrl = TextEditingController();
+    final confirmPassCtrl = TextEditingController();
+    String? localError;
+    bool isSubmitting = false;
 
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: SpyceColors.dark700,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) => Padding(
+          padding: EdgeInsets.fromLTRB(
+            20,
+            20,
+            20,
+            MediaQuery.of(ctx).viewInsets.bottom + 24,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Change Password',
+                style: GoogleFonts.syne(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: SpyceColors.white,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Enter your current password and choose a new one.',
+                style: GoogleFonts.dmSans(
+                  color: SpyceColors.dark200,
+                  fontSize: 13,
+                ),
+              ),
+              const SizedBox(height: 16),
+              if (localError != null) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: SpyceColors.pinkDim,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    localError!,
+                    style: const TextStyle(color: SpyceColors.pink, fontSize: 13),
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+              TextField(
+                controller: oldPassCtrl,
+                obscureText: true,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  labelText: 'Current password',
+                  labelStyle: const TextStyle(color: SpyceColors.dark200),
+                  filled: true,
+                  fillColor: SpyceColors.dark800,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: newPassCtrl,
+                obscureText: true,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  labelText: 'New password (min 8 chars)',
+                  labelStyle: const TextStyle(color: SpyceColors.dark200),
+                  filled: true,
+                  fillColor: SpyceColors.dark800,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: confirmPassCtrl,
+                obscureText: true,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  labelText: 'Confirm new password',
+                  labelStyle: const TextStyle(color: SpyceColors.dark200),
+                  filled: true,
+                  fillColor: SpyceColors.dark800,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: isSubmitting
+                    ? null
+                    : () async {
+                        final oldPass = oldPassCtrl.text.trim();
+                        final newPass = newPassCtrl.text.trim();
+                        final confirmPass = confirmPassCtrl.text.trim();
+                        if (newPass.length < 8) {
+                          setModalState(() => localError = 'New password must be at least 8 characters.');
+                          return;
+                        }
+                        if (newPass != confirmPass) {
+                          setModalState(() => localError = 'New passwords do not match.');
+                          return;
+                        }
+                        setModalState(() {
+                          isSubmitting = true;
+                          localError = null;
+                        });
+                        final res = await ref.read(authControllerProvider.notifier).changePassword(
+                              newPass,
+                              oldPassword: oldPass.isNotEmpty ? oldPass : null,
+                            );
+                        if (!ctx.mounted) return;
+                        if (res.ok) {
+                          Navigator.pop(ctx);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(res.message),
+                              backgroundColor: SpyceColors.teal,
+                            ),
+                          );
+                        } else {
+                          setModalState(() {
+                            isSubmitting = false;
+                            localError = res.message;
+                          });
+                        }
+                      },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: SpyceColors.pink,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(double.infinity, 48),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: isSubmitting
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Text('Update Password'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -101,6 +277,13 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       ? 'Required for Discover'
                       : 'Check status',
               onTap: () => context.push('/app/settings/verification'),
+            ),
+            _divider(),
+            _tile(
+              icon: Icons.lock_outline,
+              title: 'Change password',
+              subtitle: 'Update your account password',
+              onTap: _showChangePasswordDialog,
             ),
           ]),
           const SizedBox(height: 20),

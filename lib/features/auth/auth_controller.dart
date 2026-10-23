@@ -467,8 +467,7 @@ class AuthController extends StateNotifier<AuthState> {
       state = state.copyWith(loading: false, error: e.message);
       return false;
     } catch (_) {
-      // Fallback to direct backend registration
-      try {
+        // Fallback to direct backend registration
         final result = await _auth.registerWithPassword(
           trimmedEmail,
           password,
@@ -478,6 +477,16 @@ class AuthController extends StateNotifier<AuthState> {
           state = state.copyWith(
             loading: false,
             error: result.data['error']?.toString() ?? 'Registration failed.',
+          );
+          return false;
+        }
+        if (result.data['requires_otp'] == true) {
+          state = state.copyWith(
+            loading: false,
+            step: AuthStep.otp,
+            email: trimmedEmail,
+            message: result.data['message']?.toString() ??
+                'Verification code sent to $trimmedEmail. Please enter the OTP to complete registration.',
           );
           return false;
         }
@@ -535,6 +544,16 @@ class AuthController extends StateNotifier<AuthState> {
           captchaToken: captchaToken,
         );
         if (!result.ok) {
+          if (result.data['requires_otp'] == true) {
+            state = state.copyWith(
+              loading: false,
+              step: AuthStep.otp,
+              email: trimmedEmail,
+              message: result.data['error']?.toString() ??
+                  'Please enter the verification code sent to your email.',
+            );
+            return false;
+          }
           state = state.copyWith(
             loading: false,
             error:
@@ -546,6 +565,16 @@ class AuthController extends StateNotifier<AuthState> {
         return _handleAuthSuccess(result.data);
       } on ApiException catch (e) {
         debugPrint('🔴 [AuthController] Backend loginWithPassword ApiException: ${e.fullDetail}');
+        if (e.data is Map && (e.data as Map)['requires_otp'] == true) {
+          state = state.copyWith(
+            loading: false,
+            step: AuthStep.otp,
+            email: trimmedEmail,
+            message: (e.data as Map)['error']?.toString() ??
+                'Please enter the verification code sent to your email.',
+          );
+          return false;
+        }
         state = state.copyWith(loading: false, error: e.message);
         return false;
       } catch (e, stack) {
@@ -685,6 +714,15 @@ class AuthController extends StateNotifier<AuthState> {
       final intent = state.mode == AuthMode.signUp ? 'signup' : 'login';
       final result = await _auth.firebaseLogin(idToken, intent: intent);
       if (!result.ok) {
+        if (result.data['requires_otp'] == true) {
+          state = state.copyWith(
+            loading: false,
+            step: AuthStep.otp,
+            message: result.data['error']?.toString() ??
+                'Email verification required. A code was sent to your email.',
+          );
+          return false;
+        }
         state = state.copyWith(
           loading: false,
           error: result.data['error']?.toString() ?? 'Firebase login failed.',
@@ -694,6 +732,15 @@ class AuthController extends StateNotifier<AuthState> {
       return _handleAuthSuccess(result.data);
     } on ApiException catch (e) {
       debugPrint('🔴 [AuthController] signInWithFirebaseToken ApiException: ${e.fullDetail}');
+      if (e.data is Map && (e.data as Map)['requires_otp'] == true) {
+        state = state.copyWith(
+          loading: false,
+          step: AuthStep.otp,
+          message: (e.data as Map)['error']?.toString() ??
+              'Email verification required. A code was sent to your email.',
+        );
+        return false;
+      }
       state = state.copyWith(loading: false, error: e.message);
       return false;
     } catch (e, stack) {
@@ -703,6 +750,24 @@ class AuthController extends StateNotifier<AuthState> {
         error: 'Login failed: ${ApiException.describe(e)}',
       );
       return false;
+    }
+  }
+
+  Future<({bool ok, String message})> changePassword(
+    String newPassword, {
+    String? oldPassword,
+  }) async {
+    try {
+      final res = await _auth.changePassword(
+        newPassword,
+        oldPassword: oldPassword,
+      );
+      final msg = res.data['message']?.toString() ?? 'Password changed successfully.';
+      return (ok: true, message: msg);
+    } on ApiException catch (e) {
+      return (ok: false, message: e.message);
+    } catch (e) {
+      return (ok: false, message: 'Could not change password.');
     }
   }
 
