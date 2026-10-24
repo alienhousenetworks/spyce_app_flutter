@@ -12,6 +12,7 @@ import '../../core/utils/presence_labels.dart';
 import '../../data/models/user_models.dart';
 import '../../data/repositories/api_repositories.dart';
 import '../../shared/widgets/media_user_id_watermark.dart';
+import '../../shared/widgets/spyce_widgets.dart';
 import '../../shared/widgets/turn_on_stickers.dart';
 import '../auth/auth_controller.dart';
 import '../discover/widgets/feed_profile_card.dart';
@@ -132,6 +133,119 @@ class _PeerProfilePageState extends ConsumerState<PeerProfilePage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Could not like: $e')),
       );
+    }
+  }
+
+  Future<void> _message(FeedProfile p) async {
+    if (!p.canDirectMessage) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Messaging not available for this profile')),
+      );
+      return;
+    }
+    final uid = p.userId ?? p.id;
+    if (uid.isEmpty) return;
+
+    final ctrl = TextEditingController();
+    final ok = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: SpyceColors.dark800,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.fromLTRB(
+            20,
+            16,
+            20,
+            24 + MediaQuery.of(ctx).viewInsets.bottom,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Message ${p.shortName}',
+                style: GoogleFonts.syne(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Direct message (your gender + sexuality can reach theirs).',
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.55),
+                  fontSize: 13,
+                ),
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: ctrl,
+                maxLines: 4,
+                maxLength: 500,
+                autofocus: true,
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(
+                  hintText: 'Say hi (min 3 characters)…',
+                ),
+              ),
+              const SizedBox(height: 12),
+              SpycePrimaryButton(
+                label: 'Send message',
+                icon: Icons.chat_bubble_outline,
+                onPressed: () {
+                  if (ctrl.text.trim().length < 3) {
+                    ScaffoldMessenger.of(ctx).showSnackBar(
+                      const SnackBar(
+                        content: Text('Write at least 3 characters'),
+                      ),
+                    );
+                    return;
+                  }
+                  Navigator.pop(ctx, true);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+    if (ok != true || !mounted) {
+      ctrl.dispose();
+      return;
+    }
+    final text = ctrl.text.trim();
+    ctrl.dispose();
+    try {
+      final res = await ref
+          .read(feedRepositoryProvider)
+          .startConversation(uid, text);
+      if (!mounted) return;
+      if (res['error'] != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(res['error']?.toString() ?? 'Could not send')),
+        );
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Message sent to ${p.shortName}')),
+      );
+    } on ApiException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message)),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not send message')),
+        );
+      }
     }
   }
 
@@ -275,6 +389,9 @@ class _PeerProfilePageState extends ConsumerState<PeerProfilePage> {
                                         ),
                                       );
                                     },
+                                    onMessage: feed.canDirectMessage
+                                        ? () => _message(feed)
+                                        : null,
                                   ),
                                 ),
                               ),
