@@ -2,176 +2,102 @@
 ///
 /// Assets live in `assets/backgrounds/`.
 ///
-/// ## Shipped Background Catalog (7 Families · 23 SVG Variants)
+/// ## Shipped Scout / Feed Background Catalog (8 Families · 11 SVG Variants)
 ///
 /// | Code | Idea              | Variants & Shipped SVG Files                           |
 /// |------|-------------------|--------------------------------------------------------|
-/// | B01  | Flame Wave        | Spyce, Cool, Warm, DarkFlame1, DarkFlame2 (5 SVGs)     |
-/// | B02  | Puzzle Splash     | Spyce, Cool, Warm (3 SVGs)                             |
-/// | B03  | Hexagon Splash    | Spyce, Cool, Warm (3 SVGs)                             |
-/// | B04  | Tri Splash        | Spyce, Cool, Warm (3 SVGs)                             |
-/// | B05  | Star Splash       | Spyce, Cool, Warm (3 SVGs)                             |
-/// | B06  | Square Splash     | Spyce, Cool, Warm (3 SVGs)                             |
-/// | B12  | Spyder Splash     | Spyce, Cool, Warm (3 SVGs)                             |
+/// | B01  | Flame Wave        | Warm, DarkFlame1, DarkFlame2 (3 SVGs)                  |
+/// | B02  | Puzzle Splash     | Warm (1 SVG)                                           |
+/// | B03  | Hexagon Splash    | Warm (1 SVG)                                           |
+/// | B04  | Tri Splash        | Warm (1 SVG)                                           |
+/// | B05  | Star Splash       | Warm (1 SVG)                                           |
+/// | B06  | Square Splash     | Warm (1 SVG)                                           |
+/// | B12  | Spyder Splash     | Warm (1 SVG)                                           |
+/// | B13  | Topo Splash       | TopoSplashLavender, TopoSplashOrange (2 SVGs)          |
 ///
-/// Palette variants use standard suffixes: `-spyce`, `-cool`, `-warm` (plus `-dark1`, `-dark2` for B01).
+/// Note: `assets/backgrounds/` also includes 2 dedicated onboarding backgrounds:
+/// - `OnboardingWelcomeBg.svg` (Welcome / Auth screen)
+/// - `OnboardingFlowBg.svg` (Onboarding questionnaire flow)
+/// These are used strictly in auth/onboarding, not in Scout / Feed cards.
 abstract final class FeedBackgrounds {
   static const _base = 'assets/backgrounds';
 
-  /// Canonical splash / pattern SVGs shipped with the app.
+  /// Canonical splash / pattern SVGs shipped with the app for Scout / Feed.
   static const Map<String, String> byId = {
-    // ── Flame family ─────────────────────────────────────────────
-    'flame': '$_base/FlameSpyce.svg',
-    'flamespyce': '$_base/FlameSpyce.svg',
-    'flamecool': '$_base/FlameCool.svg',
+    // ── Flame family (B01) ─────────────────────────────────────────
+    'flame': '$_base/FlameWarm.svg',
     'flamewarm': '$_base/FlameWarm.svg',
     'darkflame1': '$_base/DarkFlame1.svg',
     'darkflame2': '$_base/DarkFlame2.svg',
-    // ── Splash families ──────────────────────────────────────────
-    'hex': '$_base/HexSplashSpyce.svg',
-    'hexsplashspyce': '$_base/HexSplashSpyce.svg',
-    'hexsplashcool': '$_base/HexSplashCool.svg',
-    'hexsplashwarm': '$_base/HexSplashWarm.svg',
-    'puzzle': '$_base/PuzzleSplashSpyce.svg',
-    'puzzlesplashspyce': '$_base/PuzzleSplashSpyce.svg',
-    'puzzlesplashcool': '$_base/PuzzleSplashCool.svg',
+    // ── Splash families (B02–B06) ──────────────────────────────────
+    'puzzle': '$_base/PuzzleSplashWarm.svg',
     'puzzlesplashwarm': '$_base/PuzzleSplashWarm.svg',
-    'square': '$_base/SquareSplashSpyce.svg',
-    'squaresplashspyce': '$_base/SquareSplashSpyce.svg',
-    'squaresplashcool': '$_base/SquareSplashCool.svg',
-    'squaresplashwarm': '$_base/SquareSplashWarm.svg',
-    'star': '$_base/StarSplashSpyce.svg',
-    'starsplashspyce': '$_base/StarSplashSpyce.svg',
-    'starsplashcool': '$_base/StarSplashCool.svg',
-    'starsplashwarm': '$_base/StarSplashWarm.svg',
-    'tri': '$_base/TriSplashSpyce.svg',
-    'trisplashspyce': '$_base/TriSplashSpyce.svg',
-    'trisplashcool': '$_base/TriSplashCool.svg',
+    'hex': '$_base/HexSplashWarm.svg',
+    'hexsplashwarm': '$_base/HexSplashWarm.svg',
+    'tri': '$_base/TriSplashWarm.svg',
     'trisplashwarm': '$_base/TriSplashWarm.svg',
-    // ── Spyder family (B12) ──────────────────────────────────────
-    'spyder': '$_base/SpyderSpyce.svg',
-    'spyderspyce': '$_base/SpyderSpyce.svg',
-    'spydercool': '$_base/SpyderCool.svg',
+    'star': '$_base/StarSplashWarm.svg',
+    'starsplashwarm': '$_base/StarSplashWarm.svg',
+    'square': '$_base/SquareSplashWarm.svg',
+    'squaresplashwarm': '$_base/SquareSplashWarm.svg',
+    // ── Spyder family (B12) ────────────────────────────────────────
+    'spyder': '$_base/SpyderWarm.svg',
     'spyderwarm': '$_base/SpyderWarm.svg',
+    // ── Topo family (B13) ──────────────────────────────────────────
+    'topo': '$_base/TopoSplashLavender.svg',
+    'topolavender': '$_base/TopoSplashLavender.svg',
+    'topoorange': '$_base/TopoSplashOrange.svg',
 
-    // ── Stable API bg_id (family → default SVG) ──────────────────
-    'b01': '$_base/FlameSpyce.svg',
-    'b02': '$_base/PuzzleSplashSpyce.svg',
-    'b03': '$_base/HexSplashSpyce.svg',
-    'b04': '$_base/TriSplashSpyce.svg',
-    'b05': '$_base/StarSplashSpyce.svg',
-    'b06': '$_base/SquareSplashSpyce.svg',
-    'b07': '$_base/FlameWarm.svg',
-    'b08': '$_base/FlameSpyce.svg',
-    'b09': '$_base/TriSplashCool.svg',
-    'b10': '$_base/FlameCool.svg',
-    'b11': '$_base/HexSplashWarm.svg',
-    'b12': '$_base/SpyderSpyce.svg',
+    // ── Stable API bg_id (family → default SVG) ────────────────────
+    'b01': '$_base/FlameWarm.svg',
+    'b02': '$_base/PuzzleSplashWarm.svg',
+    'b03': '$_base/HexSplashWarm.svg',
+    'b04': '$_base/TriSplashWarm.svg',
+    'b05': '$_base/StarSplashWarm.svg',
+    'b06': '$_base/SquareSplashWarm.svg',
+    'b12': '$_base/SpyderWarm.svg',
+    'b13': '$_base/TopoSplashLavender.svg',
 
-    // ── Variant codes (B0x-palette) ──────────────────────────────
+    // ── Shipped Variant codes (B0x-variant) ─────────────────────────
     // B01 Flame Wave
-    'b01spyce': '$_base/FlameSpyce.svg',
-    'b01cool': '$_base/FlameCool.svg',
     'b01warm': '$_base/FlameWarm.svg',
     'b01dark1': '$_base/DarkFlame1.svg',
     'b01dark2': '$_base/DarkFlame2.svg',
-    'b01sunset': '$_base/FlameWarm.svg',
-    'b01ocean': '$_base/FlameCool.svg',
-    'b01midnight': '$_base/DarkFlame1.svg',
-    'b01coral': '$_base/FlameWarm.svg',
     // B02 Puzzle
-    'b02spyce': '$_base/PuzzleSplashSpyce.svg',
-    'b02cool': '$_base/PuzzleSplashCool.svg',
     'b02warm': '$_base/PuzzleSplashWarm.svg',
-    'b02pink': '$_base/PuzzleSplashWarm.svg',
-    'b02teal': '$_base/PuzzleSplashCool.svg',
-    'b02violet': '$_base/PuzzleSplashSpyce.svg',
     // B03 Hex
-    'b03spyce': '$_base/HexSplashSpyce.svg',
-    'b03cool': '$_base/HexSplashCool.svg',
     'b03warm': '$_base/HexSplashWarm.svg',
-    'b03gold': '$_base/HexSplashWarm.svg',
-    'b03coral': '$_base/HexSplashWarm.svg',
-    'b03ice': '$_base/HexSplashCool.svg',
     // B04 Tri
-    'b04spyce': '$_base/TriSplashSpyce.svg',
-    'b04cool': '$_base/TriSplashCool.svg',
     'b04warm': '$_base/TriSplashWarm.svg',
-    'b04emerald': '$_base/TriSplashSpyce.svg',
-    'b04rose': '$_base/TriSplashWarm.svg',
     // B05 Star
-    'b05spyce': '$_base/StarSplashSpyce.svg',
-    'b05cool': '$_base/StarSplashCool.svg',
     'b05warm': '$_base/StarSplashWarm.svg',
-    'b05slate': '$_base/StarSplashCool.svg',
-    'b05amber': '$_base/StarSplashWarm.svg',
     // B06 Square
-    'b06spyce': '$_base/SquareSplashSpyce.svg',
-    'b06cool': '$_base/SquareSplashCool.svg',
     'b06warm': '$_base/SquareSplashWarm.svg',
-    'b06cyan': '$_base/SquareSplashCool.svg',
-    'b06magenta': '$_base/SquareSplashSpyce.svg',
-    'b06lime': '$_base/SquareSplashSpyce.svg',
-    // B07 Advance Flame
-    'b07warm': '$_base/FlameWarm.svg',
-    'b07spyce': '$_base/FlameSpyce.svg',
-    'b07cool': '$_base/FlameCool.svg',
-    'b07peach': '$_base/FlameWarm.svg',
-    'b07lavender': '$_base/FlameCool.svg',
-    'b07mint': '$_base/FlameSpyce.svg',
-    // B08–B11 extended
-    'b08spyce': '$_base/FlameSpyce.svg',
-    'b08cool': '$_base/FlameCool.svg',
-    'b08warm': '$_base/FlameWarm.svg',
-    'b09emerald': '$_base/TriSplashSpyce.svg',
-    'b09rose': '$_base/TriSplashWarm.svg',
-    'b10spyce': '$_base/FlameSpyce.svg',
-    'b10cool': '$_base/FlameCool.svg',
-    'b10warm': '$_base/FlameWarm.svg',
-    'b11peach': '$_base/HexSplashWarm.svg',
-    'b11lavender': '$_base/HexSplashCool.svg',
-    'b11mint': '$_base/HexSplashSpyce.svg',
-    // B12 Spyder Splash (3 SVGs only)
-    'b12spyce': '$_base/SpyderSpyce.svg',
-    'b12cool': '$_base/SpyderCool.svg',
+    // B12 Spyder Splash
     'b12warm': '$_base/SpyderWarm.svg',
-    // B13 Topo Splash (3 SVGs)
-    'topo': '$_base/TopoSplashLavender.svg',
-    'b13': '$_base/TopoSplashLavender.svg',
+    // B13 Topo Splash
+    'b13lavender': '$_base/TopoSplashLavender.svg',
+    'b13warm': '$_base/TopoSplashOrange.svg',
+    'b13orange': '$_base/TopoSplashOrange.svg',
+    // Legacy aliases for B13
     'b13lavenderdark': '$_base/TopoSplashLavender.svg',
     'b13lavenderlight': '$_base/TopoSplashLavender.svg',
-    'b13cool': '$_base/TopoSplashBlue.svg',
-    'b13warm': '$_base/TopoSplashOrange.svg',
+    'b13cool': '$_base/TopoSplashOrange.svg',
   };
 
   /// All shipped SVG assets (picker order).
   static const List<String> allAssets = [
     '$_base/DarkFlame1.svg',
     '$_base/DarkFlame2.svg',
-    '$_base/FlameCool.svg',
-    '$_base/FlameSpyce.svg',
     '$_base/FlameWarm.svg',
-    '$_base/HexSplashCool.svg',
-    '$_base/HexSplashSpyce.svg',
     '$_base/HexSplashWarm.svg',
-    '$_base/PuzzleSplashCool.svg',
-    '$_base/PuzzleSplashSpyce.svg',
     '$_base/PuzzleSplashWarm.svg',
-    '$_base/SquareSplashCool.svg',
-    '$_base/SquareSplashSpyce.svg',
-    '$_base/SquareSplashWarm.svg',
-    '$_base/StarSplashCool.svg',
-    '$_base/StarSplashSpyce.svg',
-    '$_base/StarSplashWarm.svg',
-    '$_base/TriSplashCool.svg',
-    '$_base/TriSplashSpyce.svg',
-    '$_base/TriSplashWarm.svg',
-    '$_base/SpyderCool.svg',
-    '$_base/SpyderSpyce.svg',
     '$_base/SpyderWarm.svg',
-    '$_base/TopoSplashBlue.svg',
+    '$_base/SquareSplashWarm.svg',
+    '$_base/StarSplashWarm.svg',
     '$_base/TopoSplashLavender.svg',
     '$_base/TopoSplashOrange.svg',
+    '$_base/TriSplashWarm.svg',
   ];
 
   /// Human-readable idea labels for pickers / debug.
@@ -194,8 +120,8 @@ abstract final class FeedBackgrounds {
     int? seed,
   }) {
     final keys = <String>[
-      if (bgVariantId != null) bgVariantId,
-      if (bgId != null) bgId,
+      ?bgVariantId,
+      ?bgId,
       if (bgVariantId != null && bgVariantId.contains('-'))
         bgVariantId.split('-').first,
     ];
