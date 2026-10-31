@@ -110,6 +110,7 @@ class AuthController extends StateNotifier<AuthState> {
   final Ref _ref;
 
   AuthRepository get _auth => _ref.read(authRepositoryProvider);
+
   ProfileRepository get _profile => _ref.read(profileRepositoryProvider);
 
   void chooseSignIn() {
@@ -387,7 +388,9 @@ class AuthController extends StateNotifier<AuthState> {
       );
       return true;
     } on ApiException catch (e) {
-      debugPrint('🔴 [AuthController] requestOtp ApiException: ${e.fullDetail}');
+      debugPrint(
+        '🔴 [AuthController] requestOtp ApiException: ${e.fullDetail}',
+      );
       state = state.copyWith(loading: false, error: e.message);
       return false;
     } catch (e, stack) {
@@ -467,7 +470,8 @@ class AuthController extends StateNotifier<AuthState> {
       state = state.copyWith(loading: false, error: e.message);
       return false;
     } catch (_) {
-        // Fallback to direct backend registration
+      // Fallback to direct backend registration
+      try {
         final result = await _auth.registerWithPassword(
           trimmedEmail,
           password,
@@ -485,7 +489,8 @@ class AuthController extends StateNotifier<AuthState> {
             loading: false,
             step: AuthStep.otp,
             email: trimmedEmail,
-            message: result.data['message']?.toString() ??
+            message:
+                result.data['message']?.toString() ??
                 'Verification code sent to $trimmedEmail. Please enter the OTP to complete registration.',
           );
           return false;
@@ -535,7 +540,9 @@ class AuthController extends StateNotifier<AuthState> {
       state = state.copyWith(loading: false, error: e.message);
       return false;
     } catch (e) {
-      debugPrint('ℹ️ [AuthController] Firebase sign-in bypassed or error: $e. Trying direct backend login...');
+      debugPrint(
+        'ℹ️ [AuthController] Firebase sign-in bypassed or error: $e. Trying direct backend login...',
+      );
       // Fallback to direct backend password login
       try {
         final result = await _auth.loginWithPassword(
@@ -549,7 +556,8 @@ class AuthController extends StateNotifier<AuthState> {
               loading: false,
               step: AuthStep.otp,
               email: trimmedEmail,
-              message: result.data['error']?.toString() ??
+              message:
+                  result.data['error']?.toString() ??
                   'Please enter the verification code sent to your email.',
             );
             return false;
@@ -564,13 +572,16 @@ class AuthController extends StateNotifier<AuthState> {
         }
         return _handleAuthSuccess(result.data);
       } on ApiException catch (e) {
-        debugPrint('🔴 [AuthController] Backend loginWithPassword ApiException: ${e.fullDetail}');
+        debugPrint(
+          '🔴 [AuthController] Backend loginWithPassword ApiException: ${e.fullDetail}',
+        );
         if (e.data is Map && (e.data as Map)['requires_otp'] == true) {
           state = state.copyWith(
             loading: false,
             step: AuthStep.otp,
             email: trimmedEmail,
-            message: (e.data as Map)['error']?.toString() ??
+            message:
+                (e.data as Map)['error']?.toString() ??
                 'Please enter the verification code sent to your email.',
           );
           return false;
@@ -578,7 +589,9 @@ class AuthController extends StateNotifier<AuthState> {
         state = state.copyWith(loading: false, error: e.message);
         return false;
       } catch (e, stack) {
-        debugPrint('🔴 [AuthController] Backend loginWithPassword error: $e\n$stack');
+        debugPrint(
+          '🔴 [AuthController] Backend loginWithPassword error: $e\n$stack',
+        );
         state = state.copyWith(
           loading: false,
           error: 'Could not sign in: ${ApiException.describe(e)}',
@@ -718,7 +731,8 @@ class AuthController extends StateNotifier<AuthState> {
           state = state.copyWith(
             loading: false,
             step: AuthStep.otp,
-            message: result.data['error']?.toString() ??
+            message:
+                result.data['error']?.toString() ??
                 'Email verification required. A code was sent to your email.',
           );
           return false;
@@ -731,12 +745,15 @@ class AuthController extends StateNotifier<AuthState> {
       }
       return _handleAuthSuccess(result.data);
     } on ApiException catch (e) {
-      debugPrint('🔴 [AuthController] signInWithFirebaseToken ApiException: ${e.fullDetail}');
+      debugPrint(
+        '🔴 [AuthController] signInWithFirebaseToken ApiException: ${e.fullDetail}',
+      );
       if (e.data is Map && (e.data as Map)['requires_otp'] == true) {
         state = state.copyWith(
           loading: false,
           step: AuthStep.otp,
-          message: (e.data as Map)['error']?.toString() ??
+          message:
+              (e.data as Map)['error']?.toString() ??
               'Email verification required. A code was sent to your email.',
         );
         return false;
@@ -744,7 +761,9 @@ class AuthController extends StateNotifier<AuthState> {
       state = state.copyWith(loading: false, error: e.message);
       return false;
     } catch (e, stack) {
-      debugPrint('🔴 [AuthController] signInWithFirebaseToken error: $e\n$stack');
+      debugPrint(
+        '🔴 [AuthController] signInWithFirebaseToken error: $e\n$stack',
+      );
       state = state.copyWith(
         loading: false,
         error: 'Login failed: ${ApiException.describe(e)}',
@@ -762,7 +781,8 @@ class AuthController extends StateNotifier<AuthState> {
         newPassword,
         oldPassword: oldPassword,
       );
-      final msg = res.data['message']?.toString() ?? 'Password changed successfully.';
+      final msg =
+          res.data['message']?.toString() ?? 'Password changed successfully.';
       return (ok: true, message: msg);
     } on ApiException catch (e) {
       return (ok: false, message: e.message);
