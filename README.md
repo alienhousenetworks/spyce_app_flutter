@@ -49,7 +49,7 @@ flutter run
 
 ## Assets
 
-Feed SVG patterns live in `assets/backgrounds/` (Flame, Hex, Puzzle, Square, Star, Tri, Spyder + Warm/Cool/Spyce variants). Mapped in `lib/core/theme/feed_backgrounds.dart` (API codes B01–B12).
+Feed SVG patterns live in `assets/backgrounds/` (Flame, Froth, Premium Uneven, Puzzle, Star, Tri, Uneven, Web + Warm/Cool/Spyce variants). Mapped in `lib/core/theme/feed_backgrounds.dart` (API codes B01–B08).
 
 ## Project layout
 
