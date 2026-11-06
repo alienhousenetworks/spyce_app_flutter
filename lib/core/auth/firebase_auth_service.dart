@@ -25,9 +25,13 @@ class FirebaseAuthService {
         options: DefaultFirebaseOptions.currentPlatform,
       );
     }
-    await GoogleSignIn.instance.initialize(
-      serverClientId: DefaultFirebaseOptions.webClientId,
-    );
+    try {
+      await GoogleSignIn.instance.initialize(
+        serverClientId: DefaultFirebaseOptions.webClientId,
+      );
+    } catch (e) {
+      debugPrint('[AUTH] GoogleSignIn.initialize: $e');
+    }
     _ready = true;
   }
 
@@ -135,20 +139,31 @@ class FirebaseAuthService {
   static Future<FirebaseSession?> signInWithGoogle() async {
     await ensureInitialized();
     try {
+      // Clear previous cached session so Credential Manager presents a clean account prompt
+      try {
+        await GoogleSignIn.instance.signOut();
+      } catch (_) {}
+
+      GoogleSignInAccount? account;
       if (GoogleSignIn.instance.supportsAuthenticate()) {
-        final account = await GoogleSignIn.instance.authenticate(
+        account = await GoogleSignIn.instance.authenticate(
           scopeHint: const ['email', 'profile'],
         );
-        return _exchangeGoogleAccount(account);
+      } else {
+        account = await GoogleSignIn.instance
+            .attemptLightweightAuthentication();
       }
-      final lightweight = await GoogleSignIn.instance
-          .attemptLightweightAuthentication();
-      if (lightweight == null) {
-        throw StateError('Google Sign-In is not available on this device.');
+      if (account == null) {
+        debugPrint('ℹ️ [FirebaseAuthService] Google Sign-In returned null account (user dismissed/unavailable).');
+        return null;
       }
-      return _exchangeGoogleAccount(lightweight);
+      return _exchangeGoogleAccount(account);
     } on GoogleSignInException catch (e) {
+      debugPrint('🔴 [FirebaseAuthService] GoogleSignInException: code=${e.code}, description=${e.description}');
       if (e.code == GoogleSignInExceptionCode.canceled) return null;
+      rethrow;
+    } catch (e, stack) {
+      debugPrint('🔴 [FirebaseAuthService] signInWithGoogle error: $e\n$stack');
       rethrow;
     }
   }
@@ -159,7 +174,8 @@ class FirebaseAuthService {
     final auth = account.authentication;
     final googleIdToken = auth.idToken;
     if (googleIdToken == null || googleIdToken.isEmpty) {
-      throw StateError('Google did not return an ID token.');
+      debugPrint('🔴 [FirebaseAuthService] Google did not return an ID token. Verify Web Client ID: ${DefaultFirebaseOptions.webClientId}');
+      throw StateError('Google did not return an ID token. Please check Google Sign-In configuration.');
     }
     // google_sign_in 7+ only exposes idToken on authentication; Firebase
     // accepts a Google credential with just the OpenID ID token.
