@@ -740,6 +740,12 @@ class CallController extends StateNotifier<CallUiState> {
           }
         case 'ice_restart_pending':
           debugPrint('[CALL][ICE] restart pending votes=${data['restart_votes']}');
+          if (!_isInitiator && _peerReady) {
+            _wsSend({
+              'action': 'ice_restart_request',
+              'call_id': state.callId,
+            });
+          }
         case 'signaling_rejected':
           debugPrint('[CALL] signaling rejected ${data['reason']}');
         case 'offer':
@@ -788,7 +794,28 @@ class CallController extends StateNotifier<CallUiState> {
         }
         final sdp = (payload['sdp'] ?? data['sdp'])?.toString();
         if (sdp == null || sdp.isEmpty) return;
-        debugPrint('[CALL] apply remote offer ice_restart=${data['ice_restart']}');
+        final isIceRestart = data['ice_restart'] == true ||
+            payload['ice_restart'] == true;
+        debugPrint('[CALL] apply remote offer ice_restart=$isIceRestart');
+
+        if (isIceRestart && !_turnEscalated) {
+          debugPrint('[CALL][ICE] ICE restart offer received — escalating callee to TURN');
+          _turnEscalated = true;
+          try {
+            final full = await _calls.getIceServers(stunOnly: false);
+            final servers = _normalizeIceServers(full.iceServers, stunOnly: false);
+            await _pc!.setConfiguration({
+              'iceServers': servers,
+              'iceTransportPolicy': 'all',
+              'sdpSemantics': 'unified-plan',
+              'bundlePolicy': 'max-bundle',
+              'rtcpMuxPolicy': 'require',
+            });
+          } catch (e) {
+            debugPrint('[CALL][ICE] Callee failed to apply TURN configuration: $e');
+          }
+        }
+
         await _pc!.setRemoteDescription(RTCSessionDescription(sdp, 'offer'));
         await _flushCandidates();
         final answer = await _pc!.createAnswer();
@@ -1044,19 +1071,14 @@ class CallController extends StateNotifier<CallUiState> {
   Future<void> _attachRemoteTrack(RTCTrackEvent e) async {
     try {
       e.track.enabled = true;
-      _remoteStream ??= await createLocalMediaStream('remote');
-      final exists =
-          _remoteStream!.getTracks().any((t) => t.id == e.track.id);
-      if (!exists) {
-        await _remoteStream!.addTrack(e.track);
-      }
       if (e.streams.isNotEmpty) {
-        for (final t in e.streams.first.getTracks()) {
-          final already =
-              _remoteStream!.getTracks().any((x) => x.id == t.id);
-          if (!already) {
-            await _remoteStream!.addTrack(t);
-          }
+        _remoteStream = e.streams.first;
+      } else {
+        _remoteStream ??= await createLocalMediaStream('remote');
+        final exists =
+            _remoteStream!.getTracks().any((t) => t.id == e.track.id);
+        if (!exists) {
+          await _remoteStream!.addTrack(e.track);
         }
       }
       remoteRenderer.srcObject = _remoteStream;
@@ -1125,6 +1147,11 @@ class CallController extends StateNotifier<CallUiState> {
       if (_isInitiator) {
         _iceRestartCount += 1;
         await _createOffer(iceRestart: true);
+      } else {
+        _wsSend({
+          'action': 'ice_restart_request',
+          'call_id': state.callId,
+        });
       }
       return;
     }
