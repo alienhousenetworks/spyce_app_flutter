@@ -16,7 +16,6 @@ import '../../data/models/user_models.dart';
 import '../../data/repositories/api_repositories.dart';
 import '../../shared/widgets/spyce_loaders.dart';
 import '../../shared/widgets/spyce_widgets.dart';
-import '../../shared/widgets/feed_vignette.dart';
 import '../auth/auth_controller.dart';
 import '../premium/subscription_paywall.dart';
 import 'widgets/feed_profile_card.dart';
@@ -1450,7 +1449,7 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                             );
                           },
                         ),
-                        Positioned.fill(child: FeedVignette(height: 130)),
+
                       ],
                     ),
             ),

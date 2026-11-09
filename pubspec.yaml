@@ -73,9 +73,9 @@ flutter:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: assets/images/spyce_icon_1024.png
+  image_path: assets/images/spyce_logo_new.png
   adaptive_icon_background: "#1A100A"
-  adaptive_icon_foreground: assets/images/spyce_icon_1024.png
+  adaptive_icon_foreground: assets/images/spyce_logo_new.png
   remove_alpha_ios: true
   min_sdk_android: 21
 

@@ -10,6 +10,7 @@ import '../../../core/utils/media_url.dart';
 import '../../../core/utils/presence_labels.dart';
 import '../../../data/models/user_models.dart';
 import '../../../shared/widgets/media_user_id_watermark.dart';
+import '../../../shared/widgets/feed_vignette.dart';
 import '../../../shared/widgets/spyce_widgets.dart';
 import '../../../shared/widgets/turn_on_stickers.dart';
 import '../../auth/auth_controller.dart';
@@ -87,40 +88,44 @@ class _FeedProfileCardState extends ConsumerState<FeedProfileCard> {
       child: FeedSvgBackground(
         assetPath: bgAsset,
         accent: accent,
-        child: Column(
+        child: Stack(
           children: [
-            Expanded(
-              child: PageView.builder(
-                controller: _pageCtrl,
-                itemCount: pages.length,
-                onPageChanged: (i) => setState(() => _page = i),
-                itemBuilder: (context, index) {
-                  return switch (pages[index]) {
-                    _FeedPage.hero =>
-                        _HeroPage(
+            // Vignette sits behind the card content (details, like button, dots)
+            Positioned.fill(child: FeedVignette(height: 130)),
+            Column(
+              children: [
+                Expanded(
+                  child: PageView.builder(
+                    controller: _pageCtrl,
+                    itemCount: pages.length,
+                    onPageChanged: (i) => setState(() => _page = i),
+                    itemBuilder: (context, index) {
+                      return switch (pages[index]) {
+                        _FeedPage.hero => _HeroPage(
                           profile: p,
                           liked: widget.liked,
                           onLike: widget.onLike,
                           onMessage: widget.onMessage,
                           viewerUsername: viewerUsername,
                         ),
-                    _FeedPage.photos =>
-                        _PhotosPage(
+                        _FeedPage.photos => _PhotosPage(
                           images: p.galleryImages,
                           selected: _photoIdx,
                           onSelect: (i) => setState(() => _photoIdx = i),
                           username: viewerUsername,
                           intent: p.intent,
                         ),
-                    _FeedPage.details => _DetailsPage(profile: p),
-                    _FeedPage.turnOns => _TurnOnsPage(profile: p),
-                  };
-                },
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 14, top: 4),
-              child: _PageDots(count: pages.length, index: _page),
+                        _FeedPage.details => _DetailsPage(profile: p),
+                        _FeedPage.turnOns => _TurnOnsPage(profile: p),
+                      };
+                    },
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 14, top: 4),
+                  child: _PageDots(count: pages.length, index: _page),
+                ),
+              ],
             ),
           ],
         ),
@@ -139,10 +144,7 @@ class _MoodChips extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final shown = moods.where((m) =>
-    m
-        .trim()
-        .isNotEmpty).take(3).toList();
+    final shown = moods.where((m) => m.trim().isNotEmpty).take(3).toList();
     if (shown.isEmpty) return const SizedBox.shrink();
 
     return Column(
@@ -352,17 +354,16 @@ class _HeroPage extends StatelessWidget {
                                     width: photoW,
                                     height: h,
                                     memCacheWidth:
-                                    (photoW *
-                                        MediaQuery.devicePixelRatioOf(
-                                          context,
-                                        ))
-                                        .round()
-                                        .clamp(200, 1600),
+                                        (photoW *
+                                                MediaQuery.devicePixelRatioOf(
+                                                  context,
+                                                ))
+                                            .round()
+                                            .clamp(200, 1600),
                                     fadeInDuration: const Duration(
                                       milliseconds: 150,
                                     ),
-                                    placeholder: (_, _) =>
-                                    const Center(
+                                    placeholder: (_, _) => const Center(
                                       child: SizedBox(
                                         width: 28,
                                         height: 28,
@@ -423,7 +424,7 @@ class _HeroPage extends StatelessWidget {
                               const SizedBox(width: 4),
                               Flexible(
                                 child: Text(
-                                      () {
+                                  () {
                                     final dist = generalizedDistanceLabel(
                                       p.distanceKm,
                                     );
@@ -630,11 +631,11 @@ class _PresenceStatusChip extends StatelessWidget {
                   : SpyceColors.white.withValues(alpha: 0.45),
               boxShadow: online
                   ? [
-                BoxShadow(
-                  color: SpyceColors.online.withValues(alpha: 0.55),
-                  blurRadius: 6,
-                ),
-              ]
+                      BoxShadow(
+                        color: SpyceColors.online.withValues(alpha: 0.55),
+                        blurRadius: 6,
+                      ),
+                    ]
                   : null,
             ),
           ),
@@ -781,33 +782,10 @@ class _PhotosPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final current = images[selected.clamp(0, images.length - 1)];
-    final intentLabel = intent?.trim();
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
       child: Column(
         children: [
-          if (intentLabel != null && intentLabel.isNotEmpty) ...[
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Intent',
-                    style: GoogleFonts.dmSans(
-                      color: SpyceColors.white.withValues(alpha: 0.7),
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0.4,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  _IntentChip(intent: intentLabel, onDark: true),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-          ],
           Expanded(
             child: Container(
               width: double.infinity,
@@ -825,15 +803,15 @@ class _PhotosPage extends StatelessWidget {
               child: MediaUserIdWatermark(
                 username: username,
                 child: CachedNetworkImage(
-                  imageUrl: resolveMediaUrl(current.imageUrl) ??
-                      current.imageUrl,
+                  imageUrl:
+                      resolveMediaUrl(current.imageUrl) ?? current.imageUrl,
                   fit: BoxFit.cover,
                   width: double.infinity,
                   height: double.infinity,
                   placeholder: (_, _) =>
-                  const ColoredBox(color: SpyceColors.dark700),
+                      const ColoredBox(color: SpyceColors.dark700),
                   errorWidget: (_, _, _) =>
-                  const ColoredBox(color: SpyceColors.dark600),
+                      const ColoredBox(color: SpyceColors.dark600),
                 ),
               ),
             ),
@@ -863,12 +841,13 @@ class _PhotosPage extends StatelessWidget {
                     // Thumbnails: no watermark (keep overlays only on main media)
                     child: CachedNetworkImage(
                       imageUrl:
-                      resolveMediaUrl(images[i].imageUrl) ?? images[i].imageUrl,
+                          resolveMediaUrl(images[i].imageUrl) ??
+                          images[i].imageUrl,
                       fit: BoxFit.cover,
                       width: 72,
                       height: 72,
                       errorWidget: (_, _, _) =>
-                      const ColoredBox(color: SpyceColors.dark600),
+                          const ColoredBox(color: SpyceColors.dark600),
                     ),
                   ),
                 );
@@ -905,6 +884,28 @@ class _DetailsPage extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 28, 20, 16),
       children: [
+        if (p.intent != null && p.intent!.trim().isNotEmpty) ...[
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Intent',
+                  style: GoogleFonts.dmSans(
+                    color: SpyceColors.white.withValues(alpha: 0.7),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.4,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                _IntentChip(intent: p.intent!.trim(), onDark: true),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
         _CreamCard(
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -914,28 +915,14 @@ class _DetailsPage extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '${p.gender ?? 'Someone'}${p.pronouns != null ? ' (${p
-                          .pronouns})' : ''}',
+                      '${p.gender ?? 'Someone'}${p.pronouns != null ? ' (${p.pronouns})' : ''}',
                       style: GoogleFonts.dmSans(
                         fontWeight: FontWeight.w700,
                         fontSize: 16,
                         color: SpyceColors.dark900,
                       ),
                     ),
-                    if (p.intent != null && p.intent!.trim().isNotEmpty) ...[
-                      const SizedBox(height: 10),
-                      Text(
-                        'Intent',
-                        style: GoogleFonts.dmSans(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 11,
-                          color: SpyceColors.dark300,
-                          letterSpacing: 0.3,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      _IntentChip(intent: p.intent!, onDark: false),
-                    ],
+
                     if (p.height != null) ...[
                       const SizedBox(height: 6),
                       Text(
@@ -977,12 +964,7 @@ class _DetailsPage extends StatelessWidget {
             ],
           ),
         ),
-        if (p.moods
-            .where((m) =>
-        m
-            .trim()
-            .isNotEmpty)
-            .isNotEmpty) ...[
+        if (p.moods.where((m) => m.trim().isNotEmpty).isNotEmpty) ...[
           const SizedBox(height: 12),
           _CreamCard(
             child: Column(
@@ -1002,9 +984,7 @@ class _DetailsPage extends StatelessWidget {
                   runSpacing: 8,
                   children: [
                     for (final mood in p.moods.take(3))
-                      if (mood
-                          .trim()
-                          .isNotEmpty)
+                      if (mood.trim().isNotEmpty)
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 10,
@@ -1116,8 +1096,7 @@ class _DetailsPage extends StatelessWidget {
                   runSpacing: 8,
                   children: p.languages
                       .map(
-                        (lang) =>
-                        Container(
+                        (lang) => Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 12,
                             vertical: 7,
@@ -1135,7 +1114,7 @@ class _DetailsPage extends StatelessWidget {
                             ),
                           ),
                         ),
-                  )
+                      )
                       .toList(),
                 ),
               ],
@@ -1162,8 +1141,7 @@ class _DetailsPage extends StatelessWidget {
                   runSpacing: 8,
                   children: p.interests
                       .map(
-                        (i) =>
-                        Container(
+                        (i) => Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 12,
                             vertical: 7,
@@ -1181,7 +1159,7 @@ class _DetailsPage extends StatelessWidget {
                             ),
                           ),
                         ),
-                  )
+                      )
                       .toList(),
                 ),
               ],
@@ -1234,21 +1212,20 @@ class _TurnOnsPage extends StatelessWidget {
                     color: SpyceColors.dark500,
                   ),
                 ),
-              ] else
-                ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    stickerItems.take(3).map((t) => t.name).join(' · '),
-                    style: GoogleFonts.dmSans(
-                      fontSize: 14,
-                      fontStyle: FontStyle.italic,
-                      color: SpyceColors.dark700,
-                      height: 1.4,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+              ] else ...[
+                const SizedBox(height: 8),
+                Text(
+                  stickerItems.take(3).map((t) => t.name).join(' · '),
+                  style: GoogleFonts.dmSans(
+                    fontSize: 14,
+                    fontStyle: FontStyle.italic,
+                    color: SpyceColors.dark700,
+                    height: 1.4,
                   ),
-                ],
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
             ],
           ),
         ),
