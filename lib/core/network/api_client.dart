@@ -62,6 +62,8 @@ class ApiClient {
     _dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
+          final deviceId = await _tokenStorage.getOrCreateDeviceId();
+          options.headers['X-Device-ID'] = deviceId;
           if (!_isAnonymousPath(options.path)) {
             final token = await _validAccessToken();
             if (token != null) {
