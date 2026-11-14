@@ -59,6 +59,7 @@ class _EmailStepState extends State<EmailStep> {
   String? _captchaToken;
   int _turnstileReset = 0;
   String? _localError;
+  bool _googleBusy = false;
 
   @override
   void initState() {
@@ -110,6 +111,15 @@ class _EmailStepState extends State<EmailStep> {
       _captchaToken = null;
       _turnstileReset++;
     });
+  }
+
+  Future<void> _handleGoogle() async {
+    setState(() => _googleBusy = true);
+    try {
+      await widget.onGoogle();
+    } finally {
+      if (mounted) setState(() => _googleBusy = false);
+    }
   }
 
   @override
@@ -349,15 +359,18 @@ class _EmailStepState extends State<EmailStep> {
             children: [
               OnboardingPrimaryButton(
                 label: isOtp ? 'Get OTP' : (isSignUp ? 'Sign up' : 'Sign in'),
-                loading: widget.loading,
-                onPressed: _emailCtrl.text.trim().isNotEmpty ? _submit : null,
+                loading: widget.loading && !_googleBusy,
+                onPressed:
+                    (_emailCtrl.text.trim().isNotEmpty && !widget.loading)
+                    ? _submit
+                    : null,
               ),
               const SizedBox(height: 12),
               const AuthDivider(label: 'or'),
               const SizedBox(height: 12),
               GoogleSignInButton(
-                loading: widget.loading,
-                onPressed: widget.loading ? null : () => widget.onGoogle(),
+                loading: widget.loading && _googleBusy,
+                onPressed: widget.loading ? null : _handleGoogle,
               ),
               TextButton(
                 onPressed: widget.loading ? null : widget.onSwitchMode,
